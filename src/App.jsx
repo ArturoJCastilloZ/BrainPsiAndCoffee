@@ -2,23 +2,31 @@ import React from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { C } from './theme';
 import { useStorage } from './hooks/useStorage';
+import { useSupabaseCrud } from './hooks/useSupabaseCrud';
 import UserApp from './user/UserApp';
 import AdminApp from './admin/AdminApp';
+import DoctorApp from './doctor/DoctorApp';
 import Login from './components/Login';
-import { MENU, OFFERS, THERAPISTS, THERAPY_SERVICES } from './data';
+import SetPassword from './components/SetPassword';
+import GlobalLoader from './components/GlobalLoader';
 import { authService } from './auth/authService';
 import { useAuthSession, useInactivityTracking, useSessionWarning } from './auth/useAuth';
 import SessionExpiryModal from './components/SessionExpiryModal';
 
 export default function App() {
-  const [bookings, setBookings] = useStorage('brainpsi:bookings', []);
-  const [orders, setOrders] = useStorage('brainpsi:orders', []);
   const [theme, setTheme] = useStorage('brainpsi:theme', 'light');
-  const [services, setServices] = useStorage('brainpsi:services', THERAPY_SERVICES);
-  const [therapists, setTherapists] = useStorage('brainpsi:therapists', THERAPISTS);
-  const [menu, setMenu] = useStorage('brainpsi:menu', MENU);
-  const [offers, setOffers] = useStorage('brainpsi:offers', OFFERS);
   const session = useAuthSession();
+  const {
+    bookings,
+    setBookings,
+    orders,
+    setOrders,
+    catalogs,
+    catalogActions,
+    loading: dataLoading,
+    error: dataError,
+    seedCatalogs,
+  } = useSupabaseCrud(session);
   const showSessionWarning = useSessionWarning();
   const navigate = useNavigate();
 
@@ -30,9 +38,6 @@ export default function App() {
     navigate('/');
   };
   useInactivityTracking(Boolean(session));
-
-  const catalogs = { services, therapists, menu, offers };
-  const catalogActions = { setServices, setTherapists, setMenu, setOffers };
 
   return (
     <div data-theme={theme} style={{
@@ -84,21 +89,45 @@ export default function App() {
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes brandLoaderSpin { from { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.06); } to { transform: rotate(360deg) scale(1); } }
         .animate-fade-up { animation: fadeUp 0.5s ease-out forwards; }
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
         .animate-slide-in { animation: slideIn 0.3s ease-out forwards; }
         .animate-pulse-slow { animation: pulse 2s ease-in-out infinite; }
         .grain { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E"); }
+        .brand-loader-spin { animation: brandLoaderSpin 1.1s ease-in-out infinite; transform-origin: center; }
         [data-theme="dark"] { color-scheme: dark; }
         [data-theme="dark"] button { color-scheme: dark; }
       `}</style>
 
+      {dataError && (
+        <div style={{
+          position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 200,
+          background: C.rust, color: 'white', borderRadius: 999, padding: '8px 14px',
+          fontSize: 12, fontWeight: 700, boxShadow: '0 10px 30px rgba(0,0,0,0.18)'
+        }}>
+          Error conectando con Supabase: {dataError.message}
+        </div>
+      )}
+
       <Routes>
-        <Route path="/" element={<UserApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} />} />
-        <Route path="/login" element={<Login onLogin={() => navigate('/admin', { replace: true })} onCancel={goUser} theme={theme} toggleTheme={toggleTheme} />} />
+        <Route path="/" element={<UserApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
+        <Route path="/login" element={<Login onLogin={(nextSession) => navigate(nextSession?.user.role === 'doctor' ? '/doctor' : '/admin', { replace: true })} onCancel={goUser} theme={theme} toggleTheme={toggleTheme} />} />
+        <Route path="/set-password" element={<SetPassword session={session} onComplete={() => navigate(session?.user.role === 'doctor' ? '/doctor' : '/admin', { replace: true })} theme={theme} toggleTheme={toggleTheme} />} />
         <Route path="/admin" element={
-          session ? (
-            <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} />
+          session?.user.role === 'admin' ? (
+            <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} dataLoading={dataLoading} seedCatalogs={seedCatalogs} />
+          ) : session?.user.role === 'doctor' ? (
+            <Navigate to="/doctor" replace />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } />
+        <Route path="/doctor" element={
+          session?.user.role === 'doctor' ? (
+            <DoctorApp bookings={bookings} setBookings={setBookings} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} />
+          ) : session?.user.role === 'admin' ? (
+            <Navigate to="/admin" replace />
           ) : (
             <Navigate to="/login" replace />
           )
@@ -106,6 +135,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <SessionExpiryModal visible={Boolean(session && showSessionWarning)} />
+      <GlobalLoader />
     </div>
   );
 }

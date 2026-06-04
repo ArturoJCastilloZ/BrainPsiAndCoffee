@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Brain, Coffee, Gift, Plus, Trash2, Users, X } from 'lucide-react';
+import { Brain, Coffee, Gift, Heart, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { C } from '../theme';
 import { uid } from '../utils.jsx';
+import { SPECIALTIES } from '../data';
 
 const PRODUCT_TABS = [
   { id: 'hot', label: 'Calientes' },
@@ -11,9 +12,27 @@ const PRODUCT_TABS = [
 ];
 
 const emptyService = { name: '', desc: '', duration: 50, price: 600, icon: 'heart', for: 'Adultos', active: true };
-const emptyTherapist = { name: '', cedula: '', specialty: '', services: [], color: C.sageDark, active: true };
+const emptyTherapist = { name: '', email: '', cedula: '', specialty: '', sessionDuration: 50, services: [], color: C.sageDark, active: true };
+const emptySpecialty = { name: '', active: true };
 const emptyProduct = { name: '', sub: '', price: 45, active: true };
 const emptyOffer = { name: '', desc: '', price: 99, active: true };
+const THERAPIST_COLORS = [
+  { label: 'Verde', value: C.sageDark },
+  { label: 'Caramelo', value: C.caramel },
+  { label: 'Terracota', value: C.rust },
+  { label: 'Cafe', value: C.brownMid },
+  { label: 'Verde claro', value: C.sageLight },
+];
+const selectedPill = {
+  background: '#E8D9C5',
+  color: '#1E1B18',
+  border: '#E8D9C5',
+};
+const SERVICE_ICONS = [
+  { id: 'heart', label: 'Corazon', icon: Heart },
+  { id: 'brain', label: 'Cerebro', icon: Brain },
+  { id: 'sparkles', label: 'Destellos', icon: Sparkles },
+];
 
 export default function AdminCatalog({ catalogs, catalogActions }) {
   const [tab, setTab] = useState('products');
@@ -21,6 +40,7 @@ export default function AdminCatalog({ catalogs, catalogActions }) {
     { id: 'products', label: 'Productos', icon: Coffee },
     { id: 'services', label: 'Servicios', icon: Brain },
     { id: 'therapists', label: 'Doctores', icon: Users },
+    { id: 'specialties', label: 'Especialidades', icon: Sparkles },
     { id: 'offers', label: 'Ofertas', icon: Gift },
   ];
 
@@ -33,7 +53,7 @@ export default function AdminCatalog({ catalogs, catalogActions }) {
         {tabs.map(item => (
           <button key={item.id} onClick={() => setTab(item.id)} style={{
             display: 'flex', alignItems: 'center', gap: 8, border: '1px solid ' + (tab === item.id ? C.sageDark : 'var(--admin-border)'),
-            background: tab === item.id ? C.sageDark : 'var(--admin-surface)', color: tab === item.id ? 'var(--admin-on-accent)' : 'var(--admin-row-text)',
+            background: tab === item.id ? selectedPill.background : 'var(--admin-surface)', color: tab === item.id ? selectedPill.color : 'var(--admin-row-text)',
             padding: '9px 14px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700
           }}>
             <item.icon size={14} /> {item.label}
@@ -43,7 +63,8 @@ export default function AdminCatalog({ catalogs, catalogActions }) {
 
       {tab === 'products' && <ProductsManager menu={catalogs.menu} setMenu={catalogActions.setMenu} />}
       {tab === 'services' && <ListManager title="Servicios" items={catalogs.services} setItems={catalogActions.setServices} emptyItem={emptyService} renderForm={ServiceForm} summary={(item) => `${item.duration} min · $${item.price} · ${item.for}`} />}
-      {tab === 'therapists' && <ListManager title="Doctores" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · Céd. ${item.cedula || 'pendiente'}`} />}
+      {tab === 'therapists' && <ListManager title="Doctores" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || SPECIALTIES} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}`} />}
+      {tab === 'specialties' && <ListManager title="Especialidades" items={catalogs.specialties || SPECIALTIES} setItems={catalogActions.setSpecialties} emptyItem={emptySpecialty} renderForm={SpecialtyForm} summary={(item) => item.active === false ? 'Inactiva' : 'Activa'} />}
       {tab === 'offers' && <ListManager title="Ofertas" items={catalogs.offers} setItems={catalogActions.setOffers} emptyItem={emptyOffer} renderForm={OfferForm} summary={(item) => `$${item.price} · ${item.desc}`} />}
     </div>
   );
@@ -61,7 +82,7 @@ function ProductsManager({ menu, setMenu }) {
           <button key={item.id} onClick={() => setCategory(item.id)} style={{
             border: '1px solid ' + (category === item.id ? C.caramel : 'var(--admin-border)'),
             background: category === item.id ? C.caramel : 'var(--admin-surface-soft)',
-            color: category === item.id ? C.brown : 'var(--admin-row-text)',
+            color: category === item.id ? selectedPill.color : 'var(--admin-row-text)',
             padding: '7px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit'
           }}>{item.label}</button>
         ))}
@@ -93,7 +114,8 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
   };
 
   const save = () => {
-    const clean = { ...draft, price: Number(draft.price || 0), duration: draft.duration ? Number(draft.duration) : draft.duration };
+    if (!isDraftValid(draft)) return;
+    const clean = { ...draft, price: Number(draft.price || 0), duration: draft.duration ? Number(draft.duration) : draft.duration, sessionDuration: draft.sessionDuration ? Number(draft.sessionDuration) : draft.sessionDuration };
     if (editing === 'new') setItems([...items, clean]);
     else setItems(items.map(item => item.id === clean.id ? clean : item));
     setEditing(null);
@@ -101,12 +123,13 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
 
   const remove = (id) => setItems(items.filter(item => item.id !== id));
   const toggleActive = (item) => setItems(items.map(row => row.id === item.id ? { ...row, active: row.active === false } : row));
+  const canSave = isDraftValid(draft);
 
   return (
     <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <h2 style={{ margin: 0, color: 'var(--admin-text)', fontSize: 15 }}>{title}</h2>
-        <button onClick={startNew} style={{ background: C.sageDark, color: 'var(--admin-on-accent)', border: 'none', borderRadius: 999, padding: '8px 13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>
+        <button onClick={startNew} style={{ background: selectedPill.background, color: selectedPill.color, border: 'none', borderRadius: 999, padding: '8px 13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>
           <Plus size={14} /> Nuevo
         </button>
       </div>
@@ -116,7 +139,7 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
           <Form draft={draft} setDraft={setDraft} />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
             <button onClick={() => setEditing(null)} style={adminButton('ghost')}><X size={14} /> Cancelar</button>
-            <button onClick={save} style={adminButton('primary')}>Guardar</button>
+            <button onClick={save} disabled={!canSave} style={{ ...adminButton('primary'), opacity: canSave ? 1 : 0.45, cursor: canSave ? 'pointer' : 'not-allowed' }}>Guardar</button>
           </div>
         </div>
       )}
@@ -140,42 +163,151 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder }) {
+function Field({ label, value, onChange, type = 'text', placeholder, required = false, min, className = '' }) {
+  const missing = required && String(value || '').trim().length === 0;
   return (
-    <label style={{ display: 'grid', gap: 6 }}>
+    <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
       <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>{label}</span>
-      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} placeholder={placeholder} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' }} />
+      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} placeholder={placeholder} required={required} min={min} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', borderColor: missing ? C.rust : undefined }} />
+      {missing && <span style={requiredHint}>Campo requerido</span>}
     </label>
   );
 }
 
 function ProductForm({ draft, setDraft }) {
   return <FormGrid>
-    <Field label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} />
+    <Field label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
     <Field label="DESCRIPCIÓN" value={draft.sub} onChange={sub => setDraft({ ...draft, sub })} />
-    <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} />
+    <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
   </FormGrid>;
 }
 
 function ServiceForm({ draft, setDraft }) {
-  return <FormGrid>
-    <Field label="SERVICIO" value={draft.name} onChange={name => setDraft({ ...draft, name })} />
-    <Field label="DIRIGIDO A" value={draft.for} onChange={value => setDraft({ ...draft, for: value })} />
-    <Field label="DURACIÓN" type="number" value={draft.duration} onChange={duration => setDraft({ ...draft, duration })} />
-    <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} />
-    <Field label="ICONO" value={draft.icon} onChange={icon => setDraft({ ...draft, icon })} placeholder="heart, brain o sparkles" />
-    <Field label="DESCRIPCIÓN" value={draft.desc} onChange={desc => setDraft({ ...draft, desc })} />
-  </FormGrid>;
+  return <>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 2fr) minmax(160px, 1fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr)', gap: '14px 12px', alignItems: 'end' }}>
+      <Field label="SERVICIO" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+      <Field label="DIRIGIDO A" value={draft.for} onChange={value => setDraft({ ...draft, for: value })} required />
+      <Field label="DURACIÓN" type="number" value={draft.duration} onChange={duration => setDraft({ ...draft, duration })} required min={1} />
+      <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
+      <label style={{ display: 'grid', gap: 6, gridColumn: 'span 2' }}>
+        <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>DESCRIPCIÓN</span>
+        <input value={draft.desc || ''} onChange={e => setDraft({ ...draft, desc: e.target.value })} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' }} />
+      </label>
+      <div style={{ display: 'grid', gap: 8, gridColumn: 'span 2' }}>
+        <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>ICONO</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {SERVICE_ICONS.map(item => {
+            const Icon = item.icon;
+            const selected = (draft.icon || 'heart') === item.id;
+            return (
+              <button key={item.id} type="button" onClick={() => setDraft({ ...draft, icon: item.id })} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+              border: `1px solid ${selected ? selectedPill.border : 'var(--admin-border)'}`,
+              background: selected ? selectedPill.background : 'var(--admin-surface)',
+              color: selected ? selectedPill.color : 'var(--admin-row-text)',
+                borderRadius: 999,
+                padding: '8px 11px',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: 'inherit'
+              }}>
+                <Icon size={14} /> {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  </>;
 }
 
-function TherapistForm({ draft, setDraft, services }) {
+function SelectField({ label, value, onChange, children, required = false, className = '' }) {
+  const missing = required && String(value || '').trim().length === 0;
+  return (
+    <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
+      <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>{label}</span>
+      <select value={value || ''} onChange={e => onChange(e.target.value)} required={required} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', borderColor: missing ? C.rust : undefined }}>
+        {children}
+      </select>
+      {missing && <span style={requiredHint}>Campo requerido</span>}
+    </label>
+  );
+}
+
+function TherapistForm({ draft, setDraft, services, specialties }) {
+  const activeSpecialties = (specialties || SPECIALTIES).filter(item => item.active !== false);
+
   return <>
-    <FormGrid>
-      <Field label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} />
-      <Field label="CÉDULA" value={draft.cedula} onChange={cedula => setDraft({ ...draft, cedula })} />
-      <Field label="ESPECIALIDAD" value={draft.specialty} onChange={specialty => setDraft({ ...draft, specialty })} />
-      <Field label="COLOR" value={draft.color} onChange={color => setDraft({ ...draft, color })} />
-    </FormGrid>
+    <style>{`
+      .therapist-form-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 14px 12px;
+        align-items: start;
+      }
+      .therapist-form-name,
+      .therapist-form-email,
+      .therapist-form-cedula,
+      .therapist-form-duration {
+        grid-column: span 2;
+      }
+      .therapist-form-specialty {
+        grid-column: span 4;
+      }
+      @media (max-width: 900px) {
+        .therapist-form-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .therapist-form-grid > * {
+          grid-column: span 1;
+        }
+      }
+      @media (max-width: 620px) {
+        .therapist-form-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    `}</style>
+    <div className="therapist-form-grid">
+      <Field className="therapist-form-name" label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+      <Field className="therapist-form-email" label="CORREO DE ACCESO" type="email" value={draft.email} onChange={email => setDraft({ ...draft, email })} required />
+      <Field className="therapist-form-cedula" label="CÉDULA" value={draft.cedula} onChange={cedula => setDraft({ ...draft, cedula })} required />
+      <SelectField className="therapist-form-specialty" label="ESPECIALIDAD" value={draft.specialty || ''} onChange={specialty => setDraft({ ...draft, specialty })} required>
+        <option value="">Selecciona especialidad</option>
+        {activeSpecialties.map(specialty => <option key={specialty.id} value={specialty.name}>{specialty.name}</option>)}
+      </SelectField>
+      <Field className="therapist-form-duration" label="DURACIÓN SESIÓN (MIN)" type="number" value={draft.sessionDuration || 50} onChange={sessionDuration => setDraft({ ...draft, sessionDuration })} required min={1} />
+    </div>
+    <div style={{ marginTop: 12 }}>
+      <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>COLOR</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {THERAPIST_COLORS.map(color => {
+          const selected = (draft.color || C.sageDark) === color.value;
+          return (
+            <button key={color.value} type="button" onClick={() => setDraft({ ...draft, color: color.value })} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              border: `1px solid ${selected ? selectedPill.border : 'var(--admin-border)'}`,
+              background: selected ? selectedPill.background : 'var(--admin-surface-soft)',
+              color: selected ? selectedPill.color : 'var(--admin-row-text)',
+              borderRadius: 999,
+              padding: '7px 10px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: 11,
+              fontWeight: 700
+            }}>
+              <span style={{ width: 14, height: 14, borderRadius: '50%', background: color.value, border: '1px solid var(--admin-border)', display: 'inline-block' }} />
+              {color.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
     <div style={{ marginTop: 12 }}>
       <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>SERVICIOS HABILITADOS</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -183,9 +315,9 @@ function TherapistForm({ draft, setDraft, services }) {
           const checked = draft.services?.includes(service.id);
           return (
             <button key={service.id} onClick={() => setDraft({ ...draft, services: checked ? draft.services.filter(id => id !== service.id) : [...(draft.services || []), service.id] })} style={{
-              border: `1px solid ${checked ? C.sageDark : 'var(--admin-border)'}`,
-              background: checked ? C.sageDark : 'var(--admin-surface)',
-              color: checked ? 'var(--admin-on-accent)' : 'var(--admin-row-text)',
+              border: `1px solid ${checked ? selectedPill.border : 'var(--admin-border)'}`,
+              background: checked ? selectedPill.background : 'var(--admin-surface)',
+              color: checked ? selectedPill.color : 'var(--admin-row-text)',
               borderRadius: 999,
               padding: '6px 10px',
               cursor: 'pointer',
@@ -195,14 +327,21 @@ function TherapistForm({ draft, setDraft, services }) {
           );
         })}
       </div>
+      {!(draft.services || []).length && <span style={{ ...requiredHint, display: 'block', marginTop: 6 }}>Campo requerido</span>}
     </div>
   </>;
 }
 
+function SpecialtyForm({ draft, setDraft }) {
+  return <FormGrid>
+    <Field label="ESPECIALIDAD" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+  </FormGrid>;
+}
+
 function OfferForm({ draft, setDraft }) {
   return <FormGrid>
-    <Field label="OFERTA" value={draft.name} onChange={name => setDraft({ ...draft, name })} />
-    <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} />
+    <Field label="OFERTA" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+    <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
     <Field label="DESCRIPCIÓN" value={draft.desc} onChange={desc => setDraft({ ...draft, desc })} />
   </FormGrid>;
 }
@@ -216,9 +355,9 @@ function adminButton(kind) {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    background: kind === 'primary' ? C.sageDark : 'transparent',
-    color: kind === 'primary' ? 'var(--admin-on-accent)' : 'var(--admin-accent-text)',
-    border: '1px solid ' + (kind === 'primary' ? C.sageDark : 'var(--admin-border)'),
+    background: kind === 'primary' ? selectedPill.background : 'transparent',
+    color: kind === 'primary' ? selectedPill.color : 'var(--admin-accent-text)',
+    border: '1px solid ' + (kind === 'primary' ? selectedPill.border : 'var(--admin-border)'),
     padding: '7px 10px',
     borderRadius: 9,
     cursor: 'pointer',
@@ -226,4 +365,35 @@ function adminButton(kind) {
     fontSize: 11,
     fontWeight: 700
   };
+}
+
+const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 };
+
+function isDraftValid(draft) {
+  const hasText = (value) => String(value || '').trim().length > 0;
+  const hasNumber = (value, min = 0) => String(value ?? '').trim().length > 0 && Number(value) >= min;
+
+  if ('sessionDuration' in draft) {
+    return hasText(draft.name) &&
+      hasText(draft.email) &&
+      hasText(draft.cedula) &&
+      hasText(draft.specialty) &&
+      hasNumber(draft.sessionDuration, 1) &&
+      hasText(draft.color) &&
+      (draft.services || []).length > 0;
+  }
+
+  if ('duration' in draft && 'for' in draft) {
+    return hasText(draft.name) &&
+      hasText(draft.for) &&
+      hasText(draft.icon) &&
+      hasNumber(draft.duration, 1) &&
+      hasNumber(draft.price, 0);
+  }
+
+  if ('price' in draft) {
+    return hasText(draft.name) && hasNumber(draft.price, 0);
+  }
+
+  return hasText(draft.name);
 }

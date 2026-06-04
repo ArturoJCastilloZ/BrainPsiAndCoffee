@@ -23,6 +23,7 @@ export default function UserApp({ bookings, setBookings, orders, setOrders, them
   const [cart, setCart] = useState([]);
   const [linkedBookingId, setLinkedBookingId] = useState(null);
   const [toast, setToast] = useState(null);
+  const onLightAccent = '#1E1B18';
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -110,7 +111,7 @@ export default function UserApp({ bookings, setBookings, orders, setOrders, them
         <div className="animate-slide-in" style={{
           position: 'fixed', top: 80, right: 20, zIndex: 100,
           background: toast.type === 'success' ? C.sageDark : C.rust,
-          color: 'white', padding: '12px 18px', borderRadius: 12,
+          color: toast.type === 'success' ? onLightAccent : 'white', padding: '12px 18px', borderRadius: 12,
           display: 'flex', alignItems: 'center', gap: 10,
           boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
           maxWidth: 'calc(100vw - 40px)'

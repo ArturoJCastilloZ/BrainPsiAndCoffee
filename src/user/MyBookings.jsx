@@ -61,6 +61,7 @@ function BookingCard({ booking, onCancel, active, services = THERAPY_SERVICES, t
   const service = services.find(s => s.id === booking.serviceId);
   const therapist = therapists.find(t => t.id === booking.therapistId);
   const isPast = new Date(booking.date + 'T' + booking.time) < new Date();
+  const onLightAccent = '#1E1B18';
 
   return (
     <div style={{
@@ -76,7 +77,7 @@ function BookingCard({ booking, onCancel, active, services = THERAPY_SERVICES, t
         <span style={{
           fontSize: 10, padding: '3px 10px', borderRadius: 999, fontWeight: 700,
           background: booking.status === 'cancelled' ? C.rustAlpha20 : (isPast ? C.sagePale : C.sageDark),
-          color: booking.status === 'cancelled' ? C.rust : (isPast ? C.sageDeep : C.cream)
+          color: booking.status === 'cancelled' ? C.rust : (isPast ? C.sageDeep : onLightAccent)
         }}>{booking.status === 'cancelled' ? 'CANCELADA' : (isPast ? 'COMPLETADA' : 'CONFIRMADA')}</span>
       </div>
 

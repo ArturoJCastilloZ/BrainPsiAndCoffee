@@ -14,6 +14,7 @@ import { formatMXN, fullDayLabel, uid } from '../utils.jsx';
 
 export default function CartPage({ cart, setCart, orders, setOrders, setPage, linkedBookingId, setLinkedBookingId, bookings, showToast }) {
   const linkedBooking = bookings.find(b => b.id === linkedBookingId);
+  const onLightAccent = '#1E1B18';
 
   // Calculate combo
   const hasCoffee = cart.some(i => i.id?.startsWith('h') || i.id?.startsWith('c'));
@@ -122,8 +123,8 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
       </div>
 
       {!comboApplied && (hasCoffee || hasDessert) && (
-        <div style={{ background: C.caramelLight, border: `1px dashed ${C.caramel}`, borderRadius: 12, padding: 12, marginBottom: 16, fontSize: 12, color: C.brown, display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Sparkles size={16} color={C.brown} />
+        <div style={{ background: C.caramelLight, border: `1px dashed ${C.caramel}`, borderRadius: 12, padding: 12, marginBottom: 16, fontSize: 12, color: onLightAccent, display: 'flex', gap: 10, alignItems: 'center' }}>
+          <Sparkles size={16} color={onLightAccent} />
           <div>
             <strong>¡Estás cerca del combo $99!</strong> Agrega un {hasCoffee ? 'postre' : 'café'} y aprovecha la promoción.
           </div>

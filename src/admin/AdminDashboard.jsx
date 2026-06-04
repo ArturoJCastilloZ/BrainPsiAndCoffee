@@ -26,10 +26,10 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
   const pendingOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
 
   const stats = [
-    { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, change: '+12%' },
-    { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, change: pendingOrders.length > 0 ? 'Atender' : 'Al día' },
-    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.rust, change: '+5' },
-    { label: 'Ingresos estimados', value: `$${totalRevenue.toLocaleString('es-MX')}`, icon: DollarSign, color: C.sageLight, change: 'MXN' },
+    { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, change: '+12%', page: 'appointments' },
+    { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, change: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'orders' },
+    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.rust, change: '+5', page: 'appointments' },
+    { label: 'Ingresos estimados', value: `$${totalRevenue.toLocaleString('es-MX')}`, icon: DollarSign, color: C.sageLight, change: 'MXN', page: 'orders' },
   ];
 
   return (
@@ -42,7 +42,20 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
         {stats.map(s => (
-          <div key={s.label} className="admin-card" style={{ borderRadius: 14, padding: 18 }}>
+          <button key={s.label} onClick={() => setPage(s.page)} className="admin-card" style={{
+            borderRadius: 14,
+            padding: 18,
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontFamily: 'inherit',
+            transition: 'transform 0.18s ease, border-color 0.18s ease'
+          }} onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.borderColor = s.color;
+          }} onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.borderColor = 'var(--admin-border)';
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: s.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <s.icon size={18} color={s.color} strokeWidth={1.6} />
@@ -51,7 +64,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
             </div>
             <div className="font-display" style={{ fontSize: 28, fontWeight: 600, color: 'var(--admin-text)', lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
             <div style={{ fontSize: 11, color: 'var(--admin-muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{s.label}</div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -116,32 +129,6 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
         </div>
       </div>
 
-      {/* Automation panel */}
-      <div className="admin-card" style={{ borderRadius: 16, padding: 22, marginTop: 16 }}>
-        <h2 style={{ fontSize: 14, color: 'var(--admin-text)', margin: '0 0 14px', fontWeight: 600, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Zap size={14} color={C.caramel} /> AUTOMATIZACIONES ACTIVAS
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-          {[
-            { label: 'Recordatorio 24h antes', desc: 'WhatsApp + correo', on: true },
-            { label: 'Recordatorio 1h antes', desc: 'WhatsApp', on: true },
-            { label: 'Confirmación al reservar', desc: 'Correo con calendario', on: true },
-            { label: 'Sugerencia de café post-sesión', desc: 'Notificación in-app', on: true },
-            { label: 'Encuesta post-sesión', desc: 'Enviada automáticamente', on: true },
-            { label: 'Combo café+postre auto', desc: 'Detecta y aplica $99', on: true },
-          ].map((a, i) => (
-            <div key={i} style={{ background: 'var(--admin-surface-soft)', padding: 12, borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: 'var(--admin-text)', fontWeight: 500, marginBottom: 2 }}>{a.label}</div>
-                <div style={{ fontSize: 10, color: 'var(--admin-muted)' }}>{a.desc}</div>
-              </div>
-              <div style={{ width: 32, height: 18, background: a.on ? C.sageDark : 'var(--admin-border)', borderRadius: 999, position: 'relative', flexShrink: 0 }}>
-                <div style={{ position: 'absolute', top: 2, left: a.on ? 16 : 2, width: 14, height: 14, borderRadius: '50%', background: 'var(--admin-on-accent)', transition: 'left 0.2s' }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

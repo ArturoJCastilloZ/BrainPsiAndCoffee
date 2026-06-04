@@ -12,6 +12,7 @@ import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
 
 export default function AboutPage() {
+  const onLightAccent = '#1E1B18';
   return (
     <div style={{ padding: '40px 20px 60px', maxWidth: 800, margin: '0 auto' }}>
       <div className="animate-fade-up" style={{ textAlign: 'center', marginBottom: 40 }}>
@@ -31,7 +32,7 @@ export default function AboutPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
             <div style={{ width: 44, height: 44, borderRadius: 14, background: item.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <item.icon size={22} color={C.cream} strokeWidth={1.5} />
+              <item.icon size={22} color={item.color === C.rust ? C.cream : onLightAccent} strokeWidth={1.5} />
             </div>
             <h2 className="font-display" style={{ fontSize: 28, fontWeight: 500, color: C.brown, margin: 0, letterSpacing: '-0.02em' }}>{item.title}</h2>
           </div>

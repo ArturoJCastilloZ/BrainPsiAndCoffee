@@ -10,10 +10,17 @@ export const THERAPY_SERVICES = [
 ];
 
 export const THERAPISTS = [
-  { id: 't1', name: 'Dra. María González', cedula: 'PSI-8472', specialty: 'Psicología clínica · Adultos', services: ['psi-adultos', 'pareja'], color: C.caramel },
-  { id: 't2', name: 'Mtro. Carlos Ramírez', cedula: 'NEU-3391', specialty: 'Neuropsicología', services: ['neuro-adultos', 'neuro-infantil', 'evaluacion'], color: C.sageDark },
-  { id: 't3', name: 'Lic. Ana Martínez', cedula: 'PSI-5526', specialty: 'Psicología infantil', services: ['psi-infantil'], color: C.rust },
-  { id: 't4', name: 'Dra. Sofía Hernández', cedula: 'PSI-7104', specialty: 'Pareja y familia', services: ['pareja', 'psi-adultos'], color: C.brownMid }
+  { id: 't1', name: 'Dra. María González', cedula: 'PSI-8472', specialty: 'Psicología clínica · Adultos', sessionDuration: 50, services: ['psi-adultos', 'pareja'], color: C.caramel },
+  { id: 't2', name: 'Mtro. Carlos Ramírez', cedula: 'NEU-3391', specialty: 'Neuropsicología', sessionDuration: 60, services: ['neuro-adultos', 'neuro-infantil', 'evaluacion'], color: C.sageDark },
+  { id: 't3', name: 'Lic. Ana Martínez', cedula: 'PSI-5526', specialty: 'Psicología infantil', sessionDuration: 45, services: ['psi-infantil'], color: C.rust },
+  { id: 't4', name: 'Dra. Sofía Hernández', cedula: 'PSI-7104', specialty: 'Pareja y familia', sessionDuration: 50, services: ['pareja', 'psi-adultos'], color: C.brownMid }
+];
+
+export const SPECIALTIES = [
+  { id: 'psicologia-clinica-adultos', name: 'Psicología clínica · Adultos', active: true },
+  { id: 'psicologia-infantil', name: 'Psicología infantil', active: true },
+  { id: 'neuropsicologia', name: 'Neuropsicología', active: true },
+  { id: 'pareja-familia', name: 'Pareja y familia', active: true }
 ];
 
 export const MENU = {

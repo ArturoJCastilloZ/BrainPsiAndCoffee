@@ -10,11 +10,12 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { MENU, THERAPISTS, THERAPY_SERVICES } from '../data';
-import { addDays, dayLabel, formatMXN, fullDayLabel, generateTimeSlots, getServiceIcon, todayISO, uid } from '../utils.jsx';
+import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, todayISO, uid } from '../utils.jsx';
 
 export default function BookingFlow({ setPage, bookings, setBookings, addToCart, setLinkedBookingId, showToast, catalogs }) {
   const services = (catalogs?.services || THERAPY_SERVICES).filter(item => item.active !== false);
   const therapists = (catalogs?.therapists || THERAPISTS).filter(item => item.active !== false);
+  const onLightAccent = '#1E1B18';
   const [step, setStep] = useState(1);
   const [data, setData] = useState({
     serviceId: null, therapistId: null, date: null, time: null,
@@ -24,6 +25,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
   const update = (k, v) => setData({ ...data, [k]: v });
   const service = services.find(s => s.id === data.serviceId);
   const therapist = therapists.find(t => t.id === data.therapistId);
+  const avatarTextColor = (color) => (color === C.brownMid || color === C.rust ? C.cream : onLightAccent);
 
   const confirmBooking = () => {
     const newBooking = {
@@ -71,7 +73,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
                     borderRadius: 16, padding: 18, cursor: 'pointer', textAlign: 'left',
                     display: 'flex', alignItems: 'center', gap: 16, transition: 'all 0.2s'
                   }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: C.sage, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.cream, flexShrink: 0 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: C.sage, display: 'flex', alignItems: 'center', justifyContent: 'center', color: onLightAccent, flexShrink: 0 }}>
                       {getServiceIcon(s.icon, 24)}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -115,7 +117,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
                     borderRadius: 16, padding: 16, cursor: 'pointer', textAlign: 'left',
                     display: 'flex', alignItems: 'center', gap: 14
                   }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 999, background: t.color, color: C.cream, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 999, background: t.color, color: avatarTextColor(t.color), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 }}>
                       {t.name.split(' ')[1][0]}{t.name.split(' ')[2]?.[0] || ''}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -130,7 +132,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
 
           {/* Step 3: Date and time */}
           {step === 3 && (
-            <DateTimePicker data={data} update={update} onContinue={() => setStep(4)} bookings={bookings} />
+            <DateTimePicker data={data} update={update} onContinue={() => setStep(4)} bookings={bookings} therapists={therapists} services={services} />
           )}
 
           {/* Step 4: Personal info */}
@@ -138,9 +140,9 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
             <div className="animate-fade-up">
               <p style={{ fontSize: 14, color: C.brownMid, marginBottom: 20 }}>Datos para confirmar tu cita y enviarte recordatorios.</p>
               <div style={{ display: 'grid', gap: 14 }}>
-                <Input label="Nombre completo" value={data.name} onChange={v => update('name', v)} icon={User} placeholder="Tu nombre" />
-                <Input label="Correo electrónico" value={data.email} onChange={v => update('email', v)} icon={Mail} placeholder="tucorreo@ejemplo.com" type="email" />
-                <Input label="Teléfono (WhatsApp)" value={data.phone} onChange={v => update('phone', v)} icon={Phone} placeholder="55 1234 5678" type="tel" />
+                <Input label="Nombre completo" value={data.name} onChange={v => update('name', v)} icon={User} placeholder="Tu nombre" required />
+                <Input label="Correo electrónico" value={data.email} onChange={v => update('email', v)} icon={Mail} placeholder="tucorreo@ejemplo.com" type="email" required />
+                <Input label="Teléfono (WhatsApp)" value={data.phone} onChange={v => update('phone', v)} icon={Phone} placeholder="55 1234 5678" type="tel" required />
                 <div>
                   <label style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 6, display: 'block', letterSpacing: 0.5 }}>NOTAS PARA EL PROFESIONAL (opcional)</label>
                   <textarea value={data.notes} onChange={e => update('notes', e.target.value)} rows={3} placeholder="¿Algo que el profesional deba saber antes de tu cita?" style={{
@@ -167,8 +169,8 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
               </div>
               <button onClick={() => setStep(5)} disabled={!data.name || !data.email || !data.phone} style={{
                 marginTop: 20, width: '100%',
-                background: !data.name || !data.email || !data.phone ? C.sagePale : C.brown,
-                color: C.cream, border: 'none', padding: '14px', borderRadius: 14,
+                background: !data.name || !data.email || !data.phone ? C.sagePale : 'var(--bp-primary)',
+                color: !data.name || !data.email || !data.phone ? '#1E1B18' : 'var(--bp-primary-contrast)', border: 'none', padding: '14px', borderRadius: 14,
                 fontSize: 15, fontWeight: 600, cursor: !data.name || !data.email || !data.phone ? 'not-allowed' : 'pointer'
               }}>
                 Continuar
@@ -235,7 +237,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
 
           {data.wantsCoffee ? (
             <button onClick={() => setPage('menu')} style={{
-              width: '100%', background: C.caramel, color: C.brown, border: 'none',
+              width: '100%', background: C.caramel, color: '#1E1B18', border: 'none',
               padding: '14px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10
             }}>
@@ -264,59 +266,48 @@ function Row({ icon: Icon, label, value }) {
   );
 }
 
-function Input({ label, value, onChange, icon: Icon, placeholder, type = 'text' }) {
+function Input({ label, value, onChange, icon: Icon, placeholder, type = 'text', required = false }) {
+  const missing = required && String(value || '').trim().length === 0;
   return (
     <div>
       <label style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 6, display: 'block', letterSpacing: 0.5 }}>{label.toUpperCase()}</label>
       <div style={{ position: 'relative' }}>
         <Icon size={16} color={C.brownLight} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{
-          width: '100%', padding: '12px 12px 12px 40px', border: `1.5px solid ${C.sagePale}`, borderRadius: 12,
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={required} style={{
+          width: '100%', padding: '12px 12px 12px 40px', border: `1.5px solid ${missing ? C.rust : C.sagePale}`, borderRadius: 12,
           fontSize: 14, fontFamily: 'inherit', background: C.creamLight, color: C.brown, outline: 'none',
           boxSizing: 'border-box'
-        }} onFocus={e => e.target.style.borderColor = C.sageDark} onBlur={e => e.target.style.borderColor = C.sagePale} />
+        }} onFocus={e => e.target.style.borderColor = C.sageDark} onBlur={e => e.target.style.borderColor = missing ? C.rust : C.sagePale} />
       </div>
+      {missing && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4, marginTop: 5, display: 'block' }}>Campo requerido</span>}
     </div>
   );
 }
 
 // ============ DATE TIME PICKER ============
 
-function DateTimePicker({ data, update, onContinue, bookings }) {
+function DateTimePicker({ data, update, onContinue, bookings, therapists, services }) {
   const [weekStart, setWeekStart] = useState(0); // weeks from today
-  const slots = generateTimeSlots();
+  const eligibleTherapists = useMemo(
+    () => therapists.filter(therapist => !data.serviceId || therapist.services?.includes(data.serviceId)),
+    [data.serviceId, therapists]
+  );
+  const therapistPool = data.therapistId === 'any'
+    ? eligibleTherapists
+    : eligibleTherapists.filter(therapist => therapist.id === data.therapistId);
+  const slots = useMemo(
+    () => generateBusinessTimeSlots(getSlotIntervalMinutes(therapistPool, data.therapistId, data.serviceId, services)),
+    [data.serviceId, data.therapistId, therapistPool, services]
+  );
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(), weekStart * 7 + i)), [weekStart]);
-
-  const isSlotTaken = (date, time) => {
-    return bookings.some(b =>
-      b.status !== 'cancelled' &&
-      b.date === date &&
-      b.time === time &&
-      (data.therapistId === 'any' || b.therapistId === data.therapistId)
-    );
-  };
-
-  // Simulate some "busy" slots for realism
-  const busyMap = useMemo(() => {
-    const busy = new Set();
-    days.forEach(d => {
-      const iso = d.toISOString().split('T')[0];
-      const seed = d.getDate() * 7;
-      for (let i = 0; i < 5; i++) {
-        const idx = (seed + i * 3) % slots.length;
-        busy.add(`${iso}|${slots[idx]}`);
-      }
-    });
-    return busy;
-  }, [days, slots]);
 
   const isAvailable = (date, time) => {
     const dateObj = new Date(date + 'T' + time);
     if (dateObj < new Date()) return false;
-    if (busyMap.has(`${date}|${time}`)) return false;
-    if (isSlotTaken(date, time)) return false;
-    return true;
+    if (!isBusinessDay(date)) return false;
+    if (!therapistPool.length) return false;
+    return therapistPool.some(therapist => canBookTherapist({ therapist, date, time, bookings, services }));
   };
 
   return (
@@ -353,7 +344,7 @@ function DateTimePicker({ data, update, onContinue, bookings }) {
               background: selected ? C.brown : (isPast ? 'transparent' : C.creamLight),
               border: `1.5px solid ${selected ? C.brown : C.sagePale}`,
               borderRadius: 12, padding: '10px 4px', cursor: isPast ? 'not-allowed' : 'pointer',
-              opacity: isPast ? 0.3 : 1, color: selected ? C.cream : C.brown,
+              opacity: isPast ? 0.3 : 1, color: selected ? 'var(--bp-primary-contrast)' : C.brown,
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2
             }}>
               <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.7, textTransform: 'uppercase' }}>{d.toLocaleDateString('es-MX', { weekday: 'short' })}</span>
@@ -374,7 +365,7 @@ function DateTimePicker({ data, update, onContinue, bookings }) {
               return (
                 <button key={time} onClick={() => available && update('time', time)} disabled={!available} style={{
                   background: selected ? C.sageDark : (available ? C.creamLight : 'transparent'),
-                  color: selected ? C.cream : (available ? C.brown : C.brownLight),
+                  color: selected ? '#1E1B18' : (available ? C.brown : C.brownLight),
                   border: `1.5px solid ${selected ? C.sageDark : C.sagePale}`,
                   borderRadius: 10, padding: '10px 6px', fontSize: 13, fontWeight: 600,
                   cursor: available ? 'pointer' : 'not-allowed',
@@ -386,8 +377,8 @@ function DateTimePicker({ data, update, onContinue, bookings }) {
           </div>
           <button onClick={onContinue} disabled={!data.time} style={{
             marginTop: 24, width: '100%',
-            background: !data.time ? C.sagePale : C.brown,
-            color: C.cream, border: 'none', padding: '14px', borderRadius: 14,
+            background: !data.time ? C.sagePale : 'var(--bp-primary)',
+            color: !data.time ? '#1E1B18' : 'var(--bp-primary-contrast)', border: 'none', padding: '14px', borderRadius: 14,
             fontSize: 15, fontWeight: 600, cursor: !data.time ? 'not-allowed' : 'pointer'
           }}>
             Continuar
@@ -401,6 +392,59 @@ function DateTimePicker({ data, update, onContinue, bookings }) {
       )}
     </div>
   );
+}
+
+function getSlotIntervalMinutes(therapistPool, therapistId, serviceId, services) {
+  if (therapistId !== 'any') {
+    return Number(therapistPool[0]?.sessionDuration || services.find(service => service.id === serviceId)?.duration || 50) + 10;
+  }
+
+  const intervals = therapistPool.map(therapist => Number(therapist.sessionDuration || 50) + 10);
+  return intervals.length ? Math.min(...intervals) : Number(services.find(service => service.id === serviceId)?.duration || 50) + 10;
+}
+
+function canBookTherapist({ therapist, date, time, bookings, services }) {
+  const duration = Number(therapist.sessionDuration || 50) + 10;
+  const start = toMinutes(time);
+  const end = start + duration;
+  if (end > 19 * 60) return false;
+
+  return !bookings.some(booking => {
+    if (booking.status === 'cancelled' || booking.date !== date) return false;
+    if (booking.therapistId !== therapist.id && booking.therapistId !== 'any') return false;
+
+    const bookedService = services.find(service => service.id === booking.serviceId);
+    const bookedDuration = Number(booking.therapistId === therapist.id ? therapist.sessionDuration : bookedService?.duration || 50) + 10;
+    const bookedStart = toMinutes(booking.time);
+    const bookedEnd = bookedStart + bookedDuration;
+
+    return start < bookedEnd && end > bookedStart;
+  });
+}
+
+function generateBusinessTimeSlots(stepMinutes = 30) {
+  const slots = [];
+  const interval = Math.max(15, Number(stepMinutes || 30));
+  for (let minutes = 9 * 60; minutes + interval <= 19 * 60; minutes += interval) {
+    slots.push(fromMinutes(minutes));
+  }
+  return slots;
+}
+
+function isBusinessDay(date) {
+  const day = new Date(`${date}T12:00:00`).getDay();
+  return day >= 2 && day <= 6;
+}
+
+function toMinutes(time) {
+  const [hours, minutes] = String(time || '00:00').split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function fromMinutes(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 }
 
 // ============ MENU PAGE ============

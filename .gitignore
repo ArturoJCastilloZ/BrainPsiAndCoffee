@@ -11,6 +11,8 @@ build/
 .env.development
 .env.production
 .env.*.local
+supabase/functions/.env
+supabase/functions/.env.*
 
 # Logs
 npm-debug.log*
@@ -30,3 +32,6 @@ Thumbs.db
 coverage/
 tmp/
 temp/
+
+# Supabase CLI local state
+supabase/.temp/

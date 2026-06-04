@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
   ChevronRight, ChevronLeft, Plus, Minus, Check, X,
@@ -9,9 +9,34 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
+import { MENU } from '../data';
+import { uid } from '../utils.jsx';
 
-export default function AdminOrders({ orders, setOrders }) {
+const actionText = '#1E1B18';
+
+export default function AdminOrders({ orders, setOrders, catalogs }) {
   const [filter, setFilter] = useState('active');
+  const menu = catalogs?.menu || MENU;
+  const products = Object.entries(menu).flatMap(([category, section]) => (section.items || []).filter(item => item.active !== false).map(item => ({ ...item, category, categoryTitle: section.title })));
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState({
+    productId: products[0]?.id || '',
+    qty: 1,
+    customerName: '',
+    customerPhone: '',
+  });
+  const canCreateOrder = Boolean(
+    draft.productId &&
+    Number(draft.qty || 0) > 0 &&
+    draft.customerName?.trim() &&
+    draft.customerPhone?.trim()
+  );
+
+  useEffect(() => {
+    if (!draft.productId && products[0]?.id) {
+      setDraft(current => ({ ...current, productId: products[0].id }));
+    }
+  }, [draft.productId, products]);
 
   const filtered = useMemo(() => {
     let list = [...orders];
@@ -24,10 +49,65 @@ export default function AdminOrders({ orders, setOrders }) {
     setOrders(orders.map(o => o.id === id ? { ...o, status } : o));
   };
 
+  const createOrder = () => {
+    if (!canCreateOrder) return;
+    const product = products.find(item => item.id === draft.productId);
+    if (!product) return;
+    const qty = Math.max(1, Number(draft.qty || 1));
+    const total = product.price * qty;
+    setOrders([{
+      id: uid(),
+      items: [{ ...product, qty, customizations: {} }],
+      subtotal: total,
+      comboSavings: 0,
+      total,
+      customerName: draft.customerName,
+      customerPhone: draft.customerPhone,
+      status: 'received',
+      createdAt: new Date().toISOString(),
+    }, ...orders]);
+    setDraft({ ...draft, qty: 1, customerName: '', customerPhone: '' });
+    setCreating(false);
+  };
+
   return (
     <div>
       <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Pedidos cafetería</h1>
       <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginBottom: 24 }}>Cola de pedidos en tiempo real</p>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <button onClick={() => setCreating(!creating)} style={{
+          background: C.caramel, color: actionText, border: 'none', borderRadius: 999,
+          padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7,
+          fontFamily: 'inherit', fontSize: 12, fontWeight: 700
+        }}>
+          {creating ? <X size={14} /> : <Plus size={14} />} {creating ? 'Cancelar' : 'Nuevo pedido'}
+        </button>
+      </div>
+
+      {creating && (
+        <div className="admin-card" style={{ borderRadius: 14, padding: 22, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(170px, 1fr))', gap: '18px 14px', alignItems: 'end' }}>
+            <label style={{ ...fieldWrap, gridColumn: 'span 2' }}>
+              <span style={fieldLabel}>PRODUCTO</span>
+              <select value={draft.productId} onChange={e => setDraft({ ...draft, productId: e.target.value })} required className="admin-input" style={{ ...fieldInput, borderColor: !draft.productId ? C.rust : undefined }}>
+                {products.map(product => <option key={product.id} value={product.id}>{product.categoryTitle} · {product.name} (${product.price})</option>)}
+              </select>
+              {!draft.productId && <span style={requiredHint}>Campo requerido</span>}
+            </label>
+            <AdminField label="Cantidad" value={draft.qty} onChange={qty => setDraft({ ...draft, qty })} type="number" required />
+            <AdminField label="Cliente" value={draft.customerName} onChange={customerName => setDraft({ ...draft, customerName })} required />
+            <AdminField label="Teléfono" value={draft.customerPhone} onChange={customerPhone => setDraft({ ...draft, customerPhone })} required />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+            <button onClick={createOrder} disabled={!canCreateOrder} style={{
+              background: C.caramel, color: actionText, border: 'none', borderRadius: 9,
+              padding: '9px 14px', cursor: canCreateOrder ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
+              opacity: canCreateOrder ? 1 : 0.45
+            }}>Guardar pedido</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
@@ -37,7 +117,7 @@ export default function AdminOrders({ orders, setOrders }) {
         ].map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)} style={{
             background: filter === f.id ? C.caramel : 'transparent',
-            color: filter === f.id ? C.brown : 'var(--admin-muted)',
+            color: filter === f.id ? actionText : 'var(--admin-muted)',
             border: '1px solid ' + (filter === f.id ? C.caramel : 'var(--admin-border)'),
             padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
           }}>{f.label}</button>
@@ -87,12 +167,12 @@ export default function AdminOrders({ orders, setOrders }) {
                 <div style={{ display: 'flex', gap: 6 }}>
                   {o.status === 'received' && (
                     <button onClick={() => updateOrderStatus(o.id, 'preparing')} style={{
-                      flex: 1, background: C.caramel, color: C.brown, border: 'none', padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
+                      flex: 1, background: C.caramel, color: actionText, border: 'none', padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
                     }}>Empezar</button>
                   )}
                   {o.status === 'preparing' && (
                     <button onClick={() => updateOrderStatus(o.id, 'ready')} style={{
-                      flex: 1, background: C.sageLight, color: C.brown, border: 'none', padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
+                      flex: 1, background: C.sageLight, color: actionText, border: 'none', padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
                     }}>Listo</button>
                   )}
                   {o.status === 'ready' && (
@@ -107,6 +187,22 @@ export default function AdminOrders({ orders, setOrders }) {
         </div>
       )}
     </div>
+  );
+}
+
+const fieldWrap = { display: 'grid', gap: 6 };
+const fieldLabel = { color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 };
+const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' };
+const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 };
+
+function AdminField({ label, value, onChange, type = 'text', required = false }) {
+  const missing = required && String(value || '').trim().length === 0;
+  return (
+    <label style={fieldWrap}>
+      <span style={fieldLabel}>{label.toUpperCase()}</span>
+      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} min={type === 'number' ? 1 : undefined} required={required} className="admin-input" style={{ ...fieldInput, borderColor: missing ? C.rust : undefined }} />
+      {missing && <span style={requiredHint}>Campo requerido</span>}
+    </label>
   );
 }
 

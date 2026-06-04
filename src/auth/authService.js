@@ -1,47 +1,85 @@
 import { BehaviorSubject } from 'rxjs';
 import { env } from '../config/env';
-import { createDevJwt } from './jwt';
+import { supabase, assertSupabaseConfigured } from '../api/supabaseClient';
+import { resetRequests } from '../api/requestActivity';
 
-const SESSION_KEY = 'brainpsi:auth-session';
 const warningMs = env.authWarningSeconds * 1000;
 const inactivityMs = env.authInactivityMinutes * 60 * 1000;
 
-const readSession = () => {
-  try {
-    const raw = window.localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const session = JSON.parse(raw);
-    return session.expiresAt > Date.now() ? session : null;
-  } catch {
-    return null;
-  }
+const toAppSession = (session) => {
+  if (!session?.user) return null;
+  const role = session.user.app_metadata?.role || session.user.user_metadata?.role || 'user';
+
+  return {
+    user: {
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.user_metadata?.name || session.user.email || 'Administrador',
+      role,
+      therapistId: session.user.app_metadata?.therapist_id || session.user.user_metadata?.therapist_id || null,
+    },
+    accessToken: session.access_token,
+    expiresAt: Date.now() + inactivityMs,
+  };
 };
 
 class AuthService {
-  session$ = new BehaviorSubject(readSession());
+  session$ = new BehaviorSubject(null);
   expiryWarning$ = new BehaviorSubject(false);
   warningTimer = null;
   logoutTimer = null;
 
   constructor() {
-    this.scheduleTimers(this.session$.value);
+    this.bootstrap();
   }
 
-  login({ username, password }) {
-    if (username.trim().toLowerCase() !== 'admin' || password !== 'brainpsi') {
-      throw new Error('Usuario o contraseña incorrectos. Usa admin / brainpsi.');
+  async bootstrap() {
+    if (!supabase) return;
+
+    const { data } = await supabase.auth.getSession();
+    this.setSession(data.session);
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      this.setSession(session);
+    });
+  }
+
+  async login({ username, password }) {
+    assertSupabaseConfigured();
+    const email = await this.resolveLoginEmail(username.trim());
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      throw new Error('Correo o contraseña incorrectos.');
     }
-    return this.startSession({ name: 'Administrador', role: 'admin' });
+
+    const session = this.setSession(data.session);
+    if (!['admin', 'doctor'].includes(session?.user.role)) {
+      await this.logout('not-admin');
+      throw new Error('Tu usuario no tiene permisos para acceder al panel.');
+    }
+
+    return session;
   }
 
-  startSession(user) {
-    const expiresAt = Date.now() + inactivityMs;
-    const session = {
-      user,
-      accessToken: createDevJwt({ sub: user.name, role: user.role, expiresAt }),
-      expiresAt,
-    };
-    window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  async updatePassword(password) {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.auth.updateUser({ password });
+    if (error) throw new Error('No se pudo guardar la contraseña. Solicita una nueva invitación.');
+    return data.user;
+  }
+
+  async resolveLoginEmail(identifier) {
+    if (identifier.includes('@')) return identifier;
+
+    const { data, error } = await supabase.rpc('resolve_login_identifier', { identifier });
+    if (error || !data) return identifier;
+    return data;
+  }
+
+  setSession(supabaseSession) {
+    resetRequests();
+    const session = toAppSession(supabaseSession);
     this.expiryWarning$.next(false);
     this.session$.next(session);
     this.scheduleTimers(session);
@@ -51,11 +89,16 @@ class AuthService {
   refreshActivity() {
     const current = this.session$.value;
     if (!current) return null;
-    return this.startSession(current.user);
+    const refreshed = { ...current, expiresAt: Date.now() + inactivityMs };
+    this.expiryWarning$.next(false);
+    this.session$.next(refreshed);
+    this.scheduleTimers(refreshed);
+    return refreshed;
   }
 
-  logout(reason = 'manual') {
-    window.localStorage.removeItem(SESSION_KEY);
+  async logout(reason = 'manual') {
+    if (supabase) await supabase.auth.signOut();
+    resetRequests();
     this.clearTimers();
     this.expiryWarning$.next(false);
     this.session$.next(null);

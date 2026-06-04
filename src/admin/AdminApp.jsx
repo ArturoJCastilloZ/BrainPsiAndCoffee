@@ -38,7 +38,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             '--admin-subtle': isDark ? '#5A6B57' : C.brownLight,
             '--admin-row-text': isDark ? '#9AAA97' : C.brownMid,
             '--admin-accent-text': isDark ? C.sageLight : C.sageDark,
-            '--admin-on-accent': isDark ? C.cream : '#FFFFFF'
+            '--admin-on-accent': '#1E1B18'
         }}>
             <style>{`
         .admin-card { background: var(--admin-surface); border: 1px solid var(--admin-border); }
@@ -139,7 +139,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                     <div style={{ minWidth: 900 }}>
                         {page === 'dashboard' && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} />}
                         {page === 'appointments' && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} />}
-                        {page === 'orders' && <AdminOrders orders={orders} setOrders={setOrders} />}
+                        {page === 'orders' && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} />}
                         {page === 'catalog' && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} />}
                     </div>
                 </main>

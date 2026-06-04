@@ -17,6 +17,8 @@ export default function UserHome({ setPage, bookings, catalogs, theme }) {
   const services = (catalogs?.services || THERAPY_SERVICES).filter(item => item.active !== false);
   const menu = catalogs?.menu || MENU;
   const isDark = theme === 'dark';
+  const onLightAccent = '#1E1B18';
+  const onDarkAccent = C.cream;
   const upcomingBooking = bookings
     .filter(b => b.status !== 'cancelled' && new Date(b.date + 'T' + b.time) > new Date())
     .sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time))[0];
@@ -65,7 +67,7 @@ export default function UserHome({ setPage, bookings, catalogs, theme }) {
         <section style={{ padding: '0 20px 24px', maxWidth: 600, margin: '0 auto' }}>
           <div onClick={() => setPage('mybookings')} style={{
             background: `linear-gradient(135deg, ${C.sageDark}, ${C.sageDeep})`,
-            color: C.cream, padding: 22, borderRadius: 20, cursor: 'pointer',
+            color: isDark ? onLightAccent : onDarkAccent, padding: 22, borderRadius: 20, cursor: 'pointer',
             boxShadow: `0 10px 30px ${C.sageDeepAlpha30}`,
             position: 'relative', overflow: 'hidden'
           }}>
@@ -154,7 +156,7 @@ export default function UserHome({ setPage, bookings, catalogs, theme }) {
           </p>
           <button onClick={() => setPage('about')} style={{
             marginTop: 20, background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)',
-            border: `1px solid rgba(255,255,255,0.25)`, color: C.cream, padding: '10px 20px',
+            border: `1px solid rgba(255,255,255,0.25)`, color: isDark ? C.cream : onLightAccent, padding: '10px 20px',
             borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: 500
           }}>
             Conoce más sobre nosotros
