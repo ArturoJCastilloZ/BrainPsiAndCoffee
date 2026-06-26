@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Brain, Coffee, Gift, Heart, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { Brain, Building2, Coffee, Gift, Heart, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { C } from '../theme';
 import { uid } from '../utils.jsx';
 import { SPECIALTIES } from '../data';
+import { isValidEmail, isValidMoney, isValidPositiveInteger } from '../validation';
 
 const PRODUCT_TABS = [
   { id: 'hot', label: 'Calientes' },
@@ -42,6 +43,7 @@ export default function AdminCatalog({ catalogs, catalogActions }) {
     { id: 'therapists', label: 'Doctores', icon: Users },
     { id: 'specialties', label: 'Especialidades', icon: Sparkles },
     { id: 'offers', label: 'Ofertas', icon: Gift },
+    { id: 'business', label: 'Negocio', icon: Building2 },
   ];
 
   return (
@@ -65,7 +67,8 @@ export default function AdminCatalog({ catalogs, catalogActions }) {
       {tab === 'services' && <ListManager title="Servicios" items={catalogs.services} setItems={catalogActions.setServices} emptyItem={emptyService} renderForm={ServiceForm} summary={(item) => `${item.duration} min · $${item.price} · ${item.for}`} />}
       {tab === 'therapists' && <ListManager title="Doctores" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || SPECIALTIES} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}`} />}
       {tab === 'specialties' && <ListManager title="Especialidades" items={catalogs.specialties || SPECIALTIES} setItems={catalogActions.setSpecialties} emptyItem={emptySpecialty} renderForm={SpecialtyForm} summary={(item) => item.active === false ? 'Inactiva' : 'Activa'} />}
-      {tab === 'offers' && <ListManager title="Ofertas" items={catalogs.offers} setItems={catalogActions.setOffers} emptyItem={emptyOffer} renderForm={OfferForm} summary={(item) => `$${item.price} · ${item.desc}`} />}
+      {tab === 'offers' && <ListManager title="Ofertas" items={catalogs.offers} setItems={catalogActions.setOffers} emptyItem={emptyOffer} renderForm={OfferForm} summary={(item) => `$${item.price} · ${item.desc}${offerWindowLabel(item)}`} />}
+      {tab === 'business' && <BusinessSettings settings={catalogs.settings} setSettings={catalogActions.setSettings} />}
     </div>
   );
 }
@@ -121,7 +124,11 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
     setEditing(null);
   };
 
-  const remove = (id) => setItems(items.filter(item => item.id !== id));
+  const remove = (id) => {
+    const item = items.find(row => row.id === id);
+    if (!window.confirm(`¿Eliminar "${item?.name || 'este registro'}"? Esta accion no se puede deshacer.`)) return;
+    setItems(items.filter(item => item.id !== id));
+  };
   const toggleActive = (item) => setItems(items.map(row => row.id === item.id ? { ...row, active: row.active === false } : row));
   const canSave = isDraftValid(draft);
 
@@ -342,8 +349,68 @@ function OfferForm({ draft, setDraft }) {
   return <FormGrid>
     <Field label="OFERTA" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
     <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
+    <Field label="INICIA" type="date" value={draft.startsAt || ''} onChange={startsAt => setDraft({ ...draft, startsAt })} />
+    <Field label="TERMINA" type="date" value={draft.endsAt || ''} onChange={endsAt => setDraft({ ...draft, endsAt })} />
     <Field label="DESCRIPCIÓN" value={draft.desc} onChange={desc => setDraft({ ...draft, desc })} />
   </FormGrid>;
+}
+
+function BusinessSettings({ settings, setSettings }) {
+  const [draft, setDraft] = useState({
+    ...settings,
+    hoursText: (settings?.hours || []).join('\n'),
+  });
+  const [saved, setSaved] = useState(false);
+  const update = (key, value) => {
+    setSaved(false);
+    setDraft({ ...draft, [key]: value });
+  };
+  const save = () => {
+    const next = {
+      name: draft.name || '',
+      legalName: draft.legalName || '',
+      city: draft.city || '',
+      address: draft.address || '',
+      phone: draft.phone || '',
+      whatsapp: draft.whatsapp || '',
+      email: draft.email || '',
+      instagram: draft.instagram || '',
+      mapsUrl: draft.mapsUrl || '',
+      hours: String(draft.hoursText || '').split('\n').map((line) => line.trim()).filter(Boolean),
+    };
+    setSettings(next);
+    setSaved(true);
+  };
+
+  return (
+    <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
+      <h2 style={{ margin: '0 0 14px', color: 'var(--admin-text)', fontSize: 15 }}>Informacion del negocio</h2>
+      <FormGrid>
+        <Field label="NOMBRE COMERCIAL" value={draft.name} onChange={value => update('name', value)} required />
+        <Field label="RAZON/NOMBRE LEGAL" value={draft.legalName} onChange={value => update('legalName', value)} required />
+        <Field label="CIUDAD" value={draft.city} onChange={value => update('city', value)} />
+        <Field label="DIRECCION" value={draft.address} onChange={value => update('address', value)} />
+        <Field label="TELEFONO" value={draft.phone} onChange={value => update('phone', value)} />
+        <Field label="WHATSAPP CON PAIS" value={draft.whatsapp} onChange={value => update('whatsapp', value)} />
+        <Field label="CORREO" type="email" value={draft.email} onChange={value => update('email', value)} />
+        <Field label="INSTAGRAM URL" value={draft.instagram} onChange={value => update('instagram', value)} />
+        <Field label="GOOGLE MAPS URL" value={draft.mapsUrl} onChange={value => update('mapsUrl', value)} />
+      </FormGrid>
+      <label style={{ display: 'grid', gap: 6, marginTop: 10 }}>
+        <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>HORARIOS, UNO POR LINEA</span>
+        <textarea value={draft.hoursText || ''} onChange={event => update('hoursText', event.target.value)} rows={4} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', resize: 'vertical' }} />
+      </label>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginTop: 14 }}>
+        {saved && <span style={{ color: 'var(--admin-accent-text)', fontSize: 12, fontWeight: 800 }}>Guardado</span>}
+        <button onClick={save} style={adminButton('primary')}>Guardar negocio</button>
+      </div>
+    </div>
+  );
+}
+
+function offerWindowLabel(item) {
+  if (!item.startsAt && !item.endsAt) return '';
+  return ` · ${item.startsAt || 'sin inicio'} a ${item.endsAt || 'sin fin'}`;
 }
 
 function FormGrid({ children }) {
@@ -371,14 +438,13 @@ const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpaci
 
 function isDraftValid(draft) {
   const hasText = (value) => String(value || '').trim().length > 0;
-  const hasNumber = (value, min = 0) => String(value ?? '').trim().length > 0 && Number(value) >= min;
 
   if ('sessionDuration' in draft) {
     return hasText(draft.name) &&
-      hasText(draft.email) &&
+      isValidEmail(draft.email) &&
       hasText(draft.cedula) &&
       hasText(draft.specialty) &&
-      hasNumber(draft.sessionDuration, 1) &&
+      isValidPositiveInteger(draft.sessionDuration) &&
       hasText(draft.color) &&
       (draft.services || []).length > 0;
   }
@@ -387,12 +453,13 @@ function isDraftValid(draft) {
     return hasText(draft.name) &&
       hasText(draft.for) &&
       hasText(draft.icon) &&
-      hasNumber(draft.duration, 1) &&
-      hasNumber(draft.price, 0);
+      isValidPositiveInteger(draft.duration) &&
+      isValidMoney(draft.price);
   }
 
   if ('price' in draft) {
-    return hasText(draft.name) && hasNumber(draft.price, 0);
+    const validDates = !draft.startsAt || !draft.endsAt || draft.startsAt <= draft.endsAt;
+    return hasText(draft.name) && isValidMoney(draft.price) && validDates;
   }
 
   return hasText(draft.name);

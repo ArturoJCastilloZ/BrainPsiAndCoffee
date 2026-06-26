@@ -11,6 +11,7 @@ import {
 import { C } from '../theme';
 import { MENU } from '../data';
 import { uid } from '../utils.jsx';
+import { validateOrder } from '../validation';
 
 const actionText = '#1E1B18';
 
@@ -19,6 +20,7 @@ export default function AdminOrders({ orders, setOrders, catalogs }) {
   const menu = catalogs?.menu || MENU;
   const products = Object.entries(menu).flatMap(([category, section]) => (section.items || []).filter(item => item.active !== false).map(item => ({ ...item, category, categoryTitle: section.title })));
   const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState('');
   const [draft, setDraft] = useState({
     productId: products[0]?.id || '',
     qty: 1,
@@ -28,8 +30,7 @@ export default function AdminOrders({ orders, setOrders, catalogs }) {
   const canCreateOrder = Boolean(
     draft.productId &&
     Number(draft.qty || 0) > 0 &&
-    draft.customerName?.trim() &&
-    draft.customerPhone?.trim()
+    Object.keys(validateOrder(draft)).length === 0
   );
 
   useEffect(() => {
@@ -50,6 +51,11 @@ export default function AdminOrders({ orders, setOrders, catalogs }) {
   };
 
   const createOrder = () => {
+    const nextErrors = validateOrder(draft);
+    if (Object.keys(nextErrors).length) {
+      setFormError(Object.values(nextErrors)[0]);
+      return;
+    }
     if (!canCreateOrder) return;
     const product = products.find(item => item.id === draft.productId);
     if (!product) return;
@@ -67,6 +73,7 @@ export default function AdminOrders({ orders, setOrders, catalogs }) {
       createdAt: new Date().toISOString(),
     }, ...orders]);
     setDraft({ ...draft, qty: 1, customerName: '', customerPhone: '' });
+    setFormError('');
     setCreating(false);
   };
 
@@ -90,15 +97,20 @@ export default function AdminOrders({ orders, setOrders, catalogs }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(170px, 1fr))', gap: '18px 14px', alignItems: 'end' }}>
             <label style={{ ...fieldWrap, gridColumn: 'span 2' }}>
               <span style={fieldLabel}>PRODUCTO</span>
-              <select value={draft.productId} onChange={e => setDraft({ ...draft, productId: e.target.value })} required className="admin-input" style={{ ...fieldInput, borderColor: !draft.productId ? C.rust : undefined }}>
+              <select value={draft.productId} onChange={e => { setFormError(''); setDraft({ ...draft, productId: e.target.value }); }} required className="admin-input" style={{ ...fieldInput, borderColor: !draft.productId ? C.rust : undefined }}>
                 {products.map(product => <option key={product.id} value={product.id}>{product.categoryTitle} · {product.name} (${product.price})</option>)}
               </select>
               {!draft.productId && <span style={requiredHint}>Campo requerido</span>}
             </label>
-            <AdminField label="Cantidad" value={draft.qty} onChange={qty => setDraft({ ...draft, qty })} type="number" required />
-            <AdminField label="Cliente" value={draft.customerName} onChange={customerName => setDraft({ ...draft, customerName })} required />
-            <AdminField label="Teléfono" value={draft.customerPhone} onChange={customerPhone => setDraft({ ...draft, customerPhone })} required />
+            <AdminField label="Cantidad" value={draft.qty} onChange={qty => { setFormError(''); setDraft({ ...draft, qty }); }} type="number" required />
+            <AdminField label="Cliente" value={draft.customerName} onChange={customerName => { setFormError(''); setDraft({ ...draft, customerName }); }} required />
+            <AdminField label="Teléfono" value={draft.customerPhone} onChange={customerPhone => { setFormError(''); setDraft({ ...draft, customerPhone }); }} required />
           </div>
+          {formError && (
+            <div style={{ marginTop: 14, color: C.rust, background: C.rustAlpha20, border: `1px solid ${C.rustAlpha40}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, fontWeight: 700 }}>
+              {formError}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
             <button onClick={createOrder} disabled={!canCreateOrder} style={{
               background: C.caramel, color: actionText, border: 'none', borderRadius: 9,

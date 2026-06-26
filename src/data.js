@@ -67,5 +67,5 @@ export const FLAVORS = ['Vainilla', 'Pistacho', 'Vainilla francesa (sin azúcar)
 export const MILKS = ['Entera', 'Deslactosada'];
 
 export const OFFERS = [
-  { id: 'combo-cafe-postre', name: 'Combo café + postre', desc: 'Agrega un café y un postre y paga solo $99 al final.', price: 99, active: true }
+  { id: 'combo-cafe-postre', name: 'Combo café + postre', desc: 'Agrega un café y un postre y paga solo $99 al final.', price: 99, active: true, startsAt: '', endsAt: '' }
 ];

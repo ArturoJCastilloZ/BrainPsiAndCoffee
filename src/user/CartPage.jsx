@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
   ChevronRight, ChevronLeft, Plus, Minus, Check, X,
@@ -11,15 +11,25 @@ import {
 import { C } from '../theme';
 import { THERAPY_SERVICES } from '../data';
 import { formatMXN, fullDayLabel, uid } from '../utils.jsx';
+import { validateOrder } from '../validation';
+import { activeOffers } from '../offerUtils';
+import { trackEvent } from '../monitoring';
 
-export default function CartPage({ cart, setCart, orders, setOrders, setPage, linkedBookingId, setLinkedBookingId, bookings, showToast }) {
+export default function CartPage({ cart, setCart, orders, setOrders, setPage, linkedBookingId, setLinkedBookingId, bookings, showToast, catalogs }) {
   const linkedBooking = bookings.find(b => b.id === linkedBookingId);
   const onLightAccent = '#1E1B18';
+  const [customer, setCustomer] = useState({
+    customerName: linkedBooking?.name || '',
+    customerPhone: linkedBooking?.phone || '',
+  });
+  const [errors, setErrors] = useState({});
 
   // Calculate combo
   const hasCoffee = cart.some(i => i.id?.startsWith('h') || i.id?.startsWith('c'));
   const hasDessert = cart.some(i => i.id?.startsWith('p'));
-  const comboApplied = hasCoffee && hasDessert;
+  const comboOffer = activeOffers(catalogs?.offers || [])[0];
+  const comboPrice = Number(comboOffer?.price || 99);
+  const comboApplied = Boolean(comboOffer && hasCoffee && hasDessert);
 
   const subtotal = cart.reduce((sum, item) => sum + (item.customizations?.totalPrice || item.price) * item.qty, 0);
 
@@ -30,20 +40,33 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
     const desserts = cart.filter(i => i.id?.startsWith('p'));
     const minCoffee = Math.min(...coffees.map(c => c.customizations?.totalPrice || c.price));
     const minDessert = Math.min(...desserts.map(d => d.price));
-    if (minCoffee + minDessert > 99) comboSavings = (minCoffee + minDessert) - 99;
+    if (minCoffee + minDessert > comboPrice) comboSavings = (minCoffee + minDessert) - comboPrice;
   }
   const total = subtotal - comboSavings;
 
   const placeOrder = () => {
+    const nextErrors = validateOrder(customer);
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      return;
+    }
+
     const order = {
       id: uid(),
       items: cart,
       subtotal, comboSavings, total,
       linkedBookingId,
+      customerName: customer.customerName.trim(),
+      customerPhone: customer.customerPhone.trim(),
       status: 'received',
       createdAt: new Date().toISOString()
     };
     setOrders([...orders, order]);
+    trackEvent('coffee_order_created', {
+      itemCount: cart.length,
+      total,
+      linkedBooking: Boolean(linkedBookingId),
+    });
     setCart([]);
     setLinkedBookingId(null);
     showToast('¡Pedido enviado! Estará listo pronto.');
@@ -107,12 +130,26 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
       </div>
 
       <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
+        <h2 style={{ fontSize: 13, color: C.brown, margin: '0 0 12px', letterSpacing: 0.5 }}>DATOS DE CONTACTO</h2>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <OrderField label="Nombre" value={customer.customerName} error={errors.customerName} onChange={(customerName) => {
+            setCustomer({ ...customer, customerName });
+            if (errors.customerName) setErrors({ ...errors, customerName: '' });
+          }} />
+          <OrderField label="Telefono / WhatsApp" value={customer.customerPhone} error={errors.customerPhone} onChange={(customerPhone) => {
+            setCustomer({ ...customer, customerPhone });
+            if (errors.customerPhone) setErrors({ ...errors, customerPhone: '' });
+          }} />
+        </div>
+      </div>
+
+      <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14, color: C.brownMid }}>
           <span>Subtotal</span><span>{formatMXN(subtotal)}</span>
         </div>
         {comboApplied && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, color: C.rust, fontWeight: 600 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Gift size={13} /> Combo café + postre</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Gift size={13} /> {comboOffer?.name || 'Combo café + postre'}</span>
             <span>−{formatMXN(comboSavings)}</span>
           </div>
         )}
@@ -126,7 +163,7 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
         <div style={{ background: C.caramelLight, border: `1px dashed ${C.caramel}`, borderRadius: 12, padding: 12, marginBottom: 16, fontSize: 12, color: onLightAccent, display: 'flex', gap: 10, alignItems: 'center' }}>
           <Sparkles size={16} color={onLightAccent} />
           <div>
-            <strong>¡Estás cerca del combo $99!</strong> Agrega un {hasCoffee ? 'postre' : 'café'} y aprovecha la promoción.
+            <strong>¡Estás cerca del combo {formatMXN(comboPrice)}!</strong> Agrega un {hasCoffee ? 'postre' : 'café'} y aprovecha la promoción.
           </div>
         </div>
       )}
@@ -139,6 +176,28 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
         <Send size={18} /> Confirmar pedido
       </button>
     </div>
+  );
+}
+
+function OrderField({ label, value, onChange, error }) {
+  const missing = !String(value || '').trim();
+  const invalid = Boolean(error);
+  return (
+    <label style={{ display: 'grid', gap: 5 }}>
+      <span style={{ fontSize: 11, color: C.brownMid, fontWeight: 800, letterSpacing: 0.7 }}>{label.toUpperCase()}</span>
+      <input value={value} onChange={e => onChange(e.target.value)} style={{
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: '11px 12px',
+        borderRadius: 10,
+        border: `1.5px solid ${invalid ? C.rust : C.sagePale}`,
+        background: C.ivory,
+        color: C.brown,
+        outline: 'none',
+        fontFamily: 'inherit'
+      }} />
+      {invalid && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800 }}>{missing ? 'Campo requerido' : error}</span>}
+    </label>
   );
 }
 

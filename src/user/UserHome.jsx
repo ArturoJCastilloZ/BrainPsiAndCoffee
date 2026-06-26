@@ -10,18 +10,16 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { MENU, THERAPY_SERVICES } from '../data';
-import { formatMXN, fullDayLabel } from '../utils.jsx';
+import { formatMXN } from '../utils.jsx';
 import { SectionTitle, ServiceCard } from '../components/Cards';
+import { activeOffers } from '../offerUtils';
 
 export default function UserHome({ setPage, bookings, catalogs, theme }) {
   const services = (catalogs?.services || THERAPY_SERVICES).filter(item => item.active !== false);
   const menu = catalogs?.menu || MENU;
+  const offers = activeOffers(catalogs?.offers || []);
   const isDark = theme === 'dark';
   const onLightAccent = '#1E1B18';
-  const onDarkAccent = C.cream;
-  const upcomingBooking = bookings
-    .filter(b => b.status !== 'cancelled' && new Date(b.date + 'T' + b.time) > new Date())
-    .sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time))[0];
 
   return (
     <div>
@@ -62,34 +60,6 @@ export default function UserHome({ setPage, bookings, catalogs, theme }) {
         </div>
       </section>
 
-      {/* Upcoming Booking Card */}
-      {upcomingBooking && (
-        <section style={{ padding: '0 20px 24px', maxWidth: 600, margin: '0 auto' }}>
-          <div onClick={() => setPage('mybookings')} style={{
-            background: `linear-gradient(135deg, ${C.sageDark}, ${C.sageDeep})`,
-            color: isDark ? onLightAccent : onDarkAccent, padding: 22, borderRadius: 20, cursor: 'pointer',
-            boxShadow: `0 10px 30px ${C.sageDeepAlpha30}`,
-            position: 'relative', overflow: 'hidden'
-          }}>
-            <div style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.85, marginBottom: 6, fontWeight: 500 }}>
-              <Bell size={12} /> PRÓXIMA CITA
-            </div>
-            <div className="font-display" style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>
-              {services.find(s => s.id === upcomingBooking.serviceId)?.name}
-            </div>
-            <div style={{ fontSize: 14, opacity: 0.9, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <CalendarIcon size={13} /> {fullDayLabel(new Date(upcomingBooking.date))}
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Clock size={13} /> {upcomingBooking.time}
-              </span>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Quick services */}
       <section style={{ padding: '24px 20px', maxWidth: 1100, margin: '0 auto' }}>
         <SectionTitle eyebrow="Servicios" title="¿Qué te traemos hoy?" />
@@ -128,7 +98,7 @@ export default function UserHome({ setPage, bookings, catalogs, theme }) {
         </div>
 
         {/* Combo highlight */}
-        <div style={{
+        {offers[0] && <div style={{
           marginTop: 24, padding: 24,
           background: isDark ? 'linear-gradient(135deg, #332C27, #5A3E2B)' : `linear-gradient(135deg, ${C.cream}, ${C.caramelLightAlpha40})`,
           border: `1px solid ${isDark ? '#8B5E3C' : C.caramelLight}`,
@@ -140,10 +110,10 @@ export default function UserHome({ setPage, bookings, catalogs, theme }) {
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: 11, color: isDark ? '#D9A96A' : C.rust, fontWeight: 700, letterSpacing: 1, marginBottom: 2 }}>COMBO ESPECIAL</div>
-            <div className="font-display" style={{ fontSize: 22, fontWeight: 600, color: C.brown, lineHeight: 1.2 }}>Café + postre por <span style={{ color: C.sageDark }}>$99</span></div>
-            <div style={{ fontSize: 13, color: C.brownMid, marginTop: 4 }}>Acompaña tu sesión con la combinación perfecta.</div>
+            <div className="font-display" style={{ fontSize: 22, fontWeight: 600, color: C.brown, lineHeight: 1.2 }}>{offers[0].name} por <span style={{ color: C.sageDark }}>{formatMXN(offers[0].price)}</span></div>
+            <div style={{ fontSize: 13, color: C.brownMid, marginTop: 4 }}>{offers[0].desc}</div>
           </div>
-        </div>
+        </div>}
       </section>
 
       {/* Identity ribbon */}

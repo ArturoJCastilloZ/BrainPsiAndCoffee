@@ -1,4 +1,5 @@
 create extension if not exists pgcrypto;
+create extension if not exists btree_gist;
 
 create table if not exists public.therapy_services (
   id text primary key,
@@ -58,7 +59,16 @@ create table if not exists public.offers (
   name text not null,
   description text,
   price numeric(10, 2) not null default 0,
+  starts_at date,
+  ends_at date,
   active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.business_settings (
+  id text primary key default 'main',
+  content jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -96,6 +106,8 @@ create table if not exists public.orders (
 alter table public.orders add column if not exists subtotal numeric(10, 2) not null default 0;
 alter table public.orders add column if not exists combo_savings numeric(10, 2) not null default 0;
 alter table public.products add column if not exists sort_order integer not null default 0;
+alter table public.offers add column if not exists starts_at date;
+alter table public.offers add column if not exists ends_at date;
 alter table public.therapists add column if not exists session_duration_minutes integer not null default 50;
 alter table public.therapists add column if not exists email text;
 alter table public.therapists add column if not exists user_id uuid references auth.users(id) on delete set null;
@@ -136,12 +148,68 @@ create table if not exists public.order_items (
   options jsonb not null default '{}'::jsonb
 );
 
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'appointments_customer_email_format') then
+    alter table public.appointments
+      add constraint appointments_customer_email_format
+      check (customer_email ~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$');
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'appointments_customer_phone_format') then
+    alter table public.appointments
+      add constraint appointments_customer_phone_format
+      check (customer_phone ~ '^[0-9+(). -]{8,20}$');
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'appointments_notes_length') then
+    alter table public.appointments
+      add constraint appointments_notes_length
+      check (char_length(coalesce(notes, '')) <= 280);
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'appointments_business_time') then
+    alter table public.appointments
+      add constraint appointments_business_time
+      check (appointment_time >= time '09:00' and appointment_time < time '19:00');
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'orders_customer_phone_format') then
+    alter table public.orders
+      add constraint orders_customer_phone_format
+      check (customer_phone is null or customer_phone ~ '^[0-9+(). -]{8,20}$');
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'orders_status_valid') then
+    alter table public.orders
+      add constraint orders_status_valid
+      check (status in ('open', 'received', 'preparing', 'ready', 'delivered', 'cancelled'));
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'order_items_quantity_positive') then
+    alter table public.order_items
+      add constraint order_items_quantity_positive
+      check (quantity > 0);
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'offers_valid_date_window') then
+    alter table public.offers
+      add constraint offers_valid_date_window
+      check (starts_at is null or ends_at is null or starts_at <= ends_at);
+  end if;
+end $$;
+
+create unique index if not exists appointments_no_duplicate_confirmed_slot
+  on public.appointments (therapist_id, appointment_date, appointment_time)
+  where therapist_id is not null and status <> 'cancelled';
+
 alter table public.therapy_services enable row level security;
 alter table public.therapists enable row level security;
 alter table public.specialties enable row level security;
 alter table public.therapist_services enable row level security;
 alter table public.products enable row level security;
 alter table public.offers enable row level security;
+alter table public.business_settings enable row level security;
 alter table public.appointments enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
@@ -194,6 +262,7 @@ drop policy if exists "Public can read active specialties" on public.specialties
 drop policy if exists "Public can read therapist services" on public.therapist_services;
 drop policy if exists "Public can read active products" on public.products;
 drop policy if exists "Public can read active offers" on public.offers;
+drop policy if exists "Public can read business settings" on public.business_settings;
 drop policy if exists "Public can create appointments" on public.appointments;
 drop policy if exists "Public can create orders" on public.orders;
 drop policy if exists "Public can create order items" on public.order_items;
@@ -201,6 +270,7 @@ drop policy if exists "Authenticated users can manage services" on public.therap
 drop policy if exists "Admins can manage services" on public.therapy_services;
 drop policy if exists "Authenticated users can manage therapists" on public.therapists;
 drop policy if exists "Admins can manage therapists" on public.therapists;
+drop policy if exists "Doctors can read own profile" on public.therapists;
 drop policy if exists "Admins can manage specialties" on public.specialties;
 drop policy if exists "Authenticated users can manage therapist services" on public.therapist_services;
 drop policy if exists "Admins can manage therapist services" on public.therapist_services;
@@ -208,6 +278,7 @@ drop policy if exists "Authenticated users can manage products" on public.produc
 drop policy if exists "Admins can manage products" on public.products;
 drop policy if exists "Authenticated users can manage offers" on public.offers;
 drop policy if exists "Admins can manage offers" on public.offers;
+drop policy if exists "Admins can manage business settings" on public.business_settings;
 drop policy if exists "Authenticated users can manage appointments" on public.appointments;
 drop policy if exists "Admins can manage appointments" on public.appointments;
 drop policy if exists "Doctors can manage own appointments" on public.appointments;
@@ -232,16 +303,55 @@ create policy "Public can read active products" on public.products
   for select using (active = true);
 
 create policy "Public can read active offers" on public.offers
-  for select using (active = true);
+  for select using (
+    active = true
+    and (starts_at is null or starts_at <= current_date)
+    and (ends_at is null or ends_at >= current_date)
+  );
+
+create policy "Public can read business settings" on public.business_settings
+  for select using (id = 'main');
 
 create policy "Public can create appointments" on public.appointments
-  for insert with check (true);
+  for insert with check (
+    status = 'confirmed'
+    and appointment_date between current_date and (current_date + 35)
+    and appointment_time >= time '09:00'
+    and appointment_time < time '19:00'
+    and extract(isodow from appointment_date) between 2 and 6
+    and char_length(trim(customer_name)) between 2 and 120
+    and customer_email ~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+    and customer_phone ~ '^[0-9+(). -]{8,20}$'
+    and char_length(coalesce(notes, '')) <= 280
+    and exists (
+      select 1 from public.therapy_services
+      where id = service_id and active = true
+    )
+    and (
+      therapist_id is null
+      or exists (
+        select 1 from public.therapists
+        where id = therapist_id and active = true
+      )
+    )
+  );
 
 create policy "Public can create orders" on public.orders
-  for insert with check (true);
+  for insert with check (
+    status = 'received'
+    and total >= 0
+    and subtotal >= 0
+    and combo_savings >= 0
+    and char_length(trim(coalesce(customer_name, ''))) between 2 and 120
+    and coalesce(customer_phone, '') ~ '^[0-9+(). -]{8,20}$'
+  );
 
 create policy "Public can create order items" on public.order_items
-  for insert with check (true);
+  for insert with check (
+    quantity > 0
+    and unit_price >= 0
+    and char_length(trim(name)) between 1 and 160
+  );
 
 create policy "Admins can manage services" on public.therapy_services
   for all using (public.is_admin()) with check (public.is_admin());
@@ -262,6 +372,9 @@ create policy "Admins can manage products" on public.products
   for all using (public.is_admin()) with check (public.is_admin());
 
 create policy "Admins can manage offers" on public.offers
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "Admins can manage business settings" on public.business_settings
   for all using (public.is_admin()) with check (public.is_admin());
 
 create policy "Admins can manage appointments" on public.appointments

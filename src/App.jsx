@@ -1,17 +1,19 @@
-import React from 'react';
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import React, { Suspense, lazy } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { C } from './theme';
 import { useStorage } from './hooks/useStorage';
 import { useSupabaseCrud } from './hooks/useSupabaseCrud';
-import UserApp from './user/UserApp';
-import AdminApp from './admin/AdminApp';
-import DoctorApp from './doctor/DoctorApp';
-import Login from './components/Login';
-import SetPassword from './components/SetPassword';
 import GlobalLoader from './components/GlobalLoader';
 import { authService } from './auth/authService';
 import { useAuthSession, useInactivityTracking, useSessionWarning } from './auth/useAuth';
 import SessionExpiryModal from './components/SessionExpiryModal';
+import { trackPageView } from './monitoring';
+
+const UserApp = lazy(() => import('./user/UserApp'));
+const AdminApp = lazy(() => import('./admin/AdminApp'));
+const DoctorApp = lazy(() => import('./doctor/DoctorApp'));
+const Login = lazy(() => import('./components/Login'));
+const SetPassword = lazy(() => import('./components/SetPassword'));
 
 export default function App() {
   const [theme, setTheme] = useStorage('brainpsi:theme', 'light');
@@ -29,6 +31,7 @@ export default function App() {
   } = useSupabaseCrud(session);
   const showSessionWarning = useSessionWarning();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const isDark = theme === 'dark';
   const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
@@ -38,6 +41,9 @@ export default function App() {
     navigate('/');
   };
   useInactivityTracking(Boolean(session));
+  React.useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
 
   return (
     <div data-theme={theme} style={{
@@ -110,32 +116,46 @@ export default function App() {
         </div>
       )}
 
-      <Routes>
-        <Route path="/" element={<UserApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
-        <Route path="/login" element={<Login onLogin={(nextSession) => navigate(nextSession?.user.role === 'doctor' ? '/doctor' : '/admin', { replace: true })} onCancel={goUser} theme={theme} toggleTheme={toggleTheme} />} />
-        <Route path="/set-password" element={<SetPassword session={session} onComplete={() => navigate(session?.user.role === 'doctor' ? '/doctor' : '/admin', { replace: true })} theme={theme} toggleTheme={toggleTheme} />} />
-        <Route path="/admin" element={
-          session?.user.role === 'admin' ? (
-            <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} dataLoading={dataLoading} seedCatalogs={seedCatalogs} />
-          ) : session?.user.role === 'doctor' ? (
-            <Navigate to="/doctor" replace />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        } />
-        <Route path="/doctor" element={
-          session?.user.role === 'doctor' ? (
-            <DoctorApp bookings={bookings} setBookings={setBookings} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} />
-          ) : session?.user.role === 'admin' ? (
-            <Navigate to="/admin" replace />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        } />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/" element={<UserApp initialPage="home" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
+          <Route path="/coffee" element={<UserApp initialPage="menu" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
+          <Route path="/therapy" element={<UserApp initialPage="therapy" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
+          <Route path="/contacto" element={<UserApp initialPage="contact" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
+          <Route path="/privacidad" element={<UserApp initialPage="privacy" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
+          <Route path="/login" element={<Login onLogin={(nextSession) => navigate(nextSession?.user.role === 'doctor' ? '/doctor' : '/admin', { replace: true })} onCancel={goUser} theme={theme} toggleTheme={toggleTheme} />} />
+          <Route path="/set-password" element={<SetPassword session={session} onComplete={() => navigate(session?.user.role === 'doctor' ? '/doctor' : '/admin', { replace: true })} theme={theme} toggleTheme={toggleTheme} />} />
+          <Route path="/admin" element={
+            session?.user.role === 'admin' ? (
+              <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} dataLoading={dataLoading} seedCatalogs={seedCatalogs} />
+            ) : session?.user.role === 'doctor' ? (
+              <Navigate to="/doctor" replace />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          } />
+          <Route path="/doctor" element={
+            session?.user.role === 'doctor' ? (
+              <DoctorApp bookings={bookings} setBookings={setBookings} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} />
+            ) : session?.user.role === 'admin' ? (
+              <Navigate to="/admin" replace />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
       <SessionExpiryModal visible={Boolean(session && showSessionWarning)} />
       <GlobalLoader />
+    </div>
+  );
+}
+
+function RouteFallback() {
+  return (
+    <div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: C.brown, fontWeight: 700 }}>
+      Cargando...
     </div>
   );
 }

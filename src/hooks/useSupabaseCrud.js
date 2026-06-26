@@ -9,10 +9,12 @@ import {
   saveOffers,
   saveOrders,
   saveSpecialties,
+  saveSettings,
   saveServices,
   saveTherapists,
   seedDefaultCatalogs,
 } from '../api/supabaseData';
+import { BUSINESS } from '../businessInfo';
 import { supabase } from '../api/supabaseClient';
 
 const resolveNext = (value, next) => (typeof next === 'function' ? next(value) : next);
@@ -43,6 +45,7 @@ export const useSupabaseCrud = (session) => {
   const [therapists, setTherapistsRaw, setTherapists, therapistsError] = useRemoteState(THERAPISTS, saveTherapists);
   const [menu, setMenuRaw, setMenu, menuError] = useRemoteState(MENU, saveMenu);
   const [offers, setOffersRaw, setOffers, offersError] = useRemoteState(OFFERS, saveOffers);
+  const [settings, setSettingsRaw, setSettings, settingsError] = useRemoteState(BUSINESS, saveSettings);
   const [bookings, setBookingsRaw, setBookings, bookingsError] = useRemoteState([], saveAppointments);
   const [orders, setOrdersRaw, setOrders, ordersError] = useRemoteState([], saveOrders);
   const [loading, setLoading] = useState(Boolean(supabase));
@@ -70,6 +73,7 @@ export const useSupabaseCrud = (session) => {
       setTherapistsRaw(catalogs.therapists.length ? catalogs.therapists : THERAPISTS);
       setMenuRaw(hasMenuItems(catalogs.menu) ? catalogs.menu : MENU);
       setOffersRaw(catalogs.offers.length ? catalogs.offers : OFFERS);
+      setSettingsRaw(catalogs.settings || BUSINESS);
 
       if (isStaff) {
         const [remoteBookings, remoteOrders] = await Promise.all([
@@ -87,7 +91,7 @@ export const useSupabaseCrud = (session) => {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, isStaff, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSpecialtiesRaw, setTherapistsRaw]);
+  }, [isAdmin, isStaff, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
 
   useEffect(() => {
     reload();
@@ -98,20 +102,20 @@ export const useSupabaseCrud = (session) => {
     await reload();
   }, [reload]);
 
-  const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || bookingsError || ordersError;
+  const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || settingsError || bookingsError || ordersError;
 
   return useMemo(() => ({
     bookings,
     setBookings,
     orders,
     setOrders,
-    catalogs: { services, specialties, therapists, menu, offers },
-    catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers },
+    catalogs: { services, specialties, therapists, menu, offers, settings },
+    catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setSettings },
     loading,
     error,
     reload,
     seedCatalogs,
-  }), [bookings, services, specialties, therapists, menu, offers, error, loading, orders, reload, seedCatalogs, setBookings, setMenu, setOffers, setOrders, setServices, setSpecialties, setTherapists]);
+  }), [bookings, services, specialties, therapists, menu, offers, settings, error, loading, orders, reload, seedCatalogs, setBookings, setMenu, setOffers, setOrders, setServices, setSettings, setSpecialties, setTherapists]);
 };
 
 const hasMenuItems = (menu) => Object.values(menu || {}).some((section) => section.items?.length);

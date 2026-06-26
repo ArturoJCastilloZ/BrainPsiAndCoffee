@@ -17,9 +17,12 @@ import BookingFlow from './BookingFlow';
 import MenuPage from './MenuPage';
 import CartPage from './CartPage';
 import MyBookings from './MyBookings';
+import TherapyPage from './TherapyPage';
+import ContactPage from './ContactPage';
+import PrivacyPage from './PrivacyPage';
 
-export default function UserApp({ bookings, setBookings, orders, setOrders, theme, toggleTheme, catalogs }) {
-  const [page, setPage] = useState('home');
+export default function UserApp({ initialPage = 'home', bookings, setBookings, orders, setOrders, theme, toggleTheme, catalogs }) {
+  const [page, setPage] = useState(initialPage);
   const [cart, setCart] = useState([]);
   const [linkedBookingId, setLinkedBookingId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -71,11 +74,14 @@ export default function UserApp({ bookings, setBookings, orders, setOrders, them
       {/* Pages */}
       <div className="animate-fade-in" key={page}>
         {page === 'home' && <UserHome setPage={setPage} bookings={bookings} catalogs={catalogs} theme={theme} />}
+        {page === 'therapy' && <TherapyPage setPage={setPage} catalogs={catalogs} />}
         {page === 'about' && <AboutPage />}
         {page === 'book' && <BookingFlow setPage={setPage} bookings={bookings} setBookings={setBookings} addToCart={addToCart} setLinkedBookingId={setLinkedBookingId} showToast={showToast} catalogs={catalogs} />}
         {page === 'menu' && <MenuPage addToCart={addToCart} catalogs={catalogs} theme={theme} />}
         {page === 'cart' && <CartPage cart={cart} setCart={setCart} orders={orders} setOrders={setOrders} setPage={setPage} linkedBookingId={linkedBookingId} setLinkedBookingId={setLinkedBookingId} bookings={bookings} showToast={showToast} catalogs={catalogs} />}
         {page === 'mybookings' && <MyBookings bookings={bookings} setBookings={setBookings} setPage={setPage} showToast={showToast} catalogs={catalogs} />}
+        {page === 'contact' && <ContactPage settings={catalogs?.settings} />}
+        {page === 'privacy' && <PrivacyPage settings={catalogs?.settings} />}
       </div>
 
       {/* Bottom Nav */}
@@ -88,9 +94,9 @@ export default function UserApp({ bookings, setBookings, orders, setOrders, them
         <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', justifyContent: 'space-around' }}>
           {[
             { id: 'home', icon: Home, label: 'Inicio' },
-            { id: 'book', icon: CalendarIcon, label: 'Reservar' },
             { id: 'menu', icon: Coffee, label: 'Cafetería' },
-            { id: 'mybookings', icon: User, label: 'Mis citas' },
+            { id: 'therapy', icon: Brain, label: 'Terapia' },
+            { id: 'contact', icon: MessageCircle, label: 'Contacto' },
           ].map(t => (
             <button key={t.id} onClick={() => setPage(t.id)} style={{
               background: 'none', border: 'none', cursor: 'pointer',

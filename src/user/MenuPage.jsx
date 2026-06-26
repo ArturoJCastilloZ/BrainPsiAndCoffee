@@ -12,12 +12,13 @@ import {
 import { C } from '../theme';
 import { FLAVORS, MENU, MILKS } from '../data';
 import { formatMXN } from '../utils.jsx';
+import { activeOffers } from '../offerUtils';
 
 export default function MenuPage({ addToCart, catalogs, theme }) {
   const [activeTab, setActiveTab] = useState('hot');
   const [customizing, setCustomizing] = useState(null);
   const menu = catalogs?.menu || MENU;
-  const offers = (catalogs?.offers || []).filter(offer => offer.active !== false);
+  const offers = activeOffers(catalogs?.offers || []);
   const isDark = theme === 'dark';
 
   const tabs = [

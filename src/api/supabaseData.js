@@ -1,5 +1,7 @@
 import { MENU, OFFERS, SPECIALTIES, THERAPISTS, THERAPY_SERVICES } from '../data';
 import { supabase, assertSupabaseConfigured } from './supabaseClient';
+import { validateAppointment, validateOrder } from '../validation';
+import { BUSINESS } from '../businessInfo';
 
 const throwIfError = ({ error }) => {
   if (error) throw error;
@@ -93,6 +95,8 @@ const mapOfferFromDb = (row) => ({
   name: row.name,
   desc: row.description || '',
   price: toNumber(row.price),
+  startsAt: row.starts_at || '',
+  endsAt: row.ends_at || '',
   active: row.active,
 });
 
@@ -101,7 +105,20 @@ const mapOfferToDb = (item) => ({
   name: item.name,
   description: item.desc || '',
   price: Number(item.price || 0),
+  starts_at: item.startsAt || null,
+  ends_at: item.endsAt || null,
   active: item.active !== false,
+  updated_at: new Date().toISOString(),
+});
+
+const mapSettingsFromDb = (row) => ({
+  ...BUSINESS,
+  ...(row?.content || {}),
+});
+
+const mapSettingsToDb = (settings) => ({
+  id: 'main',
+  content: settings || BUSINESS,
   updated_at: new Date().toISOString(),
 });
 
@@ -130,7 +147,7 @@ const mapAppointmentToDb = (item) => ({
   customer_name: item.name,
   customer_email: item.email,
   customer_phone: item.phone,
-  notes: item.notes || '',
+  notes: String(item.notes || '').slice(0, 280),
   wants_coffee: Boolean(item.wantsCoffee),
   status: item.status || 'confirmed',
   reminder_sent: Boolean(item.reminderSent),
@@ -171,16 +188,18 @@ const mapOrderToDb = (item) => ({
 export const loadCatalogs = async () => {
   assertSupabaseConfigured();
 
-  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult] = await Promise.all([
+  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult, settingsResult] = await Promise.all([
     supabase.from('therapy_services').select('*').order('created_at'),
     supabase.from('therapists').select('*').order('created_at'),
     supabase.from('specialties').select('*').order('created_at'),
     supabase.from('therapist_services').select('*'),
     supabase.from('products').select('*').order('category').order('sort_order').order('created_at'),
     supabase.from('offers').select('*').order('created_at'),
+    supabase.from('business_settings').select('*').eq('id', 'main').maybeSingle(),
   ]);
 
   [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult].forEach(throwIfError);
+  if (settingsResult.error) throw settingsResult.error;
 
   const linksByTherapist = (linksResult.data || []).reduce((acc, link) => {
     acc[link.therapist_id] = [...(acc[link.therapist_id] || []), link.service_id];
@@ -206,6 +225,7 @@ export const loadCatalogs = async () => {
     specialties: (specialtiesResult.data || []).map(mapSpecialtyFromDb),
     menu,
     offers: (offersResult.data || []).map(mapOfferFromDb),
+    settings: mapSettingsFromDb(settingsResult.data),
   };
 };
 
@@ -267,6 +287,12 @@ export const saveOffers = async (items) => {
   return items;
 };
 
+export const saveSettings = async (settings) => {
+  assertSupabaseConfigured();
+  throwIfError(await supabase.from('business_settings').upsert(mapSettingsToDb(settings)));
+  return settings;
+};
+
 const hasAuthSession = async () => {
   const { data } = await supabase.auth.getSession();
   return Boolean(data.session);
@@ -275,6 +301,8 @@ const hasAuthSession = async () => {
 export const saveAppointments = async (items, previousItems = []) => {
   assertSupabaseConfigured();
   const authenticated = await hasAuthSession();
+  const invalid = items.find((item) => Object.keys(validateAppointment(item)).length);
+  if (invalid) throw new Error('La cita tiene datos incompletos o invalidos.');
 
   if (authenticated) {
     if (items.length) throwIfError(await supabase.from('appointments').upsert(items.map(mapAppointmentToDb)));
@@ -291,10 +319,17 @@ export const saveAppointments = async (items, previousItems = []) => {
 export const saveOrders = async (items, previousItems = []) => {
   assertSupabaseConfigured();
   const authenticated = await hasAuthSession();
+  const invalid = items.find((item) => Object.keys(validateOrder(item)).length);
+  if (invalid) throw new Error('El pedido requiere nombre y telefono validos.');
   const previousIds = new Set(previousItems.map((item) => item.id));
   const itemsToPersist = authenticated ? items : items.filter((item) => !previousIds.has(item.id));
 
-  if (itemsToPersist.length) throwIfError(await supabase.from('orders').upsert(itemsToPersist.map(mapOrderToDb)));
+  if (itemsToPersist.length) {
+    const rows = itemsToPersist.map(mapOrderToDb);
+    throwIfError(authenticated
+      ? await supabase.from('orders').upsert(rows)
+      : await supabase.from('orders').insert(rows));
+  }
   if (authenticated) await deleteMissing('orders', items.map((item) => item.id));
 
   for (const order of itemsToPersist) {
@@ -319,6 +354,7 @@ export const seedDefaultCatalogs = async () => {
   await saveTherapists(THERAPISTS);
   await saveMenu(MENU);
   await saveOffers(OFFERS);
+  await saveSettings(BUSINESS);
 };
 
 const deleteMissing = async (table, ids) => {

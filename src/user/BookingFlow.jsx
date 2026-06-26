@@ -11,32 +11,79 @@ import {
 import { C } from '../theme';
 import { MENU, THERAPISTS, THERAPY_SERVICES } from '../data';
 import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, todayISO, uid } from '../utils.jsx';
+import { validateAppointment } from '../validation';
+import { businessFromSettings, whatsappUrl } from '../businessInfo';
+import { trackEvent } from '../monitoring';
 
 export default function BookingFlow({ setPage, bookings, setBookings, addToCart, setLinkedBookingId, showToast, catalogs }) {
   const services = (catalogs?.services || THERAPY_SERVICES).filter(item => item.active !== false);
   const therapists = (catalogs?.therapists || THERAPISTS).filter(item => item.active !== false);
+  const business = businessFromSettings(catalogs?.settings);
   const onLightAccent = '#1E1B18';
+  const formNoticeStyle = {
+    background: 'var(--bp-surface-2)',
+    border: `1px solid ${C.sagePale}`,
+    borderRadius: 14,
+    padding: 14,
+    color: C.brown,
+    fontSize: 12,
+    lineHeight: 1.55,
+  };
+  const checkboxPanelStyle = {
+    background: 'var(--bp-surface)',
+    border: `1.5px solid ${C.caramel}`,
+    borderRadius: 16,
+    padding: 16,
+    color: C.brown,
+  };
   const [step, setStep] = useState(1);
   const [data, setData] = useState({
     serviceId: null, therapistId: null, date: null, time: null,
-    name: '', email: '', phone: '', notes: '', wantsCoffee: false
+    name: '', email: '', phone: '', notes: '', wantsCoffee: false, privacyAccepted: false
   });
+  const [errors, setErrors] = useState({});
 
-  const update = (k, v) => setData({ ...data, [k]: v });
+  const update = (k, v) => {
+    setData({ ...data, [k]: v });
+    if (errors[k]) setErrors({ ...errors, [k]: '' });
+  };
   const service = services.find(s => s.id === data.serviceId);
   const therapist = therapists.find(t => t.id === data.therapistId);
   const avatarTextColor = (color) => (color === C.brownMid || color === C.rust ? C.cream : onLightAccent);
 
   const confirmBooking = () => {
+    const nextErrors = validateAppointment(data);
+    if (!data.privacyAccepted) nextErrors.privacyAccepted = 'Acepta el aviso de privacidad para continuar.';
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      setStep(4);
+      return;
+    }
+    const assignedTherapistId = data.therapistId === 'any'
+      ? therapists.find((item) => item.services?.includes(data.serviceId) && canBookTherapist({ therapist: item, date: data.date, time: data.time, bookings, services }))?.id
+      : data.therapistId;
+    if (!assignedTherapistId) {
+      setErrors({ time: 'Ese horario ya no esta disponible. Elige otro horario.' });
+      setStep(3);
+      return;
+    }
+
     const newBooking = {
       id: uid(),
       ...data,
+      therapistId: assignedTherapistId,
+      notes: '',
       status: 'confirmed',
       createdAt: new Date().toISOString(),
       reminderSent: false
     };
     setBookings([...bookings, newBooking]);
     setLinkedBookingId(newBooking.id);
+    trackEvent('appointment_requested', {
+      serviceId: newBooking.serviceId,
+      therapistId: newBooking.therapistId,
+      wantsCoffee: newBooking.wantsCoffee,
+    });
     setStep(6);
   };
 
@@ -140,38 +187,53 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
             <div className="animate-fade-up">
               <p style={{ fontSize: 14, color: C.brownMid, marginBottom: 20 }}>Datos para confirmar tu cita y enviarte recordatorios.</p>
               <div style={{ display: 'grid', gap: 14 }}>
-                <Input label="Nombre completo" value={data.name} onChange={v => update('name', v)} icon={User} placeholder="Tu nombre" required />
-                <Input label="Correo electrónico" value={data.email} onChange={v => update('email', v)} icon={Mail} placeholder="tucorreo@ejemplo.com" type="email" required />
-                <Input label="Teléfono (WhatsApp)" value={data.phone} onChange={v => update('phone', v)} icon={Phone} placeholder="55 1234 5678" type="tel" required />
-                <div>
-                  <label style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 6, display: 'block', letterSpacing: 0.5 }}>NOTAS PARA EL PROFESIONAL (opcional)</label>
-                  <textarea value={data.notes} onChange={e => update('notes', e.target.value)} rows={3} placeholder="¿Algo que el profesional deba saber antes de tu cita?" style={{
-                    width: '100%', padding: 12, border: `1.5px solid ${C.sagePale}`, borderRadius: 12, fontSize: 14, fontFamily: 'inherit',
-                    background: C.creamLight, color: C.brown, resize: 'vertical', outline: 'none'
-                  }} onFocus={e => e.target.style.borderColor = C.sageDark} onBlur={e => e.target.style.borderColor = C.sagePale} />
+                <Input label="Nombre completo" value={data.name} onChange={v => update('name', v)} icon={User} placeholder="Tu nombre" error={errors.name} required />
+                <Input label="Correo electrónico" value={data.email} onChange={v => update('email', v)} icon={Mail} placeholder="tucorreo@ejemplo.com" type="email" error={errors.email} required />
+                <Input label="Teléfono (WhatsApp)" value={data.phone} onChange={v => update('phone', v)} icon={Phone} placeholder="55 1234 5678" type="tel" error={errors.phone} required />
+
+                <div style={formNoticeStyle}>
+                  Para cuidar tu privacidad, no solicitamos detalles clinicos, diagnosticos ni motivos sensibles en este formulario. El profesional te orientara por contacto directo.
                 </div>
 
-                <div style={{
-                  background: `linear-gradient(135deg, ${C.cream}, ${C.caramelLightAlpha30})`,
-                  border: `1px solid ${C.caramelLight}`, borderRadius: 16, padding: 16
-                }}>
+                <div style={checkboxPanelStyle}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                     <input type="checkbox" id="wantsCoffee" checked={data.wantsCoffee} onChange={e => update('wantsCoffee', e.target.checked)} style={{ marginTop: 2, accentColor: C.sageDark, width: 18, height: 18 }} />
                     <label htmlFor="wantsCoffee" style={{ flex: 1, cursor: 'pointer' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                         <Coffee size={14} color={C.caramel} />
-                        <span style={{ fontWeight: 600, fontSize: 14, color: C.brown }}>Quiero un café antes/después de mi sesión</span>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: C.brown }}>Quiero un café antes/después de mi sesión</span>
                       </div>
-                      <div style={{ fontSize: 12, color: C.brownMid, lineHeight: 1.5 }}>Te llevaremos al menú al confirmar. Disfruta del combo café + postre por solo $99.</div>
+                      <div style={{ fontSize: 12, color: C.brownMid, lineHeight: 1.5, fontWeight: 500 }}>Te llevaremos al menú al confirmar. Disfruta del combo café + postre por solo $99.</div>
                     </label>
                   </div>
                 </div>
+
+                <div style={{
+                  background: 'var(--bp-surface)',
+                  border: `1px solid ${errors.privacyAccepted ? C.rust : C.sagePale}`,
+                  borderRadius: 14,
+                  padding: 14,
+                  color: C.brown,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <input type="checkbox" id="privacyAccepted" checked={data.privacyAccepted} onChange={e => update('privacyAccepted', e.target.checked)} style={{ marginTop: 2, accentColor: C.sageDark, width: 18, height: 18 }} />
+                    <label htmlFor="privacyAccepted" style={{ flex: 1, cursor: 'pointer', fontSize: 12, color: C.brown, lineHeight: 1.5, fontWeight: 500 }}>
+                      Acepto ser contactado por WhatsApp o correo para confirmar mi cita y declaro que no estoy enviando informacion clinica sensible por este formulario.
+                    </label>
+                  </div>
+                  {errors.privacyAccepted && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800, marginTop: 8, display: 'block' }}>{errors.privacyAccepted}</span>}
+                </div>
               </div>
-              <button onClick={() => setStep(5)} disabled={!data.name || !data.email || !data.phone} style={{
+              <button onClick={() => {
+                const nextErrors = validateAppointment(data);
+                if (!data.privacyAccepted) nextErrors.privacyAccepted = 'Acepta el aviso de privacidad para continuar.';
+                setErrors(nextErrors);
+                if (!Object.keys(nextErrors).length) setStep(5);
+              }} disabled={!data.name || !data.email || !data.phone || !data.privacyAccepted} style={{
                 marginTop: 20, width: '100%',
-                background: !data.name || !data.email || !data.phone ? C.sagePale : 'var(--bp-primary)',
-                color: !data.name || !data.email || !data.phone ? '#1E1B18' : 'var(--bp-primary-contrast)', border: 'none', padding: '14px', borderRadius: 14,
-                fontSize: 15, fontWeight: 600, cursor: !data.name || !data.email || !data.phone ? 'not-allowed' : 'pointer'
+                background: !data.name || !data.email || !data.phone || !data.privacyAccepted ? C.sagePale : 'var(--bp-primary)',
+                color: !data.name || !data.email || !data.phone || !data.privacyAccepted ? '#1E1B18' : 'var(--bp-primary-contrast)', border: 'none', padding: '14px', borderRadius: 14,
+                fontSize: 15, fontWeight: 600, cursor: !data.name || !data.email || !data.phone || !data.privacyAccepted ? 'not-allowed' : 'pointer'
               }}>
                 Continuar
               </button>
@@ -200,7 +262,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
               <div style={{ background: C.sagePale, borderRadius: 14, padding: 14, marginBottom: 20, fontSize: 12, color: C.sageDeep, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <Bell size={16} style={{ flexShrink: 0, marginTop: 1 }} />
                 <div>
-                  <strong>Automatización activa:</strong> Te enviaremos recordatorio por WhatsApp 24h y 1h antes de tu cita. Si necesitas cambiar la fecha, podrás hacerlo hasta 12h antes.
+                  <strong>Confirmación:</strong> Al guardar tu solicitud, el equipo podrá verla en el panel administrativo. Para confirmación inmediata, usa el botón de WhatsApp al finalizar.
                 </div>
               </div>
 
@@ -225,7 +287,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
           </div>
           <h1 className="font-display" style={{ fontSize: 32, fontWeight: 600, color: C.brown, margin: '0 0 10px', letterSpacing: '-0.02em' }}>¡Listo, {data.name.split(' ')[0]}!</h1>
           <p style={{ fontSize: 15, color: C.brownMid, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 24px' }}>
-            Tu cita está confirmada. Te enviamos los detalles a <strong style={{ color: C.brown }}>{data.email}</strong> y un mensaje a tu WhatsApp.
+            Recibimos tu solicitud de cita. El equipo podrá revisarla en el panel y puedes confirmarla por WhatsApp.
           </p>
 
           <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 14, padding: 16, marginBottom: 16, textAlign: 'left' }}>
@@ -244,6 +306,14 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
               <Coffee size={18} /> Pedir mi café ahora
             </button>
           ) : null}
+          <a href={whatsappUrl(`Hola, acabo de solicitar una cita para ${service?.name || 'terapia'} el ${data.date} a las ${data.time}. Quiero confirmar disponibilidad.`, business)} onClick={() => trackEvent('whatsapp_confirm_click', { source: 'booking_success' })} target="_blank" rel="noreferrer" style={{
+            width: '100%', background: C.sagePale, color: C.sageDeep, border: 'none',
+            padding: '14px', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10,
+            textDecoration: 'none', boxSizing: 'border-box'
+          }}>
+            <MessageCircle size={18} /> Confirmar por WhatsApp
+          </a>
           <button onClick={() => setPage('mybookings')} style={{
             width: '100%', background: 'transparent', color: C.brown, border: `1.5px solid ${C.brown}`,
             padding: '14px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: 'pointer'
@@ -266,20 +336,22 @@ function Row({ icon: Icon, label, value }) {
   );
 }
 
-function Input({ label, value, onChange, icon: Icon, placeholder, type = 'text', required = false }) {
+function Input({ label, value, onChange, icon: Icon, placeholder, type = 'text', required = false, error = '' }) {
   const missing = required && String(value || '').trim().length === 0;
+  const invalid = missing || Boolean(error);
   return (
     <div>
       <label style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 6, display: 'block', letterSpacing: 0.5 }}>{label.toUpperCase()}</label>
       <div style={{ position: 'relative' }}>
         <Icon size={16} color={C.brownLight} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
         <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={required} style={{
-          width: '100%', padding: '12px 12px 12px 40px', border: `1.5px solid ${missing ? C.rust : C.sagePale}`, borderRadius: 12,
+          width: '100%', padding: '12px 12px 12px 40px', border: `1.5px solid ${invalid ? C.rust : C.sagePale}`, borderRadius: 12,
           fontSize: 14, fontFamily: 'inherit', background: C.creamLight, color: C.brown, outline: 'none',
           boxSizing: 'border-box'
-        }} onFocus={e => e.target.style.borderColor = C.sageDark} onBlur={e => e.target.style.borderColor = missing ? C.rust : C.sagePale} />
+        }} onFocus={e => e.target.style.borderColor = C.sageDark} onBlur={e => e.target.style.borderColor = invalid ? C.rust : C.sagePale} />
       </div>
       {missing && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4, marginTop: 5, display: 'block' }}>Campo requerido</span>}
+      {!missing && error && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4, marginTop: 5, display: 'block' }}>{error}</span>}
     </div>
   );
 }

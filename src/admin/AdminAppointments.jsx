@@ -11,6 +11,7 @@ import {
 import { C } from '../theme';
 import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { addDays, todayISO, uid } from '../utils.jsx';
+import { validateAppointment } from '../validation';
 
 export default function AdminAppointments({ bookings, setBookings, catalogs, lockedTherapistId = null }) {
   const services = catalogs?.services || THERAPY_SERVICES;
@@ -18,6 +19,8 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
   const [filter, setFilter] = useState('upcoming');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
+  const [reschedulingId, setReschedulingId] = useState(null);
+  const [rescheduleDraft, setRescheduleDraft] = useState({ date: '', time: '' });
   const [formError, setFormError] = useState('');
   const [draft, setDraft] = useState({
     serviceId: services[0]?.id || '',
@@ -48,12 +51,7 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
   const availableSlots = useMemo(() => getTimeSlotStates(draft.date, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services), [bookings, draft.date, draft.serviceId, draft.therapistId, eligibleTherapists, services]);
   const selectedSlot = availableSlots.find(slot => slot.time === draft.time);
   const canCreateBooking = Boolean(
-    draft.name?.trim() &&
-    draft.email?.trim() &&
-    draft.phone?.trim() &&
-    draft.serviceId &&
-    draft.date &&
-    draft.time &&
+    Object.keys(validateAppointment(draft)).length === 0 &&
     selectedSlot?.available
   );
 
@@ -101,22 +99,39 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
   const updateStatus = (id, status) => {
     setBookings(bookings.map(b => b.id === id ? { ...b, status } : b));
   };
+  const startReschedule = (booking) => {
+    setReschedulingId(booking.id);
+    setRescheduleDraft({ date: booking.date, time: booking.time });
+    setFormError('');
+  };
+  const saveExistingReschedule = (booking) => {
+    const serviceTherapists = therapists.filter(therapist => therapist.id === booking.therapistId && therapist.services?.includes(booking.serviceId));
+    const slot = getTimeSlotStates(rescheduleDraft.date, booking.therapistId, booking.serviceId, bookings.filter(item => item.id !== booking.id), serviceTherapists, services)
+      .find(item => item.time === rescheduleDraft.time);
+    if (!slot?.available) {
+      setFormError('Ese horario ya no está disponible. Selecciona otro horario.');
+      return;
+    }
+    setBookings(bookings.map(item => item.id === booking.id ? { ...item, date: rescheduleDraft.date, time: rescheduleDraft.time } : item));
+    setReschedulingId(null);
+    setFormError('');
+  };
 
   const createBooking = () => {
-    const missingFields = [
-      !draft.name?.trim() && 'nombre',
-      !draft.email?.trim() && 'correo',
-      !draft.phone?.trim() && 'telefono',
-      !draft.serviceId && 'servicio',
-      !draft.date && 'fecha',
-      !draft.time && 'horario',
-    ].filter(Boolean);
-    if (missingFields.length) {
-      setFormError(`Falta completar: ${missingFields.join(', ')}.`);
+    const nextErrors = validateAppointment(draft);
+    if (Object.keys(nextErrors).length) {
+      setFormError(Object.values(nextErrors)[0]);
       return;
     }
 
     if (!selectedSlot?.available) {
+      setFormError('Ese horario ya no está disponible. Selecciona otro horario.');
+      return;
+    }
+    const assignedTherapistId = draft.therapistId === 'any'
+      ? eligibleTherapists.find((therapist) => canBookTherapist({ therapist, date: draft.date, time: draft.time, bookings, services }))?.id
+      : draft.therapistId;
+    if (!assignedTherapistId) {
       setFormError('Ese horario ya no está disponible. Selecciona otro horario.');
       return;
     }
@@ -125,6 +140,7 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
     setBookings([...bookings, {
       id: uid(),
       ...draft,
+      therapistId: assignedTherapistId,
       status: 'confirmed',
       createdAt: new Date().toISOString(),
       reminderSent: false,
@@ -263,6 +279,11 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
                   }}>{b.status.toUpperCase()}</span>
                   {b.status === 'confirmed' && (
                     <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => startReschedule(b)} title="Reagendar" style={{
+                        background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border)', color: 'var(--admin-accent-text)', padding: 6, borderRadius: 8, cursor: 'pointer'
+                      }}>
+                        <RefreshCw size={14} />
+                      </button>
                       <button onClick={() => updateStatus(b.id, 'completed')} title="Marcar completada" style={{
                         background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border)', color: 'var(--admin-accent-text)', padding: 6, borderRadius: 8, cursor: 'pointer'
                       }}>
@@ -281,11 +302,57 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
                     <strong style={{ color: 'var(--admin-text)' }}>Nota:</strong> {b.notes}
                   </div>
                 )}
+                {reschedulingId === b.id && (
+                  <AdminReschedulePanel
+                    booking={b}
+                    draft={rescheduleDraft}
+                    setDraft={setRescheduleDraft}
+                    bookings={bookings}
+                    therapists={therapists}
+                    services={services}
+                    onSave={() => saveExistingReschedule(b)}
+                    onClose={() => setReschedulingId(null)}
+                  />
+                )}
               </div>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, services, onSave, onClose }) {
+  const therapistPool = therapists.filter(therapist => therapist.id === booking.therapistId && therapist.services?.includes(booking.serviceId));
+  const days = Array.from({ length: 28 }, (_, index) => addDays(new Date(), index))
+    .map(localISO)
+    .filter(isBusinessDay);
+  const slots = getTimeSlotStates(draft.date, booking.therapistId, booking.serviceId, bookings.filter(item => item.id !== booking.id), therapistPool, services)
+    .filter(slot => slot.available);
+
+  return (
+    <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid var(--admin-border)', background: 'var(--admin-surface-soft)' }}>
+      <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>REAGENDAR CITA</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(180px, 1fr)', gap: 10 }}>
+        <label style={fieldWrap}>
+          <span style={fieldLabel}>FECHA</span>
+          <select value={draft.date} onChange={event => setDraft({ date: event.target.value, time: '' })} className="admin-input" style={fieldInput}>
+            {days.map(day => <option key={day} value={day}>{day}</option>)}
+          </select>
+        </label>
+        <label style={fieldWrap}>
+          <span style={fieldLabel}>HORARIO</span>
+          <select value={draft.time} onChange={event => setDraft({ ...draft, time: event.target.value })} className="admin-input" style={fieldInput}>
+            <option value="">Selecciona horario</option>
+            {slots.map(slot => <option key={slot.time} value={slot.time}>{slot.time}</option>)}
+          </select>
+        </label>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-accent-text)', borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Cerrar</button>
+        <button onClick={onSave} disabled={!draft.time} style={{ background: C.sageDark, color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9, padding: '8px 12px', cursor: draft.time ? 'pointer' : 'not-allowed', opacity: draft.time ? 1 : 0.45, fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Guardar</button>
+      </div>
     </div>
   );
 }
