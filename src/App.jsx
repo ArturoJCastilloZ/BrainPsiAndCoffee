@@ -8,6 +8,7 @@ import { authService } from './auth/authService';
 import { useAuthSession, useInactivityTracking, useSessionWarning } from './auth/useAuth';
 import SessionExpiryModal from './components/SessionExpiryModal';
 import { trackPageView } from './monitoring';
+import { canAccessAdmin, canAccessDoctor, isDoctor } from './auth/permissions';
 
 const UserApp = lazy(() => import('./user/UserApp'));
 const AdminApp = lazy(() => import('./admin/AdminApp'));
@@ -38,7 +39,7 @@ export default function App() {
   const goUser = () => navigate('/');
   const logout = () => {
     authService.logout();
-    navigate('/');
+    // navigate('/');
   };
   useInactivityTracking(Boolean(session));
   React.useEffect(() => {
@@ -123,21 +124,21 @@ export default function App() {
           <Route path="/therapy" element={<UserApp initialPage="therapy" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
           <Route path="/contacto" element={<UserApp initialPage="contact" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
           <Route path="/privacidad" element={<UserApp initialPage="privacy" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
-          <Route path="/login" element={<Login onLogin={(nextSession) => navigate(nextSession?.user.role === 'doctor' ? '/doctor' : '/admin', { replace: true })} onCancel={goUser} theme={theme} toggleTheme={toggleTheme} />} />
-          <Route path="/set-password" element={<SetPassword session={session} onComplete={() => navigate(session?.user.role === 'doctor' ? '/doctor' : '/admin', { replace: true })} theme={theme} toggleTheme={toggleTheme} />} />
+          <Route path="/login" element={<Login onLogin={(nextSession) => navigate(isDoctor(nextSession?.user.role) ? '/doctor' : '/admin', { replace: true })} onCancel={goUser} theme={theme} toggleTheme={toggleTheme} />} />
+          <Route path="/set-password" element={<SetPassword session={session} onComplete={() => navigate(isDoctor(session?.user.role) ? '/doctor' : '/admin', { replace: true })} theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/admin" element={
-            session?.user.role === 'admin' ? (
+            canAccessAdmin(session?.user.role) ? (
               <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} dataLoading={dataLoading} seedCatalogs={seedCatalogs} />
-            ) : session?.user.role === 'doctor' ? (
+            ) : canAccessDoctor(session?.user.role) ? (
               <Navigate to="/doctor" replace />
             ) : (
               <Navigate to="/login" replace />
             )
           } />
           <Route path="/doctor" element={
-            session?.user.role === 'doctor' ? (
+            canAccessDoctor(session?.user.role) ? (
               <DoctorApp bookings={bookings} setBookings={setBookings} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} />
-            ) : session?.user.role === 'admin' ? (
+            ) : canAccessAdmin(session?.user.role) ? (
               <Navigate to="/admin" replace />
             ) : (
               <Navigate to="/login" replace />

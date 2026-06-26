@@ -6,4 +6,5 @@ export const env = {
   authWarningSeconds: Number(import.meta.env.VITE_AUTH_WARNING_SECONDS || 60),
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
   supabasePublishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
+  analyticsEndpoint: import.meta.env.VITE_ANALYTICS_ENDPOINT || '',
 };

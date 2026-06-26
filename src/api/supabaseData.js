@@ -2,6 +2,7 @@ import { MENU, OFFERS, SPECIALTIES, THERAPISTS, THERAPY_SERVICES } from '../data
 import { supabase, assertSupabaseConfigured } from './supabaseClient';
 import { validateAppointment, validateOrder } from '../validation';
 import { BUSINESS } from '../businessInfo';
+import { isBarista } from '../auth/permissions';
 
 const throwIfError = ({ error }) => {
   if (error) throw error;
@@ -124,6 +125,7 @@ const mapSettingsToDb = (settings) => ({
 
 const mapAppointmentFromDb = (row) => ({
   id: row.id,
+  patientId: row.patient_id || '',
   serviceId: row.service_id,
   therapistId: row.therapist_id || 'any',
   date: row.appointment_date,
@@ -140,6 +142,7 @@ const mapAppointmentFromDb = (row) => ({
 
 const mapAppointmentToDb = (item) => ({
   id: item.id,
+  patient_id: item.patientId || null,
   service_id: item.serviceId,
   therapist_id: item.therapistId === 'any' ? null : item.therapistId,
   appointment_date: item.date,
@@ -154,12 +157,48 @@ const mapAppointmentToDb = (item) => ({
   updated_at: new Date().toISOString(),
 });
 
+const mapPatientFromDb = (row) => ({
+  id: row.id,
+  name: row.full_name,
+  email: row.email,
+  phone: row.phone,
+  active: row.active,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+const mapClinicalNoteFromDb = (row) => ({
+  id: row.id,
+  appointmentId: row.appointment_id,
+  patientId: row.patient_id,
+  therapistId: row.therapist_id,
+  authorUserId: row.author_user_id,
+  content: row.content,
+  noteType: row.note_type,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+const mapClinicalNoteToDb = (item, session) => ({
+  id: item.id || undefined,
+  appointment_id: item.appointmentId,
+  patient_id: item.patientId,
+  therapist_id: item.therapistId || session?.user?.therapistId,
+  author_user_id: session?.user?.id,
+  content: String(item.content || '').trim(),
+  note_type: 'clinical',
+  updated_at: new Date().toISOString(),
+});
+
 const mapOrderFromDb = (row) => ({
   id: row.id,
   linkedBookingId: row.appointment_id,
   customerName: row.customer_name || '',
   customerPhone: row.customer_phone || '',
   status: row.status,
+  source: row.order_source || (row.appointment_id ? 'appointment' : 'public_menu'),
+  targetReadyAt: row.target_ready_at || '',
+  operationalNotes: row.operational_notes || '',
   total: toNumber(row.total),
   subtotal: toNumber(row.subtotal),
   comboSavings: toNumber(row.combo_savings),
@@ -179,6 +218,9 @@ const mapOrderToDb = (item) => ({
   customer_name: item.customerName || null,
   customer_phone: item.customerPhone || null,
   status: item.status || 'received',
+  order_source: item.source || (item.linkedBookingId ? 'appointment' : 'public_menu'),
+  target_ready_at: item.targetReadyAt || null,
+  operational_notes: String(item.operationalNotes || '').slice(0, 280) || null,
   total: Number(item.total || 0),
   subtotal: Number(item.subtotal || item.total || 0),
   combo_savings: Number(item.comboSavings || 0),
@@ -246,6 +288,47 @@ export const loadOrders = async () => {
   return (result.data || []).map(mapOrderFromDb);
 };
 
+export const loadPatients = async () => {
+  assertSupabaseConfigured();
+  const result = await supabase
+    .from('patients')
+    .select('*')
+    .order('full_name', { ascending: true });
+  throwIfError(result);
+  return (result.data || []).map(mapPatientFromDb);
+};
+
+export const loadClinicalNotes = async () => {
+  assertSupabaseConfigured();
+  const result = await supabase
+    .from('appointment_notes')
+    .select('*')
+    .order('created_at', { ascending: false });
+  throwIfError(result);
+  return (result.data || []).map(mapClinicalNoteFromDb);
+};
+
+export const saveClinicalNote = async (note, session) => {
+  assertSupabaseConfigured();
+  const payload = mapClinicalNoteToDb(note, session);
+  if (!payload.content) throw new Error('La nota clínica no puede estar vacía.');
+  if (payload.content.length > 5000) throw new Error('La nota clínica debe tener máximo 5000 caracteres.');
+  const result = await supabase
+    .from('appointment_notes')
+    .upsert(payload)
+    .select()
+    .single();
+  throwIfError(result);
+  return mapClinicalNoteFromDb(result.data);
+};
+
+export const deleteClinicalNote = async (id) => {
+  assertSupabaseConfigured();
+  const result = await supabase.from('appointment_notes').delete().eq('id', id);
+  throwIfError(result);
+  return id;
+};
+
 export const saveServices = async (items) => {
   assertSupabaseConfigured();
   if (items.length) throwIfError(await supabase.from('therapy_services').upsert(items.map(mapServiceToDb)));
@@ -298,6 +381,11 @@ const hasAuthSession = async () => {
   return Boolean(data.session);
 };
 
+const getAuthRole = async () => {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.app_metadata?.role || data.session?.user?.user_metadata?.role || null;
+};
+
 export const saveAppointments = async (items, previousItems = []) => {
   assertSupabaseConfigured();
   const authenticated = await hasAuthSession();
@@ -319,10 +407,23 @@ export const saveAppointments = async (items, previousItems = []) => {
 export const saveOrders = async (items, previousItems = []) => {
   assertSupabaseConfigured();
   const authenticated = await hasAuthSession();
+  const role = authenticated ? await getAuthRole() : null;
   const invalid = items.find((item) => Object.keys(validateOrder(item)).length);
   if (invalid) throw new Error('El pedido requiere nombre y telefono validos.');
   const previousIds = new Set(previousItems.map((item) => item.id));
   const itemsToPersist = authenticated ? items : items.filter((item) => !previousIds.has(item.id));
+
+  if (isBarista(role)) {
+    const previousById = new Map(previousItems.map((item) => [item.id, item]));
+    const statusUpdates = items.filter((item) => previousById.get(item.id)?.status !== item.status);
+    for (const order of statusUpdates) {
+      throwIfError(await supabase
+        .from('orders')
+        .update({ status: order.status, updated_at: new Date().toISOString() })
+        .eq('id', order.id));
+    }
+    return items;
+  }
 
   if (itemsToPersist.length) {
     const rows = itemsToPersist.map(mapOrderToDb);

@@ -22,12 +22,33 @@ const sitemap = read('public/sitemap.xml');
   assert(sitemap.includes(`brainpsicoffee.com${route === '/' ? '/' : route}`), `Sitemap debe incluir ${route}.`);
 });
 
+const envExample = read('.env.example');
+[
+  'VITE_SUPABASE_URL',
+  'VITE_SUPABASE_PUBLISHABLE_KEY',
+  'VITE_AUTH_INACTIVITY_MINUTES',
+  'VITE_AUTH_WARNING_SECONDS',
+  'VITE_ANALYTICS_ENDPOINT',
+].forEach((needle) => {
+  assert(envExample.includes(needle), `.env.example debe documentar ${needle}.`);
+});
+
 const schema = read('scripts/supabase-schema.sql');
 [
   'enable row level security',
   'business_settings',
+  'profiles',
+  'patients',
+  'appointment_notes',
+  'appointment_notifications',
   'Public can create appointments',
   'Admins can manage business settings',
+  'Doctors can manage own clinical notes',
+  'Clinic staff can manage appointment notifications',
+  'Cafe staff can read orders',
+  'prevent_barista_order_data_changes',
+  'queue_appointment_notification',
+  'order_can_receive_public_items',
 ].forEach((needle) => {
   assert(schema.includes(needle), `Schema debe incluir ${needle}.`);
 });
@@ -39,6 +60,25 @@ assert(app.includes('Suspense'), 'App debe usar Suspense para rutas lazy.');
 const monitoring = read('src/monitoring.js');
 assert(monitoring.includes('trackEvent'), 'Debe existir trackEvent.');
 assert(monitoring.includes('installGlobalErrorReporting'), 'Debe existir reporte global de errores.');
+
+const permissions = read('src/auth/permissions.js');
+[
+  'super_admin',
+  'admin_cafe',
+  'admin_consultorio',
+  'doctor',
+  'barista',
+].forEach((role) => {
+  assert(permissions.includes(role), `permissions.js debe incluir rol ${role}.`);
+});
+
+const login = read('src/components/Login.jsx');
+assert(login.includes('Recuperar contraseña'), 'Login debe incluir recuperación de contraseña.');
+assert(login.includes('requestPasswordReset'), 'Login debe llamar requestPasswordReset.');
+
+const doctor = read('src/doctor/DoctorApp.jsx');
+assert(doctor.includes('saveClinicalNote'), 'DoctorApp debe manejar notas clínicas.');
+assert(doctor.includes('Pacientes'), 'DoctorApp debe incluir vista de pacientes.');
 
 if (failures.length) {
   console.error('QA check failed:');

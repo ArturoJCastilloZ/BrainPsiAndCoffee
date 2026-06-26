@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Brain, Building2, Coffee, Gift, Heart, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { C } from '../theme';
 import { uid } from '../utils.jsx';
 import { SPECIALTIES } from '../data';
 import { isValidEmail, isValidMoney, isValidPositiveInteger } from '../validation';
+import { canManageBusinessSettings, canManageCafeCatalog, canManageClinicCatalog } from '../auth/permissions';
 
 const PRODUCT_TABS = [
   { id: 'hot', label: 'Calientes' },
@@ -35,23 +36,30 @@ const SERVICE_ICONS = [
   { id: 'sparkles', label: 'Destellos', icon: Sparkles },
 ];
 
-export default function AdminCatalog({ catalogs, catalogActions }) {
-  const [tab, setTab] = useState('products');
-  const tabs = [
-    { id: 'products', label: 'Productos', icon: Coffee },
-    { id: 'services', label: 'Servicios', icon: Brain },
-    { id: 'therapists', label: 'Doctores', icon: Users },
-    { id: 'specialties', label: 'Especialidades', icon: Sparkles },
-    { id: 'offers', label: 'Ofertas', icon: Gift },
-    { id: 'business', label: 'Negocio', icon: Building2 },
-  ];
+export default function AdminCatalog({ catalogs, catalogActions, session, initialTab, lockedTab = false, heading = 'Catálogos', description = 'Administra productos, servicios, ofertas, doctores y precios.' }) {
+  const role = session?.user?.role;
+  const tabs = useMemo(() => [
+    canManageCafeCatalog(role) && { id: 'products', label: 'Productos', icon: Coffee },
+    canManageClinicCatalog(role) && { id: 'services', label: 'Servicios', icon: Brain },
+    canManageClinicCatalog(role) && { id: 'therapists', label: 'Doctores', icon: Users },
+    canManageClinicCatalog(role) && { id: 'specialties', label: 'Especialidades', icon: Sparkles },
+    canManageCafeCatalog(role) && { id: 'offers', label: 'Ofertas', icon: Gift },
+    canManageBusinessSettings(role) && { id: 'business', label: 'Negocio', icon: Building2 },
+  ].filter(Boolean), [role]);
+  const [tab, setTab] = useState(initialTab || tabs[0]?.id || 'products');
+
+  useEffect(() => {
+    const nextTab = initialTab || tabs[0]?.id || '';
+    if (!tabs.some((item) => item.id === tab)) setTab(nextTab);
+    else if (initialTab && tab !== initialTab) setTab(initialTab);
+  }, [initialTab, tab, tabs]);
 
   return (
     <div>
-      <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Catálogos</h1>
-      <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginBottom: 20 }}>Administra productos, servicios, ofertas, doctores y precios.</p>
+      <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>{heading}</h1>
+      <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginBottom: 20 }}>{description}</p>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+      {!lockedTab && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
         {tabs.map(item => (
           <button key={item.id} onClick={() => setTab(item.id)} style={{
             display: 'flex', alignItems: 'center', gap: 8, border: '1px solid ' + (tab === item.id ? C.sageDark : 'var(--admin-border)'),
@@ -61,7 +69,7 @@ export default function AdminCatalog({ catalogs, catalogActions }) {
             <item.icon size={14} /> {item.label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {tab === 'products' && <ProductsManager menu={catalogs.menu} setMenu={catalogActions.setMenu} />}
       {tab === 'services' && <ListManager title="Servicios" items={catalogs.services} setItems={catalogActions.setServices} emptyItem={emptyService} renderForm={ServiceForm} summary={(item) => `${item.duration} min · $${item.price} · ${item.for}`} />}

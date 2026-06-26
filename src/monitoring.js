@@ -1,4 +1,6 @@
-const analyticsEndpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
+import { env } from './config/env';
+
+const analyticsEndpoint = env.analyticsEndpoint;
 
 export const trackEvent = (name, payload = {}) => {
   const event = {

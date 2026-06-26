@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, LogIn, User } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Lock, LogIn, Mail, User } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from './BrandMark';
 import { authService } from '../auth/authService';
@@ -13,6 +13,9 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
   const [emailTouched, setEmailTouched] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState('login');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   const isDark = theme === 'dark';
   const identifier = username.trim();
@@ -21,6 +24,9 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
   const emailMissing = identifier.length === 0;
   const emailInvalid = emailTouched && isEmailIdentifier && identifier.length > 0 && !emailPattern.test(identifier);
   const canSubmit = identifier.length > 0 && !emailInvalid && password.length > 0 && !loading;
+  const resetIdentifier = resetEmail.trim();
+  const resetInvalid = resetIdentifier.length > 0 && !emailPattern.test(resetIdentifier);
+  const canReset = resetIdentifier.length > 0 && !resetInvalid && !loading;
 
   const submit = async (event) => {
     event.preventDefault();
@@ -46,6 +52,22 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
     }
   };
 
+  const submitReset = async (event) => {
+    event.preventDefault();
+    if (!canReset) return;
+
+    setLoading(true);
+    try {
+      await authService.requestPasswordReset(resetIdentifier);
+      setError('');
+      setResetSent(true);
+    } catch (nextError) {
+      setError(nextError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -56,7 +78,7 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
       color: isDark ? C.cream : C.brown,
       boxSizing: 'border-box'
     }}>
-      <form onSubmit={submit} style={{
+      <form onSubmit={mode === 'login' ? submit : submitReset} style={{
         width: '100%',
         maxWidth: 420,
         background: isDark ? '#1A2118' : C.creamLight,
@@ -69,10 +91,29 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
           <BrandMark size={42} />
           <div>
             <div className="font-display" style={{ fontSize: 24, fontWeight: 700, lineHeight: 1 }}>Brainpsi</div>
-            <div style={{ fontSize: 12, color: isDark ? C.sageLight : C.brownMid }}>Acceso administrativo</div>
+            <div style={{ fontSize: 12, color: isDark ? C.sageLight : C.brownMid }}>{mode === 'login' ? 'Acceso administrativo' : 'Recuperación de acceso'}</div>
           </div>
         </div>
 
+        {mode === 'reset' ? (
+          <>
+            <p style={{ margin: '0 0 16px', color: isDark ? C.cream : C.brownMid, fontSize: 13, lineHeight: 1.5 }}>
+              Ingresa tu correo. Si pertenece a un usuario autorizado, recibirás un enlace para crear una nueva contraseña.
+            </p>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>CORREO</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, border: `1px solid ${resetInvalid ? C.rust : (isDark ? '#2A332A' : C.sagePale)}`, marginBottom: resetInvalid ? 6 : 14, background: isDark ? '#0F1410' : C.ivory }}>
+              <Mail size={16} />
+              <input value={resetEmail} onChange={event => { setResetEmail(event.target.value); setResetSent(false); setError(''); }} type="email" autoComplete="email" required style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit' }} />
+            </div>
+            {resetInvalid && <div style={{ color: C.rust, fontSize: 11, fontWeight: 600, margin: '0 0 12px' }}>Ingresa un correo válido.</div>}
+            {resetSent && (
+              <div style={{ color: isDark ? C.sageLight : C.sageDark, background: isDark ? '#0F1410' : C.ivory, border: `1px solid ${isDark ? '#2A332A' : C.sagePale}`, borderRadius: 12, padding: 12, fontSize: 12, fontWeight: 700, marginBottom: 14 }}>
+                Revisa tu correo para continuar con la recuperación.
+              </div>
+            )}
+          </>
+        ) : (
+          <>
         <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>CORREO O NOMBRE</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, border: `1px solid ${emailMissing || emailInvalid ? C.rust : (isDark ? '#2A332A' : C.sagePale)}`, marginBottom: emailMissing || emailInvalid ? 6 : 14, background: isDark ? '#0F1410' : C.ivory }}>
           <User size={16} />
@@ -90,19 +131,30 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
           </button>
         </div>
         {passwordMissing && <div style={{ color: C.rust, fontSize: 11, fontWeight: 700, margin: '0 0 12px' }}>Campo requerido</div>}
+          </>
+        )}
 
         {error && <div style={{ color: C.rust, fontSize: 12, fontWeight: 600, marginBottom: 14 }}>{error}</div>}
 
-        <button type="submit" disabled={!canSubmit} style={{ width: '100%', border: 'none', borderRadius: 14, padding: 14, background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', fontWeight: 700, cursor: loading ? 'wait' : (!canSubmit ? 'not-allowed' : 'pointer'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', opacity: canSubmit ? 1 : 0.65 }}>
-          <LogIn size={16} /> {loading ? 'Entrando...' : 'Entrar al admin'}
+        <button type="submit" disabled={mode === 'login' ? !canSubmit : !canReset} style={{ width: '100%', border: 'none', borderRadius: 14, padding: 14, background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', fontWeight: 700, cursor: loading ? 'wait' : ((mode === 'login' ? canSubmit : canReset) ? 'pointer' : 'not-allowed'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', opacity: (mode === 'login' ? canSubmit : canReset) ? 1 : 0.65 }}>
+          {mode === 'login' ? <LogIn size={16} /> : <Mail size={16} />} {loading ? (mode === 'login' ? 'Entrando...' : 'Enviando...') : (mode === 'login' ? 'Entrar al admin' : 'Enviar enlace')}
         </button>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 14 }}>
-          <button type="button" onClick={onCancel} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12 }}>Volver a la app</button>
+          {mode === 'login' ? (
+            <button type="button" onClick={onCancel} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12 }}>Volver a la app</button>
+          ) : (
+            <button type="button" onClick={() => { setMode('login'); setError(''); setResetSent(false); }} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={13} /> Volver</button>
+          )}
           <button type="button" onClick={toggleTheme} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12 }}>
             Modo {isDark ? 'claro' : 'oscuro'}
           </button>
         </div>
+        {mode === 'login' && (
+          <button type="button" onClick={() => { setMode('reset'); setResetEmail(isEmailIdentifier ? identifier : ''); setError(''); }} style={{ display: 'block', width: '100%', marginTop: 14, background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>
+            Recuperar contraseña
+          </button>
+        )}
       </form>
     </div>
   );

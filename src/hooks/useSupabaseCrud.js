@@ -16,6 +16,7 @@ import {
 } from '../api/supabaseData';
 import { BUSINESS } from '../businessInfo';
 import { supabase } from '../api/supabaseClient';
+import { canManageAppointments, canManageOrders, isSuperAdmin } from '../auth/permissions';
 
 const resolveNext = (value, next) => (typeof next === 'function' ? next(value) : next);
 
@@ -38,8 +39,9 @@ const useRemoteState = (initialValue, saveRemote) => {
 };
 
 export const useSupabaseCrud = (session) => {
-  const isAdmin = session?.user?.role === 'admin';
-  const isStaff = ['admin', 'doctor'].includes(session?.user?.role);
+  const canSeed = isSuperAdmin(session?.user?.role);
+  const canLoadAppointments = canManageAppointments(session?.user?.role) || session?.user?.role === 'doctor';
+  const canLoadOrders = canManageOrders(session?.user?.role);
   const [services, setServicesRaw, setServices, servicesError] = useRemoteState(THERAPY_SERVICES, saveServices);
   const [specialties, setSpecialtiesRaw, setSpecialties, specialtiesError] = useRemoteState(SPECIALTIES, saveSpecialties);
   const [therapists, setTherapistsRaw, setTherapists, therapistsError] = useRemoteState(THERAPISTS, saveTherapists);
@@ -60,10 +62,10 @@ export const useSupabaseCrud = (session) => {
     setLoading(true);
     try {
       let catalogs = await loadCatalogs();
-      if (isAdmin && catalogsAreEmpty(catalogs)) {
+      if (canSeed && catalogsAreEmpty(catalogs)) {
         await seedDefaultCatalogs();
         catalogs = await loadCatalogs();
-      } else if (isAdmin && catalogs.specialties.length === 0) {
+      } else if (canSeed && catalogs.specialties.length === 0) {
         await saveSpecialties(SPECIALTIES);
         catalogs = await loadCatalogs();
       }
@@ -75,13 +77,13 @@ export const useSupabaseCrud = (session) => {
       setOffersRaw(catalogs.offers.length ? catalogs.offers : OFFERS);
       setSettingsRaw(catalogs.settings || BUSINESS);
 
-      if (isStaff) {
+      if (canLoadAppointments || canLoadOrders) {
         const [remoteBookings, remoteOrders] = await Promise.all([
-          loadAppointments(),
-          isAdmin ? loadOrders() : Promise.resolve([]),
+          canLoadAppointments ? loadAppointments() : Promise.resolve([]),
+          canLoadOrders ? loadOrders() : Promise.resolve([]),
         ]);
-        setBookingsRaw(remoteBookings);
-        if (isAdmin) setOrdersRaw(remoteOrders);
+        if (canLoadAppointments) setBookingsRaw(remoteBookings);
+        if (canLoadOrders) setOrdersRaw(remoteOrders);
       }
 
       setLoadError(null);
@@ -91,11 +93,29 @@ export const useSupabaseCrud = (session) => {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, isStaff, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
+  }, [canLoadAppointments, canLoadOrders, canSeed, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
 
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!supabase || !canLoadOrders) return undefined;
+
+    const channel = supabase
+      .channel('coffee-orders-feed')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        reload();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => {
+        reload();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [canLoadOrders, reload]);
 
   const seedCatalogs = useCallback(async () => {
     await seedDefaultCatalogs();

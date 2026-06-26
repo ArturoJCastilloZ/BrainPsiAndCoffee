@@ -26,10 +26,10 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
   const pendingOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
 
   const stats = [
-    { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, change: '+12%', page: 'appointments' },
-    { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, change: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'orders' },
-    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.rust, change: '+5', page: 'appointments' },
-    { label: 'Ingresos estimados', value: `$${totalRevenue.toLocaleString('es-MX')}`, icon: DollarSign, color: C.sageLight, change: 'MXN', page: 'orders' },
+    { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, change: '+12%', page: 'clinic-appointments' },
+    { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, change: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'cafe-orders' },
+    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.rust, change: '+5', page: 'clinic-appointments' },
+    { label: 'Ingresos estimados', value: `$${totalRevenue.toLocaleString('es-MX')}`, icon: DollarSign, color: C.sageLight, change: 'MXN', page: 'cafe-orders' },
   ];
 
   return (
@@ -74,7 +74,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
         <div className="admin-card" style={{ borderRadius: 16, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 14, color: 'var(--admin-text)', margin: 0, fontWeight: 600, letterSpacing: 0.5 }}>CITAS DE HOY</h2>
-            <button onClick={() => setPage('appointments')} style={{ background: 'none', border: 'none', color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+            <button onClick={() => setPage('clinic-appointments')} style={{ background: 'none', border: 'none', color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
               Ver todas <ArrowRight size={11} />
             </button>
           </div>
@@ -106,7 +106,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
         <div className="admin-card" style={{ borderRadius: 16, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 14, color: 'var(--admin-text)', margin: 0, fontWeight: 600, letterSpacing: 0.5 }}>PEDIDOS PENDIENTES</h2>
-            <button onClick={() => setPage('orders')} style={{ background: 'none', border: 'none', color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+            <button onClick={() => setPage('cafe-orders')} style={{ background: 'none', border: 'none', color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
               Ver todos <ArrowRight size={11} />
             </button>
           </div>

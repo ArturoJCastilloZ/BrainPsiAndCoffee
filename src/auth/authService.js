@@ -2,13 +2,14 @@ import { BehaviorSubject } from 'rxjs';
 import { env } from '../config/env';
 import { supabase, assertSupabaseConfigured } from '../api/supabaseClient';
 import { resetRequests } from '../api/requestActivity';
+import { canAccessAdmin, canAccessDoctor, normalizeRole } from './permissions';
 
 const warningMs = env.authWarningSeconds * 1000;
 const inactivityMs = env.authInactivityMinutes * 60 * 1000;
 
 const toAppSession = (session) => {
   if (!session?.user) return null;
-  const role = session.user.app_metadata?.role || session.user.user_metadata?.role || 'user';
+  const role = normalizeRole(session.user.app_metadata?.role || session.user.user_metadata?.role || 'user');
 
   return {
     user: {
@@ -54,7 +55,7 @@ class AuthService {
     }
 
     const session = this.setSession(data.session);
-    if (!['admin', 'doctor'].includes(session?.user.role)) {
+    if (!canAccessAdmin(session?.user.role) && !canAccessDoctor(session?.user.role)) {
       await this.logout('not-admin');
       throw new Error('Tu usuario no tiene permisos para acceder al panel.');
     }
@@ -67,6 +68,14 @@ class AuthService {
     const { data, error } = await supabase.auth.updateUser({ password });
     if (error) throw new Error('No se pudo guardar la contraseña. Solicita una nueva invitación.');
     return data.user;
+  }
+
+  async requestPasswordReset(email) {
+    assertSupabaseConfigured();
+    const redirectTo = `${window.location.origin}/set-password`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw new Error('No se pudo enviar el enlace de recuperación.');
+    return true;
   }
 
   async resolveLoginEmail(identifier) {

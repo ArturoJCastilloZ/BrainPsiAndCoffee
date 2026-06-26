@@ -58,7 +58,10 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
       linkedBookingId,
       customerName: customer.customerName.trim(),
       customerPhone: customer.customerPhone.trim(),
-      status: 'received',
+      source: linkedBookingId ? 'appointment' : 'public_menu',
+      status: linkedBookingId ? 'pending_appointment' : 'received',
+      targetReadyAt: linkedBooking ? targetReadyAt(linkedBooking) : '',
+      operationalNotes: linkedBookingId ? 'Pedido ligado a cita. Preparar cerca de la hora objetivo.' : '',
       createdAt: new Date().toISOString()
     };
     setOrders([...orders, order]);
@@ -69,7 +72,7 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
     });
     setCart([]);
     setLinkedBookingId(null);
-    showToast('¡Pedido enviado! Estará listo pronto.');
+    showToast(linkedBookingId ? '¡Pedido recibido! Lo prepararemos cerca de tu cita.' : '¡Pedido enviado! Estará listo pronto.');
     setPage('home');
   };
 
@@ -101,7 +104,7 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
         <div style={{ background: C.sagePale, borderRadius: 12, padding: 14, marginBottom: 16, fontSize: 12, color: C.sageDeep, display: 'flex', gap: 10 }}>
           <CalendarIcon size={16} style={{ flexShrink: 0 }} />
           <div>
-            <strong>Vinculado a tu cita:</strong> {fullDayLabel(new Date(linkedBooking.date))} a las {linkedBooking.time}. Tendremos tu pedido listo.
+            <strong>Vinculado a tu cita:</strong> {fullDayLabel(new Date(linkedBooking.date))} a las {linkedBooking.time}. Lo prepararemos cerca de tu horario.
           </div>
         </div>
       )}
@@ -177,6 +180,13 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
       </button>
     </div>
   );
+}
+
+function targetReadyAt(booking) {
+  if (!booking?.date || !booking?.time) return '';
+  const target = new Date(`${booking.date}T${booking.time}`);
+  target.setMinutes(target.getMinutes() - 10);
+  return target.toISOString();
 }
 
 function OrderField({ label, value, onChange, error }) {

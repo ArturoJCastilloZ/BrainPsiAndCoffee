@@ -88,13 +88,14 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
 
   const filtered = useMemo(() => {
     let list = [...bookings];
+    if (lockedTherapistId) list = list.filter(b => b.therapistId === lockedTherapistId);
     if (filter === 'upcoming') list = list.filter(b => b.status !== 'cancelled' && new Date(b.date + 'T' + b.time) >= new Date());
     else if (filter === 'past') list = list.filter(b => new Date(b.date + 'T' + b.time) < new Date());
     else if (filter === 'cancelled') list = list.filter(b => b.status === 'cancelled');
 
     if (search) list = list.filter(b => b.name.toLowerCase().includes(search.toLowerCase()) || b.email.toLowerCase().includes(search.toLowerCase()));
     return list.sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
-  }, [bookings, filter, search]);
+  }, [bookings, filter, lockedTherapistId, search]);
 
   const updateStatus = (id, status) => {
     setBookings(bookings.map(b => b.id === id ? { ...b, status } : b));

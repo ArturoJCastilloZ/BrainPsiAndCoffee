@@ -26,5 +26,6 @@ export const validateOrder = (data) => {
   const errors = {};
   if (!isNonEmpty(data.customerName)) errors.customerName = 'Ingresa el nombre del cliente.';
   if (!isValidPhone(data.customerPhone)) errors.customerPhone = 'Ingresa un telefono valido.';
+  if (String(data.operationalNotes || '').length > 280) errors.operationalNotes = 'Usa maximo 280 caracteres.';
   return errors;
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
     ChevronRight, ChevronLeft, Plus, Minus, Check, X,
@@ -14,12 +14,56 @@ import AdminDashboard from './AdminDashboard';
 import AdminAppointments from './AdminAppointments';
 import AdminOrders from './AdminOrders';
 import AdminCatalog from './AdminCatalog';
+import {
+    canAccessAdminPage,
+    canManageAppointments,
+    canManageBusinessSettings,
+    canManageCafeCatalog,
+    canManageClinicCatalog,
+    canManageOrders,
+    canViewDashboard,
+    firstAllowedAdminPage
+} from '../auth/permissions';
 
 export default function AdminApp({ bookings, setBookings, orders, setOrders, switchToUser, logout, session, theme, toggleTheme, catalogs, catalogActions }) {
-    const [page, setPage] = useState('dashboard');
+    const role = session?.user?.role;
+    const [page, setPage] = useState(firstAllowedAdminPage(role) || 'cafe-orders');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const sidebarWidth = sidebarCollapsed ? 78 : 240;
     const isDark = theme === 'dark';
+    const navSections = useMemo(() => ([
+        {
+            label: 'Administración general',
+            items: [
+                canViewDashboard(role) && { id: 'general-dashboard', label: 'Dashboard', icon: BarChart3 },
+                canManageBusinessSettings(role) && { id: 'general-business', label: 'Negocio', icon: Settings },
+            ].filter(Boolean)
+        },
+        {
+            label: 'Cafetería',
+            items: [
+                canManageOrders(role) && { id: 'cafe-orders', label: 'Pedidos café', icon: Coffee },
+                canManageCafeCatalog(role) && { id: 'cafe-products', label: 'Menú / productos', icon: Cake },
+                canManageCafeCatalog(role) && { id: 'cafe-offers', label: 'Promociones', icon: Gift },
+            ].filter(Boolean)
+        },
+        {
+            label: 'Consultorio',
+            items: [
+                canManageAppointments(role) && { id: 'clinic-appointments', label: 'Citas', icon: CalendarIcon },
+                canManageClinicCatalog(role) && { id: 'clinic-services', label: 'Servicios', icon: Brain },
+                canManageClinicCatalog(role) && { id: 'clinic-therapists', label: 'Doctores', icon: Users },
+                canManageClinicCatalog(role) && { id: 'clinic-specialties', label: 'Especialidades', icon: Sparkles },
+            ].filter(Boolean)
+        }
+    ].filter((section) => section.items.length)), [role]);
+    const navItems = useMemo(() => navSections.flatMap((section) => section.items), [navSections]);
+
+    useEffect(() => {
+        if (!canAccessAdminPage(role, page)) {
+            setPage(firstAllowedAdminPage(role) || 'cafe-orders');
+        }
+    }, [page, role]);
 
     return (
         <div style={{
@@ -73,24 +117,28 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                     </button>
 
                     <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 }}>
-                        {[
-                            { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-                            { id: 'appointments', label: 'Citas', icon: CalendarIcon },
-                            { id: 'orders', label: 'Pedidos café', icon: Coffee },
-                            { id: 'catalog', label: 'Catálogos', icon: Settings },
-                        ].map(t => (
-                            <button key={t.id} onClick={() => setPage(t.id)} title={t.label} style={{
-                                display: 'flex', alignItems: 'center', gap: 12,
-                                justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                                background: page === t.id ? 'var(--admin-surface)' : 'transparent',
-                                border: page === t.id ? `1px solid ${C.sageDark}` : '1px solid transparent',
-                                padding: sidebarCollapsed ? '12px' : '12px 14px', borderRadius: 10,
-                                cursor: 'pointer', color: page === t.id ? 'var(--admin-text)' : 'var(--admin-muted)',
-                                fontSize: 13, fontWeight: page === t.id ? 700 : 500, textAlign: 'left', width: '100%',
-                                fontFamily: 'inherit', boxShadow: page === t.id ? `inset 3px 0 0 ${C.caramel}` : 'none'
-                            }}>
-                                <t.icon size={16} strokeWidth={page === t.id ? 2 : 1.6} /> {!sidebarCollapsed && t.label}
-                            </button>
+                        {navSections.map(section => (
+                            <div key={section.label} style={{ display: 'grid', gap: 4, marginBottom: sidebarCollapsed ? 4 : 12 }}>
+                                {!sidebarCollapsed && (
+                                    <div style={{ color: 'var(--admin-subtle)', fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', padding: '8px 12px 3px' }}>
+                                        {section.label}
+                                    </div>
+                                )}
+                                {section.items.map(t => (
+                                    <button key={t.id} onClick={() => setPage(t.id)} title={t.label} style={{
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                        justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                                        background: page === t.id ? 'var(--admin-surface)' : 'transparent',
+                                        border: page === t.id ? `1px solid ${C.sageDark}` : '1px solid transparent',
+                                        padding: sidebarCollapsed ? '12px' : '12px 14px', borderRadius: 10,
+                                        cursor: 'pointer', color: page === t.id ? 'var(--admin-text)' : 'var(--admin-muted)',
+                                        fontSize: 13, fontWeight: page === t.id ? 700 : 500, textAlign: 'left', width: '100%',
+                                        fontFamily: 'inherit', boxShadow: page === t.id ? `inset 3px 0 0 ${C.caramel}` : 'none'
+                                    }}>
+                                        <t.icon size={16} strokeWidth={page === t.id ? 2 : 1.6} /> {!sidebarCollapsed && t.label}
+                                    </button>
+                                ))}
+                            </div>
                         ))}
                     </nav>
 
@@ -137,29 +185,31 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                 {/* Main */}
                 <main style={{ flex: 1, minWidth: 0, height: '100vh', overflow: 'auto', padding: '24px', paddingBottom: 100, boxSizing: 'border-box' }}>
                     <div style={{ minWidth: 900 }}>
-                        {page === 'dashboard' && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} />}
-                        {page === 'appointments' && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} />}
-                        {page === 'orders' && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} />}
-                        {page === 'catalog' && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} />}
+                        {page === 'general-dashboard' && canViewDashboard(role) && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} />}
+                        {page === 'general-business' && canManageBusinessSettings(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="business" lockedTab heading="Negocio" description="Administra información general del negocio, contacto, redes, mapa y horarios." />}
+                        {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} />}
+                        {page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}
+                        {page === 'cafe-offers' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="offers" lockedTab heading="Promociones" description="Administra ofertas y vigencia de promociones de cafetería." />}
+                        {page === 'clinic-appointments' && canManageAppointments(role) && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} />}
+                        {page === 'clinic-services' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="services" lockedTab heading="Servicios" description="Administra servicios del consultorio, duración, precio y público objetivo." />}
+                        {page === 'clinic-therapists' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="therapists" lockedTab heading="Doctores" description="Administra profesionales, cédulas, especialidades y servicios habilitados." />}
+                        {page === 'clinic-specialties' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="specialties" lockedTab heading="Especialidades" description="Administra especialidades disponibles para clasificar al equipo clínico." />}
                     </div>
                 </main>
 
                 {/* Mobile bottom nav */}
                 <nav style={{
                     position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--admin-sidebar)', borderTop: '1px solid var(--admin-border-soft)',
-                    padding: '10px 16px 20px', display: 'flex', justifyContent: 'space-around', zIndex: 40
+                    padding: '10px 16px 20px', display: 'flex', justifyContent: 'flex-start', gap: 8, zIndex: 40,
+                    overflowX: 'auto'
                 }} className="md:hidden">
-                    {[
-                        { id: 'dashboard', icon: BarChart3, label: 'Inicio' },
-                        { id: 'appointments', icon: CalendarIcon, label: 'Citas' },
-                        { id: 'orders', icon: Coffee, label: 'Café' },
-                        { id: 'catalog', icon: Settings, label: 'Catálogos' },
-                    ].map(t => (
+                    {navItems.map(t => (
                         <button key={t.id} onClick={() => setPage(t.id)} style={{
                             background: 'none', border: 'none', cursor: 'pointer',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                             color: page === t.id ? 'var(--admin-accent-text)' : 'var(--admin-subtle)', padding: '4px 8px',
-                            fontFamily: 'inherit'
+                            fontFamily: 'inherit',
+                            minWidth: 72
                         }}>
                             <t.icon size={18} /> <span style={{ fontSize: 10, fontWeight: 600 }}>{t.label}</span>
                         </button>
