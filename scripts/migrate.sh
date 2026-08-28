@@ -51,7 +51,17 @@ comment on table public.schema_migrations is
   'Migraciones aplicadas. Lo mantiene scripts/migrate.sh; no editar a mano.';
 " >/dev/null
 
-checksum_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+# shasum viene de perl y es lo habitual en macOS; sha256sum es lo de
+# coreutils en Linux. El runner de CI trae el segundo: sin este fallback,
+# el checksum salia vacio y toda migracion parecia haber cambiado.
+if command -v shasum >/dev/null 2>&1; then
+  checksum_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+elif command -v sha256sum >/dev/null 2>&1; then
+  checksum_of() { sha256sum "$1" | cut -d' ' -f1; }
+else
+  echo "ERROR: no hay shasum ni sha256sum para calcular checksums." >&2
+  exit 1
+fi
 
 applied_versions="$(psql_q "select version from public.schema_migrations order by version;")"
 is_applied() { [[ -n "$applied_versions" ]] && grep -qxF "$1" <<<"$applied_versions"; }
