@@ -158,3 +158,91 @@ begin
 
   raise notice 'ok · la clinica nunca se queda sin dueño';
 end $$;
+
+-- Vinculo doctor ↔ ficha de terapeuta (migracion 0015).
+--
+-- Un doctor sin ficha es un rol inservible: current_therapist_id() queda
+-- vacio y todas las policies clinicas lo rechazan, con un error que no
+-- apunta a la causa. Se exige la ficha al asignarlo.
+do $$
+declare v_ficha text; v_meta jsonb;
+begin
+  insert into public.therapists (tenant_id,id,name) values
+    ('t_acc_a','th-uno','Dra. Uno'), ('t_acc_a','th-dos','Dr. Dos');
+
+  -- El bloque anterior degrado al dueño original y dejo a acc.otro como
+  -- unico owner: se actua como el, no como quien ya no manda.
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    '{"sub":"acc00000-0000-0000-0000-00000000000c","app_metadata":{"memberships":{"t_acc_a":"owner"}}}', true);
+  perform set_config('request.tenant','t_acc_a', true);
+
+  -- Nombrar doctor SIN ficha debe rechazarse.
+  begin
+    perform public.set_tenant_member_role('acc.staff@ex.mx','doctor');
+    raise exception 'FALLA: acepto un doctor sin ficha de terapeuta';
+  exception when others then
+    if position('necesita una ficha' in sqlerrm) = 0 then raise; end if;
+  end;
+
+  -- Con una ficha inexistente, tampoco.
+  begin
+    perform public.set_tenant_member_role('acc.staff@ex.mx','doctor','no-existe');
+    raise exception 'FALLA: acepto una ficha que no existe';
+  exception when others then
+    if position('No existe la ficha' in sqlerrm) = 0 then raise; end if;
+  end;
+
+  -- Con ficha valida: se escribe en la tabla Y en el claim.
+  perform public.set_tenant_member_role('acc.staff@ex.mx','doctor','th-uno');
+
+  set local role postgres;
+  select therapist_id into v_ficha from public.tenant_members
+   where tenant_id='t_acc_a' and user_id='acc00000-0000-0000-0000-00000000000b';
+  if v_ficha is distinct from 'th-uno' then
+    raise exception 'FALLA: no se guardo la ficha en tenant_members (quedo %)', v_ficha;
+  end if;
+
+  select raw_app_meta_data into v_meta from auth.users
+   where id='acc00000-0000-0000-0000-00000000000b';
+  if v_meta -> 'therapist_ids' ->> 't_acc_a' <> 'th-uno' then
+    raise exception 'FALLA: no se guardo la ficha en el claim';
+  end if;
+
+  -- Dos usuarios sobre la misma ficha se verian las citas y las notas
+  -- entre si, porque las policies comparan por therapist_id. Se prueba
+  -- con un tercero: sobre uno mismo saltaria antes el guard de no
+  -- cambiarse el propio rol.
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    '{"sub":"acc00000-0000-0000-0000-00000000000c","app_metadata":{"memberships":{"t_acc_a":"owner"}}}', true);
+  perform set_config('request.tenant','t_acc_a', true);
+  begin
+    perform public.set_tenant_member_role('acc.ajeno@ex.mx','doctor','th-uno');
+    raise exception 'FUGA: dos usuarios quedaron sobre la misma ficha';
+  exception when others then
+    if position('ya esta asignada' in sqlerrm) = 0 then raise; end if;
+  end;
+
+  -- Al dejar de ser doctor, la ficha se limpia en los dos lados: dejarla
+  -- colgando seria un vinculo que nadie lee y que confunde despues.
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    '{"sub":"acc00000-0000-0000-0000-00000000000c","app_metadata":{"memberships":{"t_acc_a":"owner"}}}', true);
+  perform set_config('request.tenant','t_acc_a', true);
+  perform public.set_tenant_member_role('acc.staff@ex.mx','barista');
+
+  set local role postgres;
+  select therapist_id into v_ficha from public.tenant_members
+   where tenant_id='t_acc_a' and user_id='acc00000-0000-0000-0000-00000000000b';
+  if v_ficha is not null then
+    raise exception 'FALLA: la ficha quedo colgando tras cambiar de rol (%)', v_ficha;
+  end if;
+  select raw_app_meta_data into v_meta from auth.users
+   where id='acc00000-0000-0000-0000-00000000000b';
+  if v_meta -> 'therapist_ids' ? 't_acc_a' then
+    raise exception 'FALLA: la ficha quedo en el claim tras cambiar de rol';
+  end if;
+
+  raise notice 'ok · el doctor queda vinculado a su ficha, y solo el';
+end $$;

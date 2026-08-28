@@ -40,7 +40,9 @@ begin
 
   -- Fusiona, no pisa: darle un rol en otra clinica conserva el anterior.
   insert into public.tenants (id,name) values ('t_otra','Otra') on conflict do nothing;
-  perform public.grant_tenant_role('primero@ex.mx','t_otra','doctor');
+  -- Un doctor necesita ficha de terapeuta en SU clinica (0015).
+  insert into public.therapists (tenant_id,id,name) values ('t_otra','th-otra','Dra. Otra');
+  perform public.grant_tenant_role('primero@ex.mx','t_otra','doctor','th-otra');
 
   select raw_app_meta_data into v_meta from auth.users where id = v_id;
   if v_meta -> 'memberships' ->> 'brainpsi' <> 'owner' then

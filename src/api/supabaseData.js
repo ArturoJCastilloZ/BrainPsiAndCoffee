@@ -637,11 +637,16 @@ export const listTenantMembers = async () => {
   }));
 };
 
-export const setTenantMemberRole = async (email, role) => {
+// therapistId es obligatorio para el rol 'doctor': sin ficha vinculada,
+// current_therapist_id() queda vacio y las policies clinicas lo rechazan
+// todo — el doctor no puede crear citas ni ver a sus pacientes, y el error
+// que llega no apunta a la causa. La base lo exige; aqui solo se manda.
+export const setTenantMemberRole = async (email, role, therapistId = null) => {
   assertSupabaseConfigured();
   const { error } = await supabase.rpc('set_tenant_member_role', {
     p_email: email,
     p_role: role,
+    p_therapist_id: therapistId,
   });
   if (error) throw error;
 };

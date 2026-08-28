@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import { C } from '../theme';
 import { listTenantMembers, revokeTenantMember, setTenantMemberRole } from '../api/supabaseData';
+import { supabase } from '../api/supabaseClient';
 
 const ROLE_OPTIONS = [
   { id: 'owner', label: 'Dueño', help: 'Todo, incluido administrar accesos' },
@@ -14,6 +15,7 @@ const ROLE_OPTIONS = [
 const roleLabel = (id) => ROLE_OPTIONS.find((r) => r.id === id)?.label || id;
 
 export default function AdminAccess() {
+  const [therapists, setTherapists] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -21,12 +23,21 @@ export default function AdminAccess() {
   const [notice, setNotice] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('admin_consultorio');
+  const [therapistId, setTherapistId] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       setMembers(await listTenantMembers());
+      // Las fichas de terapeuta de esta clinica, para poder vincular a un
+      // doctor con la suya. RLS ya las acota al tenant activo.
+      const fichas = await supabase
+        .from('therapists')
+        .select('id, name')
+        .eq('active', true)
+        .order('name');
+      if (!fichas.error) setTherapists(fichas.data || []);
     } catch (err) {
       // El mensaje viene de la base y ya esta redactado para una persona
       // ("Solo el dueño...", "Es el unico dueño..."). Se muestra tal cual
@@ -59,10 +70,14 @@ export default function AdminAccess() {
     const correo = email.trim();
     if (!correo) return;
     run(
-      () => setTenantMemberRole(correo, role),
+      () => setTenantMemberRole(correo, role, role === 'doctor' ? therapistId : null),
       `${correo} quedo como ${roleLabel(role)}. Tiene que volver a iniciar sesion para que aplique.`,
     ).then(() => setEmail(''));
   };
+
+  // Un doctor sin ficha no puede trabajar, asi que el boton no se ofrece
+  // hasta que se elija una.
+  const faltaFicha = role === 'doctor' && !therapistId;
 
   return (
     <div>
@@ -93,10 +108,24 @@ export default function AdminAccess() {
           <select value={role} onChange={(e) => setRole(e.target.value)} style={{ ...campo, flex: '0 1 220px' }}>
             {ROLE_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
           </select>
-          <button type="submit" disabled={busy || !email.trim()} style={boton('primary', busy || !email.trim())}>
+          <button type="submit" disabled={busy || !email.trim() || faltaFicha} style={boton('primary', busy || !email.trim() || faltaFicha)}>
             <KeyRound size={14} /> Asignar
           </button>
         </div>
+
+        {role === 'doctor' && (
+          <div style={{ marginTop: 10 }}>
+            <select value={therapistId} onChange={(e) => setTherapistId(e.target.value)} style={{ ...campo, width: '100%' }}>
+              <option value="">Elige su ficha de terapeuta…</option>
+              {therapists.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <p style={{ fontSize: 12, color: 'var(--admin-muted)', margin: '6px 0 0' }}>
+              {therapists.length
+                ? 'Sin ficha vinculada, el doctor no puede crear citas ni ver a sus pacientes.'
+                : 'No hay fichas de terapeuta activas. Créala primero en Doctores.'}
+            </p>
+          </div>
+        )}
 
         <p style={{ fontSize: 12, color: 'var(--admin-muted)', margin: '10px 0 0' }}>
           {ROLE_OPTIONS.find((r) => r.id === role)?.help}
@@ -140,10 +169,23 @@ export default function AdminAccess() {
                 <select
                   value={m.role}
                   disabled={busy}
-                  onChange={(e) => run(
-                    () => setTenantMemberRole(m.email, e.target.value),
-                    `${m.email} ahora es ${roleLabel(e.target.value)}.`,
-                  )}
+                  onChange={(e) => {
+                    const nuevo = e.target.value;
+                    // Pasar a doctor exige elegir ficha: se pregunta aqui
+                    // en vez de dejar que la base lo rechace despues.
+                    let ficha = null;
+                    if (nuevo === 'doctor') {
+                      ficha = m.therapistId || window.prompt(
+                        `Id de la ficha de terapeuta para ${m.email}:\n${therapists.map((t) => `${t.id} · ${t.name}`).join('\n')}`,
+                        m.therapistId || '',
+                      );
+                      if (!ficha) return;
+                    }
+                    run(
+                      () => setTenantMemberRole(m.email, nuevo, ficha),
+                      `${m.email} ahora es ${roleLabel(nuevo)}.`,
+                    );
+                  }}
                   style={{ ...campo, padding: '6px 8px', fontSize: 12 }}
                 >
                   {ROLE_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
