@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { THERAPISTS, THERAPY_SERVICES } from '../data';
-import { addDays, todayISO, uid } from '../utils.jsx';
+import { addDays, todayISO, uid, weekdayLabelsFrom } from '../utils.jsx';
 import { validateAppointment } from '../validation';
 
 export default function AdminAppointments({ bookings, setBookings, catalogs, lockedTherapistId = null }) {
@@ -394,7 +394,10 @@ function AvailabilityCalendar({ days, selectedDate, onSelect }) {
       borderRadius: 12,
       padding: 10,
     }}>
-      {['M', 'M', 'J', 'V', 'S', 'D', 'L'].map((label, index) => (
+      {/* Se derivan del primer dia real de la rejilla: esta empieza hoy y
+          no en lunes, asi que un arreglo fijo solo acierta un dia de cada
+          siete. */}
+      {weekdayLabelsFrom(days[0]?.date).map((label, index) => (
         <div key={`${label}-${index}`} style={{ color: 'var(--admin-subtle)', fontSize: 10, fontWeight: 800, textAlign: 'center' }}>{label}</div>
       ))}
       {days.map(day => {

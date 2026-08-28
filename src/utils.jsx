@@ -23,3 +23,22 @@ export const generateTimeSlots = () => {
   }
   return slots;
 };
+
+// Etiquetas de los encabezados del calendario.
+//
+// La rejilla de disponibilidad NO esta alineada a semanas: empieza HOY y
+// avanza 35 dias, asi que la primera columna es el dia de hoy, sea cual
+// sea. Los encabezados tienen que derivarse de ese primer dia.
+//
+// Antes eran un arreglo fijo ['M','M','J','V','S','D','L'] y solo
+// coincidian si hoy era martes. El 28/08/2026 —viernes— la columna
+// rotulada 'V' contenia el lunes 31: el encabezado decia una cosa y la
+// celda otra.
+//
+// Se usan dos letras porque M/M y S/D son ambiguas de un vistazo.
+const NOMBRES_DIA = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
+
+export const weekdayLabelsFrom = (firstDay) => {
+  const inicio = firstDay instanceof Date ? firstDay.getDay() : 0;
+  return Array.from({ length: 7 }, (_, i) => NOMBRES_DIA[(inicio + i) % 7]);
+};
