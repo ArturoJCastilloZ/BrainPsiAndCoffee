@@ -77,7 +77,15 @@ assert(login.includes('Recuperar contraseña'), 'Login debe incluir recuperació
 assert(login.includes('requestPasswordReset'), 'Login debe llamar requestPasswordReset.');
 
 const doctor = read('src/doctor/DoctorApp.jsx');
-assert(doctor.includes('saveClinicalNote'), 'DoctorApp debe manejar notas clínicas.');
+assert(doctor.includes('createClinicalNote'), 'DoctorApp debe poder crear notas clínicas.');
+assert(doctor.includes('signClinicalNote'), 'DoctorApp debe poder firmar la nota.');
+assert(doctor.includes('addNoteAddendum'), 'DoctorApp debe permitir addenda sobre una nota firmada.');
+// Borrar una nota clínica no es una función que falte: es una que no debe
+// existir. NOM-004 exige conservar el expediente 5 años desde el último
+// acto médico, así que si alguien la reintroduce, esto lo detiene.
+assert(!doctor.includes('deleteClinicalNote'), 'DoctorApp no debe poder borrar notas clínicas.');
+const dataLayer = read('src/api/supabaseData.js');
+assert(!dataLayer.includes('export const deleteClinicalNote'), 'La capa de datos no debe exponer borrado de notas clínicas.');
 assert(doctor.includes('Pacientes'), 'DoctorApp debe incluir vista de pacientes.');
 
 if (failures.length) {

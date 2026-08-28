@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar as CalendarIcon, FileText, LogOut, Plus, Save, Settings, Trash2, User, X } from 'lucide-react';
+import { Calendar as CalendarIcon, FileText, Lock, LogOut, Plus, Save, Settings, User, X } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
 import AdminAppointments from '../admin/AdminAppointments';
-import { deleteClinicalNote, loadClinicalNotes, loadPatients, saveClinicalNote } from '../api/supabaseData';
+import {
+  addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes,
+  loadPatients, signClinicalNote, updateClinicalNote,
+} from '../api/supabaseData';
 
 export default function DoctorApp({ bookings, setBookings, catalogs, session, logout, theme, toggleTheme }) {
   const isDark = theme === 'dark';
@@ -297,7 +300,7 @@ function DoctorPatients({
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
               {patientNotes.map((note) => (
-                <ClinicalNoteCard key={note.id} note={note} appointments={patientAppointments} session={session} setNotes={setNotes} setError={setError} />
+                <ClinicalNoteCard key={note.id} note={note} session={session} setNotes={setNotes} setError={setError} />
               ))}
             </div>
           )}
@@ -321,10 +324,17 @@ function ClinicalNoteEditor({ patient, appointments, session, therapistId, setNo
     if (!canSave) return;
     setError('');
     try {
-      const saved = await saveClinicalNote({
+      // La nota cuelga del ENCUENTRO, no de la cita: primero se registra
+      // que la consulta ocurrio. Si ya se documento antes, se reutiliza el
+      // mismo encuentro en vez de crear uno nuevo.
+      const encounterId = await ensureEncounter({
         appointmentId,
         patientId: patient.id,
         therapistId,
+      });
+      const saved = await createClinicalNote({
+        encounterId,
+        patientId: patient.id,
         content,
       }, session);
       setNotes((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
@@ -364,40 +374,77 @@ function ClinicalNoteEditor({ patient, appointments, session, therapistId, setNo
   );
 }
 
-function ClinicalNoteCard({ note, appointments, session, setNotes, setError }) {
+function ClinicalNoteCard({ note, session, setNotes, setError }) {
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(note.content);
-  const appointment = appointments.find((item) => item.id === note.appointmentId);
+  const [addingAddendum, setAddingAddendum] = useState(false);
+  const [addendum, setAddendum] = useState('');
 
   const save = async () => {
     setError('');
     try {
-      const saved = await saveClinicalNote({ ...note, content }, session);
+      const saved = await updateClinicalNote(note.id, content);
       setNotes((current) => current.map((item) => item.id === saved.id ? saved : item));
       setEditing(false);
     } catch (error) {
+      // El mensaje de la base dice cuando se firmo y que hacer en su
+      // lugar. Sustituirlo por uno generico esconderia justo eso.
       setError(error.message || 'No se pudo editar la nota clínica.');
     }
   };
 
-  const remove = async () => {
+  // Firmar no se deshace: despues solo quedan los addenda. Por eso se
+  // confirma, y el texto dice exactamente que implica.
+  const sign = async () => {
+    if (!window.confirm(
+      'Al firmar, la nota queda cerrada: no se podrá editar ni borrar. Solo podrás agregar correcciones como addendum. ¿Firmar?'
+    )) return;
     setError('');
     try {
-      await deleteClinicalNote(note.id);
-      setNotes((current) => current.filter((item) => item.id !== note.id));
+      const saved = await signClinicalNote(note.id, session);
+      setNotes((current) => current.map((item) => item.id === saved.id ? saved : item));
     } catch (error) {
-      setError(error.message || 'No se pudo eliminar la nota clínica.');
+      setError(error.message || 'No se pudo firmar la nota clínica.');
+    }
+  };
+
+  const addAddendum = async () => {
+    const texto = addendum.trim();
+    if (!texto) return;
+    setError('');
+    try {
+      const creado = await addNoteAddendum(note.id, texto, session);
+      setNotes((current) => current.map((item) => (
+        item.id === note.id ? { ...item, addenda: [...(item.addenda || []), creado] } : item
+      )));
+      setAddendum('');
+      setAddingAddendum(false);
+    } catch (error) {
+      setError(error.message || 'No se pudo agregar el addendum.');
     }
   };
 
   return (
     <article style={{ border: '1px solid var(--admin-border)', borderRadius: 12, padding: 14, background: 'var(--admin-surface-soft)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
-        <div style={{ color: 'var(--admin-muted)', fontSize: 11 }}>
-          {appointment ? `${appointment.date} ${appointment.time}` : 'Cita relacionada'} · {new Date(note.createdAt).toLocaleDateString('es-MX')}
+        <div style={{ color: 'var(--admin-muted)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {new Date(note.createdAt).toLocaleDateString('es-MX')}
+          {note.locked ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: C.sageDeep, fontWeight: 700 }}>
+              <Lock size={11} /> Firmada {new Date(note.signedAt).toLocaleDateString('es-MX')}
+            </span>
+          ) : (
+            <span style={{ color: C.caramel, fontWeight: 700 }}>Borrador</span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {editing ? (
+          {/* Una nota firmada no ofrece editar ni borrar. Borrar no existe
+              en el producto: NOM-004 exige conservar el expediente. */}
+          {note.locked ? (
+            <button onClick={() => setAddingAddendum((v) => !v)} style={iconButtonStyle} title="Agregar addendum">
+              <Plus size={14} />
+            </button>
+          ) : editing ? (
             <>
               <button onClick={save} style={iconButtonStyle} title="Guardar"><Save size={14} /></button>
               <button onClick={() => { setEditing(false); setContent(note.content); }} style={iconButtonStyle} title="Cancelar"><X size={14} /></button>
@@ -405,15 +452,43 @@ function ClinicalNoteCard({ note, appointments, session, setNotes, setError }) {
           ) : (
             <>
               <button onClick={() => setEditing(true)} style={iconButtonStyle} title="Editar"><FileText size={14} /></button>
-              <button onClick={remove} style={{ ...iconButtonStyle, color: C.rust }} title="Eliminar"><Trash2 size={14} /></button>
+              <button onClick={sign} style={{ ...iconButtonStyle, color: C.sageDeep }} title="Firmar"><Lock size={14} /></button>
             </>
           )}
         </div>
       </div>
-      {editing ? (
+
+      {editing && !note.locked ? (
         <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={5} maxLength={5000} className="admin-input" style={{ ...fieldInput, resize: 'vertical' }} />
       ) : (
         <p style={{ whiteSpace: 'pre-wrap', color: 'var(--admin-row-text)', fontSize: 13, lineHeight: 1.55, margin: 0 }}>{note.content}</p>
+      )}
+
+      {(note.addenda || []).map((a) => (
+        <div key={a.id} style={{ marginTop: 10, paddingLeft: 10, borderLeft: `2px solid ${C.caramelLight}` }}>
+          <div style={{ color: 'var(--admin-muted)', fontSize: 10, fontWeight: 800, letterSpacing: 0.6 }}>
+            ADDENDUM · {new Date(a.createdAt).toLocaleDateString('es-MX')}
+          </div>
+          <p style={{ whiteSpace: 'pre-wrap', color: 'var(--admin-row-text)', fontSize: 13, lineHeight: 1.55, margin: '4px 0 0' }}>{a.content}</p>
+        </div>
+      ))}
+
+      {addingAddendum && (
+        <div style={{ marginTop: 10 }}>
+          <textarea
+            value={addendum}
+            onChange={(event) => setAddendum(event.target.value)}
+            rows={3}
+            maxLength={5000}
+            placeholder="Corrección o nota adicional. Queda fechada y tampoco se podrá editar."
+            className="admin-input"
+            style={{ ...fieldInput, resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button onClick={addAddendum} disabled={!addendum.trim()} style={smallButtonStyle}>Agregar addendum</button>
+            <button onClick={() => { setAddingAddendum(false); setAddendum(''); }} style={iconButtonStyle}><X size={14} /></button>
+          </div>
+        </div>
       )}
     </article>
   );

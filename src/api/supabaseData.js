@@ -175,27 +175,26 @@ const mapPatientFromDb = (row) => ({
   updatedAt: row.updated_at,
 });
 
+// La nota guarda su contenido en jsonb con secciones. Hoy solo existe
+// 'texto' —seccion libre— y las plantillas del tramo 2 se apoyan en el
+// mismo formato sin volver a migrar.
 const mapClinicalNoteFromDb = (row) => ({
   id: row.id,
-  appointmentId: row.appointment_id,
+  encounterId: row.encounter_id,
   patientId: row.patient_id,
-  therapistId: row.therapist_id,
-  authorUserId: row.author_user_id,
-  content: row.content,
-  noteType: row.note_type,
+  authorUserId: row.author_id,
+  content: row.content?.texto || '',
+  // locked lo calcula la base a partir de signed_at: no puede divergir.
+  locked: Boolean(row.locked),
+  signedAt: row.signed_at,
+  version: row.version,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
-});
-
-const mapClinicalNoteToDb = (item, session) => ({
-  id: item.id || undefined,
-  appointment_id: item.appointmentId,
-  patient_id: item.patientId,
-  therapist_id: item.therapistId || session?.user?.therapistId,
-  author_user_id: session?.user?.id,
-  content: String(item.content || '').trim(),
-  note_type: 'clinical',
-  updated_at: new Date().toISOString(),
+  addenda: (row.note_addenda || []).map((a) => ({
+    id: a.id,
+    content: a.content?.texto || '',
+    createdAt: a.created_at,
+  })),
 });
 
 const mapOrderFromDb = (row) => ({
@@ -314,36 +313,116 @@ export const loadPatients = async () => {
   return (result.data || []).map(mapPatientFromDb);
 };
 
+const validarContenido = (texto) => {
+  const limpio = String(texto || '').trim();
+  if (!limpio) throw new Error('La nota clínica no puede estar vacía.');
+  if (limpio.length > 5000) throw new Error('La nota clínica debe tener máximo 5000 caracteres.');
+  return limpio;
+};
+
 export const loadClinicalNotes = async () => {
   assertSupabaseConfigured();
   const result = await supabase
-    .from('appointment_notes')
-    .select('*')
+    .from('clinical_notes')
+    .select('*, note_addenda(*)')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   throwIfError(result);
   return (result.data || []).map(mapClinicalNoteFromDb);
 };
 
-export const saveClinicalNote = async (note, session) => {
+// El encuentro es la consulta que ocurrio. Se crea al documentar por
+// primera vez una cita; si ya existe, se reutiliza. Una cita tiene a lo
+// mas un encuentro (indice unico en 0012), asi que documentar dos veces
+// la misma consulta no la duplica.
+export const ensureEncounter = async ({ appointmentId, patientId, therapistId }) => {
   assertSupabaseConfigured();
-  const payload = mapClinicalNoteToDb(note, session);
-  if (!payload.content) throw new Error('La nota clínica no puede estar vacía.');
-  if (payload.content.length > 5000) throw new Error('La nota clínica debe tener máximo 5000 caracteres.');
+  const existente = await supabase
+    .from('encounters')
+    .select('id')
+    .eq('appointment_id', appointmentId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  throwIfError(existente);
+  if (existente.data) return existente.data.id;
+
+  const creado = await supabase
+    .from('encounters')
+    .insert({
+      appointment_id: appointmentId,
+      patient_id: patientId,
+      therapist_id: therapistId,
+      status: 'completed',
+    })
+    .select('id')
+    .single();
+  throwIfError(creado);
+  return creado.data.id;
+};
+
+export const createClinicalNote = async ({ encounterId, patientId, content }, session) => {
+  assertSupabaseConfigured();
   const result = await supabase
-    .from('appointment_notes')
-    .upsert(payload)
-    .select()
+    .from('clinical_notes')
+    .insert({
+      encounter_id: encounterId,
+      patient_id: patientId,
+      author_id: session?.user?.id,
+      content: { texto: validarContenido(content) },
+    })
+    .select('*, note_addenda(*)')
     .single();
   throwIfError(result);
   return mapClinicalNoteFromDb(result.data);
 };
 
-export const deleteClinicalNote = async (id) => {
+// Solo un borrador. Sobre una nota firmada la base responde con un error
+// explicito, y ese mensaje se muestra tal cual: dice cuando se firmo y
+// que hacer en su lugar.
+export const updateClinicalNote = async (id, content) => {
   assertSupabaseConfigured();
-  const result = await supabase.from('appointment_notes').delete().eq('id', id);
+  const result = await supabase
+    .from('clinical_notes')
+    .update({ content: { texto: validarContenido(content) } })
+    .eq('id', id)
+    .select('*, note_addenda(*)')
+    .single();
   throwIfError(result);
-  return id;
+  return mapClinicalNoteFromDb(result.data);
 };
+
+// Firmar es irreversible: despues de esto la nota no admite cambios, solo
+// addenda. Quien llama debe confirmarlo con el medico antes.
+export const signClinicalNote = async (id, session) => {
+  assertSupabaseConfigured();
+  const result = await supabase
+    .from('clinical_notes')
+    .update({ signed_by: session?.user?.id, signed_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*, note_addenda(*)')
+    .single();
+  throwIfError(result);
+  return mapClinicalNoteFromDb(result.data);
+};
+
+export const addNoteAddendum = async (noteId, content, session) => {
+  assertSupabaseConfigured();
+  const result = await supabase
+    .from('note_addenda')
+    .insert({
+      note_id: noteId,
+      author_id: session?.user?.id,
+      content: { texto: validarContenido(content) },
+    })
+    .select()
+    .single();
+  throwIfError(result);
+  return { id: result.data.id, content: result.data.content?.texto || '', createdAt: result.data.created_at };
+};
+
+// deleteClinicalNote se retira del producto. NOM-004 exige conservar el
+// expediente 5 años desde el ultimo acto medico: borrar una nota clinica
+// no es una funcion que falte, es una que no debe existir.
 
 export const saveServices = async (items) => {
   assertSupabaseConfigured();
