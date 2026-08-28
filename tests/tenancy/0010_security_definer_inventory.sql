@@ -29,6 +29,10 @@ declare
     -- Resolucion de tenant y membresia.
     'current_request_tenant',
     'is_active_member',
+    -- Inmutabilidad clinica: no leen datos, solo rechazan escrituras.
+    -- Son definer para que nadie pueda esquivarlas con otro rol.
+    'enforce_signed_note_immutable',
+    'enforce_addendum_append_only',
     -- Administracion de accesos: verifican owner en vivo.
     'assert_tenant_owner',
     'list_tenant_members',

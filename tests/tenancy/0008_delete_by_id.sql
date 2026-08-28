@@ -18,7 +18,10 @@ insert into public.therapy_services (tenant_id,id,name,duration_minutes,price) v
   ('t_del_b','sv','Terapia B',50,900);
 
 grant usage on schema public to authenticated;
-grant select, delete on all tables in schema public to authenticated;
+-- Solo sobre la tabla que esta prueba usa. Un grant amplio aqui deshacia
+-- el 'revoke delete' que 0013 hace sobre clinical_notes y dejaba pasar un
+-- borrado clinico en la prueba de mas abajo.
+grant select, delete on public.therapy_services to authenticated;
 
 do $$
 declare v_ajenos integer; v_propios integer;

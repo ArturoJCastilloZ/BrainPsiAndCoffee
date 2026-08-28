@@ -58,25 +58,25 @@ begin
     raise exception 'FALLA: el pedido propio no se cancelo (status=%)', v_status;
   end if;
 
-  -- ATAQUE sobre la FK compuesta, en la tabla mas sensible y sin trigger
-  -- que la corrija: una nota clinica de una clinica apuntando al paciente
-  -- de otra. Imposible a nivel del motor, no de las policies.
+  -- ATAQUE sobre la FK compuesta, en la tabla mas sensible: un encuentro
+  -- de una clinica apuntando al paciente de otra. Imposible a nivel del
+  -- motor, no de las policies.
+  insert into auth.users (id, email)
+    values ('44444444-4444-4444-4444-444444444444','doc.fk@ex.mx');
   begin
-    insert into public.appointment_notes
-      (tenant_id, appointment_id, patient_id, therapist_id, content)
-    values ('brainpsi','x1',
+    insert into public.encounters (tenant_id, patient_id, therapist_id)
+    values ('brainpsi',
       (select id from public.patients where tenant_id='t_beta' and email='ana@ex.mx'),
-      'psq-1','nota');
-    raise exception 'FUGA: una nota clinica apunto al paciente de otra clinica';
+      'psq-1');
+    raise exception 'FUGA: un encuentro apunto al paciente de otra clinica';
   exception when foreign_key_violation then null;
   end;
 
-  -- Y la misma nota, dentro de su clinica, SI debe poder crearse.
-  insert into public.appointment_notes
-    (tenant_id, appointment_id, patient_id, therapist_id, content)
-  values ('brainpsi','x1',
+  -- Y el mismo encuentro, dentro de su clinica, SI debe poder crearse.
+  insert into public.encounters (tenant_id, patient_id, therapist_id)
+  values ('brainpsi',
     (select id from public.patients where tenant_id='brainpsi' and email='ana@ex.mx'),
-    'psq-1','nota legitima');
+    'psq-1');
 
   raise notice 'ok · llaves compuestas y security definer por tenant';
 end $$;

@@ -14,8 +14,14 @@ insert into public.appointments (tenant_id,id,service_id,therapist_id,appointmen
   appointment_time,customer_name,customer_email,customer_phone,duration_minutes) values
   ('t_a','apx','sv','tt','2026-12-01','10:00','Pac A','pa@ex.mx','5511111111',50),
   ('t_b','apx','sv','tt','2026-12-01','10:00','Pac B','pb@ex.mx','5522222222',50);
-insert into public.appointment_notes (tenant_id,appointment_id,patient_id,therapist_id,content)
-  select a.tenant_id, a.id, a.patient_id, a.therapist_id, 'nota' from public.appointments a where a.id='apx';
+insert into auth.users (id,email) values ('aaaaaaaa-0000-0000-0000-00000000000f','doc.pol@ex.mx');
+insert into public.encounters (tenant_id, id, patient_id, therapist_id, appointment_id, status)
+  select a.tenant_id, gen_random_uuid(), a.patient_id, a.therapist_id, a.id, 'completed'
+  from public.appointments a where a.id='apx';
+insert into public.clinical_notes (tenant_id, encounter_id, patient_id, author_id, content)
+  select e.tenant_id, e.id, e.patient_id, 'aaaaaaaa-0000-0000-0000-00000000000f',
+         '{"texto":"nota"}'::jsonb
+  from public.encounters e where e.appointment_id = 'apx';
 
 grant usage on schema public to authenticated, anon;
 grant select, insert on all tables in schema public to authenticated, anon;
@@ -35,7 +41,7 @@ begin
   select count(*) into v_n from public.patients where tenant_id='t_b';
   if v_n <> 0 then raise exception 'FUGA: leyo % pacientes del tenant ajeno', v_n; end if;
 
-  select count(*) into v_n from public.appointment_notes where tenant_id='t_b';
+  select count(*) into v_n from public.clinical_notes where tenant_id='t_b';
   if v_n <> 0 then raise exception 'FUGA: leyo % notas clinicas del tenant ajeno', v_n; end if;
 
   -- Falsificar el tenant activo tampoco alcanza nada.
