@@ -35,3 +35,6 @@ temp/
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Respaldos del .env: contienen llaves.
+.env.backup-*
