@@ -1,6 +1,7 @@
 import { BehaviorSubject } from 'rxjs';
 import { env } from '../config/env';
 import { supabase, assertSupabaseConfigured } from '../api/supabaseClient';
+import { getActiveTenant, resolveInitialTenant, setActiveTenant } from '../api/tenant';
 import { resetRequests } from '../api/requestActivity';
 import { canAccessAdmin, canAccessDoctor, normalizeRole } from './permissions';
 
@@ -12,7 +13,13 @@ const toAppSession = (session) => {
   // El rol se toma SOLO de app_metadata: viaja firmado en el JWT y el usuario
   // no puede escribirlo. user_metadata si es escribible por el propio usuario
   // via supabase.auth.updateUser(), asi que no sirve como fuente de permisos.
-  const role = normalizeRole(session.user.app_metadata?.role || 'user');
+  //
+  // Ya no hay un rol global: el mismo usuario puede ser doctor en una
+  // clinica y administrador en otra, asi que se lee el de la clinica
+  // activa. Sin clinica elegida no hay rol, y la UI no debe dar acceso.
+  const tenantId = getActiveTenant();
+  const memberships = session.user.app_metadata?.memberships || {};
+  const role = normalizeRole(memberships[tenantId] || 'user');
 
   return {
     user: {
@@ -20,7 +27,9 @@ const toAppSession = (session) => {
       email: session.user.email,
       name: session.user.user_metadata?.name || session.user.email || 'Administrador',
       role,
-      therapistId: session.user.app_metadata?.therapist_id || null,
+      tenantId,
+      memberships,
+      therapistId: (session.user.app_metadata?.therapist_ids || {})[tenantId] || null,
     },
     accessToken: session.access_token,
     expiresAt: Date.now() + inactivityMs,
@@ -91,6 +100,11 @@ class AuthService {
 
   setSession(supabaseSession) {
     resetRequests();
+    // La clinica activa se decide aqui, con la sesion recien llegada.
+    // Si el usuario pertenece a una sola no hay nada que elegir; si tiene
+    // varias y ninguna guardada, queda en null y la UI debe pedirle que
+    // escoja antes de mostrarle datos.
+    setActiveTenant(resolveInitialTenant(supabaseSession));
     const session = toAppSession(supabaseSession);
     this.expiryWarning$.next(false);
     this.session$.next(session);
@@ -110,6 +124,9 @@ class AuthService {
 
   async logout(reason = 'manual') {
     if (supabase) await supabase.auth.signOut();
+    // Sin esto, la clinica del usuario anterior seguiria viajando en el
+    // header de quien inicie sesion despues en el mismo navegador.
+    setActiveTenant(null);
     resetRequests();
     this.clearTimers();
     this.expiryWarning$.next(false);

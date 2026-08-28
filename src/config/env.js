@@ -7,4 +7,9 @@ export const env = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
   supabasePublishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
   analyticsEndpoint: import.meta.env.VITE_ANALYTICS_ENDPOINT || '',
+  // Clinica que sirve esta instalacion al publico. Un visitante no tiene
+  // sesion ni membresias, asi que el tenant no puede salir del JWT: sale
+  // del despliegue. Cuando haya varias clinicas en un mismo dominio, esto
+  // pasa a resolverse por subdominio.
+  defaultTenantId: import.meta.env.VITE_TENANT_ID || 'brainpsi',
 };

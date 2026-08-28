@@ -1,4 +1,5 @@
 import { MENU, OFFERS, SPECIALTIES, THERAPISTS, THERAPY_SERVICES } from '../data';
+import { getActiveTenant } from './tenant';
 import { supabase, assertSupabaseConfigured } from './supabaseClient';
 import { validateAppointment, validateOrder } from '../validation';
 import { BUSINESS } from '../businessInfo';
@@ -118,6 +119,9 @@ const mapSettingsFromDb = (row) => ({
 });
 
 const mapSettingsToDb = (settings) => ({
+  // tenant_id lo pone el default de la base (migracion 0007). El id se
+  // conserva porque sigue siendo columna de la tabla, pero ya no es la
+  // llave: la PK es tenant_id.
   id: 'main',
   content: settings || BUSINESS,
   updated_at: new Date().toISOString(),
@@ -247,7 +251,9 @@ export const loadCatalogs = async () => {
     supabase.from('therapist_services').select('*'),
     supabase.from('products').select('*').order('category').order('sort_order').order('created_at'),
     supabase.from('offers').select('*').order('created_at'),
-    supabase.from('business_settings').select('*').eq('id', 'main').maybeSingle(),
+    // Ya no es el singleton 'main': hay una fila por clinica y RLS
+    // devuelve solo la del tenant activo.
+    supabase.from('business_settings').select('*').maybeSingle(),
   ]);
 
   [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult].forEach(throwIfError);
@@ -394,7 +400,9 @@ const hasAuthSession = async () => {
 const getAuthRole = async () => {
   const { data } = await supabase.auth.getSession();
   // Solo app_metadata: user_metadata es escribible por el propio usuario.
-  return data.session?.user?.app_metadata?.role || null;
+  // El rol es por clinica, no global: se lee el de la activa.
+  const memberships = data.session?.user?.app_metadata?.memberships || {};
+  return memberships[getActiveTenant()] || null;
 };
 
 export const saveAppointments = async (items, previousItems = []) => {

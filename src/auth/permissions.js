@@ -8,6 +8,10 @@ export const ROLES = {
 
 export const normalizeRole = (role) => {
   if (role === 'admin') return ROLES.SUPER_ADMIN;
+  // 'owner' es el rol de tenant_members que sustituye al super_admin
+  // global: manda dentro de SU clinica, no sobre las demas. Se mapea al
+  // mismo permiso para no duplicar la matriz de accesos.
+  if (role === 'owner') return ROLES.SUPER_ADMIN;
   return role || 'user';
 };
 

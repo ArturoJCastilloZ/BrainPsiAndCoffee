@@ -30,9 +30,20 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: authorization } },
   });
   const { data: callerData, error: callerError } = await callerClient.auth.getUser();
+  if (callerError || !callerData.user) {
+    return json({ error: 'No autenticado.' }, 401);
+  }
 
-  if (callerError || callerData.user?.app_metadata?.role !== 'admin') {
-    return json({ error: 'Only admins can sync doctor access.' }, 403);
+  // La clinica sobre la que se opera la manda el cliente, pero no se le
+  // cree: tiene que ser una membresia real del llamante, con rol de
+  // administracion. Sin esto, un admin de una clinica podria dar de alta
+  // doctores en otra.
+  const tenantId = req.headers.get('x-tenant-id') || '';
+  const memberships = (callerData.user.app_metadata?.memberships || {}) as Record<string, string>;
+  const callerRole = memberships[tenantId];
+
+  if (!tenantId || !['owner', 'admin_consultorio'].includes(callerRole)) {
+    return json({ error: 'No tienes permisos de administracion en esa clinica.' }, 403);
   }
 
   // El payload llega de un cliente y termina escrito en app_metadata de
@@ -101,7 +112,11 @@ Deno.serve(async (req) => {
   );
 
   const users = await listAllUsers(adminClient);
-  const doctorUsers = users.filter((user) => user.app_metadata?.role === 'doctor');
+  // Doctores DE ESTA clinica. El mismo usuario puede ser doctor aqui y
+  // administrador en otra: lo que importa es su rol en este tenant.
+  const doctorUsers = users.filter(
+    (user) => (user.app_metadata?.memberships || {})[tenantId] === 'doctor'
+  );
 
   for (const therapist of therapists) {
     if (therapist.active === false || !therapist.email) continue;
@@ -109,34 +124,38 @@ Deno.serve(async (req) => {
     const normalizedEmail = therapist.email.trim().toLowerCase();
     const existing = doctorUsers.find((user) =>
       user.email?.toLowerCase() === normalizedEmail ||
-      user.app_metadata?.therapist_id === therapist.id
+      (user.app_metadata?.therapist_ids || {})[tenantId] === therapist.id
     );
 
     if (existing) {
       if (!existing.confirmed_at) {
         await adminClient.auth.admin.deleteUser(existing.id);
-        await inviteDoctor(adminClient, therapist, normalizedEmail, redirectTo);
+        await inviteDoctor(adminClient, tenantId, therapist, normalizedEmail, redirectTo);
         continue;
       }
 
-      await adminClient.auth.admin.updateUserById(existing.id, {
-        email: normalizedEmail,
-        user_metadata: { ...(existing.user_metadata || {}), name: therapist.name, therapist_id: therapist.id },
-        app_metadata: { ...(existing.app_metadata || {}), role: 'doctor', therapist_id: therapist.id },
-      });
-      await setTherapistUser(adminClient, therapist.id, existing.id);
+      await grantMembership(adminClient, existing, tenantId, therapist, normalizedEmail);
+      await setTherapistUser(adminClient, tenantId, therapist.id, existing.id);
       continue;
     }
 
-    await inviteDoctor(adminClient, therapist, normalizedEmail, redirectTo);
+    await inviteDoctor(adminClient, tenantId, therapist, normalizedEmail, redirectTo);
   }
 
   for (const user of doctorUsers) {
-    const therapistId = user.app_metadata?.therapist_id;
-    if (therapistId && !activeDoctorIds.has(therapistId)) {
-      await adminClient.auth.admin.deleteUser(user.id);
-      await adminClient.from('therapists').update({ user_id: null }).eq('id', therapistId);
-    }
+    const therapistId = (user.app_metadata?.therapist_ids || {})[tenantId];
+    if (!therapistId || activeDoctorIds.has(therapistId)) continue;
+
+    // Antes esto borraba al usuario entero. Con varias clinicas seria
+    // destructivo: dar de baja a un psiquiatra en un consultorio le
+    // quitaria tambien el acceso a los otros, e incluso su cuenta. Se
+    // revoca solo la membresia de ESTA clinica.
+    await revokeMembership(adminClient, user, tenantId);
+    await adminClient
+      .from('therapists')
+      .update({ user_id: null })
+      .eq('tenant_id', tenantId)
+      .eq('id', therapistId);
   }
 
   return json({ ok: true });
@@ -165,16 +184,80 @@ const listAllUsers = async (adminClient: ReturnType<typeof createClient>) => {
   return users;
 };
 
-const setTherapistUser = async (adminClient: ReturnType<typeof createClient>, therapistId: string, userId: string) => {
+const setTherapistUser = async (
+  adminClient: ReturnType<typeof createClient>,
+  tenantId: string,
+  therapistId: string,
+  userId: string,
+) => {
+  // El id de terapeuta solo es unico dentro de su clinica: sin filtrar
+  // por tenant, esto tocaria la fila homonima de otra.
   const { error } = await adminClient
     .from('therapists')
     .update({ user_id: userId, updated_at: new Date().toISOString() })
+    .eq('tenant_id', tenantId)
     .eq('id', therapistId);
   if (error) throw error;
 };
 
+// Las membresias se FUSIONAN, nunca se reemplazan: pisar app_metadata
+// dejaria a un psiquiatra que trabaja en dos consultorios sin acceso al
+// otro. tenant_members es la fuente de verdad y el claim su cache, asi
+// que se escriben los dos y en ese orden.
+const grantMembership = async (
+  adminClient: ReturnType<typeof createClient>,
+  user: { id: string; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> },
+  tenantId: string,
+  therapist: TherapistPayload,
+  normalizedEmail: string,
+) => {
+  const appMeta = (user.app_metadata || {}) as Record<string, unknown>;
+  const memberships = { ...((appMeta.memberships || {}) as Record<string, string>), [tenantId]: 'doctor' };
+  const therapistIds = { ...((appMeta.therapist_ids || {}) as Record<string, string>), [tenantId]: therapist.id };
+
+  const { error } = await adminClient.from('tenant_members').upsert({
+    tenant_id: tenantId,
+    user_id: user.id,
+    role: 'doctor',
+    therapist_id: therapist.id,
+    active: true,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'tenant_id,user_id' });
+  if (error) throw error;
+
+  await adminClient.auth.admin.updateUserById(user.id, {
+    email: normalizedEmail,
+    user_metadata: { ...(user.user_metadata || {}), name: therapist.name },
+    app_metadata: { ...appMeta, memberships, therapist_ids: therapistIds },
+  });
+};
+
+const revokeMembership = async (
+  adminClient: ReturnType<typeof createClient>,
+  user: { id: string; app_metadata?: Record<string, unknown> },
+  tenantId: string,
+) => {
+  const appMeta = (user.app_metadata || {}) as Record<string, unknown>;
+  const memberships = { ...((appMeta.memberships || {}) as Record<string, string>) };
+  const therapistIds = { ...((appMeta.therapist_ids || {}) as Record<string, string>) };
+  delete memberships[tenantId];
+  delete therapistIds[tenantId];
+
+  const { error } = await adminClient
+    .from('tenant_members')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('user_id', user.id);
+  if (error) throw error;
+
+  await adminClient.auth.admin.updateUserById(user.id, {
+    app_metadata: { ...appMeta, memberships, therapist_ids: therapistIds },
+  });
+};
+
 const inviteDoctor = async (
   adminClient: ReturnType<typeof createClient>,
+  tenantId: string,
   therapist: TherapistPayload,
   normalizedEmail: string,
   redirectTo?: string,
@@ -189,9 +272,12 @@ const inviteDoctor = async (
   const userId = created.data.user?.id;
   if (!userId) return;
 
-  await adminClient.auth.admin.updateUserById(userId, {
-    app_metadata: { role: 'doctor', therapist_id: therapist.id },
-    user_metadata: { name: therapist.name, therapist_id: therapist.id },
-  });
-  await setTherapistUser(adminClient, therapist.id, userId);
+  await grantMembership(
+    adminClient,
+    { id: userId, app_metadata: {}, user_metadata: { name: therapist.name } },
+    tenantId,
+    therapist,
+    normalizedEmail,
+  );
+  await setTherapistUser(adminClient, tenantId, therapist.id, userId);
 };
