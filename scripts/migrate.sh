@@ -22,7 +22,14 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   echo "  remoto: la connection string de Supabase (boton Connect > Session pooler)" >&2
   echo >&2
   echo "  Para no dejarla en el historial del shell:" >&2
-  echo "    read -rs -p 'DATABASE_URL: ' DATABASE_URL && export DATABASE_URL" >&2
+  # zsh y bash difieren: en zsh el prompt va dentro de la variable con '?',
+  # y 'read -p' significa leer de un coproceso — de ahi el error
+  # 'no coprocess' si se usa la forma de bash.
+  if [[ -n "${ZSH_VERSION:-}" ]] || [[ "${SHELL:-}" == *"zsh" ]]; then
+    echo "    read -rs '?DATABASE_URL: ' DATABASE_URL && export DATABASE_URL   # zsh" >&2
+  else
+    echo "    read -rs -p 'DATABASE_URL: ' DATABASE_URL && export DATABASE_URL  # bash" >&2
+  fi
   exit 1
 fi
 
