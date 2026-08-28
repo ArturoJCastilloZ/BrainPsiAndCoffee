@@ -9,7 +9,10 @@ type TherapistPayload = {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  // x-tenant-id va aqui porque es un header PERSONALIZADO: el navegador
+  // manda un preflight OPTIONS antes de la llamada real y lo rechaza si
+  // no esta en esta lista. La funcion nunca llegaria a ejecutarse.
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-tenant-id',
 };
 
 Deno.serve(async (req) => {
