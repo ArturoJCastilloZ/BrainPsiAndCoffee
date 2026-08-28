@@ -7,6 +7,7 @@
 #   ./scripts/migrate.sh status               que falta por aplicar
 #   ./scripts/migrate.sh up                   aplica lo pendiente
 #   ./scripts/migrate.sh up --dry-run         imprime sin aplicar
+#   ./scripts/migrate.sh baseline --confirm   marca lo ya aplicado a mano
 #
 # La conexion sale de DATABASE_URL.
 set -euo pipefail
@@ -115,8 +116,76 @@ if [[ "$CMD" == "status" ]]; then
   exit 0
 fi
 
+# baseline: marcar migraciones como aplicadas SIN ejecutarlas.
+#
+# Para una base que ya trae el esquema porque alguien corrio el SQL a mano
+# (por ejemplo desde el SQL Editor de Supabase). Sin esto, el runner ve el
+# registro vacio e intenta aplicar todo de nuevo sobre una base que ya lo
+# tiene: unas migraciones son idempotentes y otras no, y termina a medias.
+#
+# Antes de marcar comprueba que un objeto centinela de cada migracion
+# exista de verdad. Marcar sin verificar seria escribir en el registro que
+# algo se aplico porque alguien lo dijo, y ese registro es justamente lo
+# que despues se usa para decidir que falta.
+if [[ "$CMD" == "baseline" ]]; then
+  declare -a CENTINELAS=(
+    "0001_tenancy_core|to_regclass('public.tenant_members')"
+    "0002_tenant_id_columns|(select 1 from information_schema.columns where table_name='appointments' and column_name='tenant_id')"
+    "0003_composite_keys|(select 1 from pg_constraint where conname='appointments_no_overlap')"
+    "0004_security_definer_tenant_aware|(select 1 from pg_proc where proname='appointment_can_receive_order' and pronargs=2)"
+    "0005_policies_by_tenant|(select 1 from pg_proc where proname='current_request_tenant')"
+    "0006_tenant_from_header|(select 1 from pg_proc where proname='requested_tenant')"
+    "0007_tenant_id_default|(select 1 from information_schema.columns where table_name='patients' and column_name='tenant_id' and column_default is not null)"
+    "0008_bootstrap_memberships|(select 1 from pg_proc where proname='bootstrap_tenant_memberships')"
+    "0009_grant_tenant_role|(select 1 from pg_proc where proname='grant_tenant_role')"
+    "0010_therapists_public_created_at|(select 1 from information_schema.columns where table_name='therapists_public' and column_name='created_at')"
+    "0011_access_management|(select 1 from pg_proc where proname='set_tenant_member_role')"
+    "0012_encounters|to_regclass('public.encounters')"
+    "0013_clinical_notes|to_regclass('public.clinical_notes')"
+    "0014_migrate_appointment_notes|(select case when to_regclass('public.appointment_notes') is null then 1 end)"
+  )
+
+  faltan=0
+  for entrada in "${CENTINELAS[@]}"; do
+    version="${entrada%%|*}"
+    prueba="${entrada#*|}"
+    presente="$(psql_q "select case when ($prueba) is not null then 'si' else 'no' end;")"
+    if [[ "$presente" != "si" ]]; then
+      echo "NO aplicada: $version" >&2
+      faltan=1
+    fi
+  done
+
+  if [[ $faltan -eq 1 ]]; then
+    echo >&2
+    echo "El esquema no coincide con las migraciones que se marcarian." >&2
+    echo "Aplica lo que falte antes de hacer baseline." >&2
+    exit 1
+  fi
+
+  if [[ "$DRY_RUN" != "--confirm" ]]; then
+    echo "Se marcarian como aplicadas, SIN ejecutarlas:"
+    for f in "${files[@]}"; do echo "  $(basename "$f" .sql)"; done
+    echo
+    echo "Los objetos centinela estan presentes en la base."
+    echo "Para escribirlo: $0 baseline --confirm"
+    exit 0
+  fi
+
+  for f in "${files[@]}"; do
+    version="$(basename "$f" .sql)"
+    is_applied "$version" && continue
+    psql_q "insert into public.schema_migrations (version, checksum)
+            values ('$version', '$(checksum_of "$f")')
+            on conflict (version) do nothing;" >/dev/null
+    echo "  marcada $version"
+  done
+  echo "Listo. El runner ya esta sincronizado con la base."
+  exit 0
+fi
+
 if [[ "$CMD" != "up" ]]; then
-  echo "Uso: $0 [status|up] [--dry-run]" >&2
+  echo "Uso: $0 [status|up|baseline] [--dry-run|--confirm]" >&2
   exit 1
 fi
 
