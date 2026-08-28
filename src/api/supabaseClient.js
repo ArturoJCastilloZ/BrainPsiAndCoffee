@@ -13,9 +13,19 @@ const trackedFetch = async (input, init) => {
   const requestId = shouldTrack ? beginRequest() : null;
   const tenantId = getActiveTenant();
 
-  const withTenant = tenantId
-    ? { ...init, headers: { ...(init?.headers || {}), 'x-tenant-id': tenantId } }
-    : init;
+  // Se usa la API de Headers y no un spread del objeto.
+  //
+  // supabase-js manda a veces un Headers y no un objeto plano, y
+  // { ...new Headers(...) } devuelve {}: sus entradas no son propiedades
+  // enumerables. El spread se llevaba por delante apikey y Authorization,
+  // y la peticion salia sin credenciales — 'No API key found in request'.
+  // El constructor de Headers acepta las dos formas.
+  let withTenant = init;
+  if (tenantId) {
+    const headers = new Headers(init?.headers || {});
+    headers.set('x-tenant-id', tenantId);
+    withTenant = { ...init, headers };
+  }
 
   try {
     return await fetch(input, withTenant);

@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node scripts/qa-check.mjs",
+    "test": "node scripts/qa-check.mjs && node --test tests/front/*.test.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
