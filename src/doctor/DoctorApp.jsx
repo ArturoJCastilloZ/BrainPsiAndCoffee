@@ -69,7 +69,14 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Depende de las citas del doctor: el paciente lo crea el trigger al
+    // guardar la cita, asi que una cita nueva puede traer un paciente que
+    // esta lista todavia no conoce. Con [] se cargaba una sola vez al
+    // montar y "Pacientes y notas" seguia vacio hasta recargar la pagina.
+    //
+    // Se observa la CANTIDAD y no el arreglo: bookings se recrea en cada
+    // render y usarlo directo dispararia la consulta sin parar.
+  }, [doctorBookings.length]);
 
   const reloadClinicalData = async () => {
     setNotesLoading(true);
@@ -232,7 +239,7 @@ function DoctorPatients({
       <div className="admin-card" style={{ borderRadius: 16, padding: 34, textAlign: 'center' }}>
         <User size={32} color="var(--admin-subtle)" style={{ marginBottom: 10 }} />
         <p style={{ color: 'var(--admin-muted)', margin: 0, fontSize: 13 }}>
-          Aún no hay pacientes vinculados a tus citas. Si ya existen citas, vuelve a ejecutar el schema de Supabase para generar `patient_id`.
+          Aún no hay pacientes vinculados a tus citas. El paciente se crea al guardar la primera cita a su nombre.
         </p>
       </div>
     );

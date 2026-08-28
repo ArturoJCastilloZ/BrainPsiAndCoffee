@@ -491,7 +491,22 @@ export const saveAppointments = async (items, previousItems = []) => {
   if (invalid) throw new Error('La cita tiene datos incompletos o invalidos.');
 
   if (authenticated) {
-    if (items.length) throwIfError(await supabase.from('appointments').upsert(items.map(mapAppointmentToDb)));
+    // Se devuelve lo que quedo GUARDADO, no lo que se mando.
+    //
+    // El trigger sync_patient_from_appointment resuelve o crea el paciente
+    // y escribe patient_id en la fila. Sin .select(), esa fila se
+    // descartaba y el estado local se quedaba con el paciente vacio: la
+    // cita aparecia en la agenda pero el paciente no salia en "Pacientes y
+    // notas" hasta recargar la pagina entera.
+    if (items.length) {
+      const guardado = await supabase
+        .from('appointments')
+        .upsert(items.map(mapAppointmentToDb))
+        .select();
+      throwIfError(guardado);
+      await deleteMissing('appointments', items.map((item) => item.id));
+      return (guardado.data || []).map(mapAppointmentFromDb);
+    }
     await deleteMissing('appointments', items.map((item) => item.id));
     return items;
   }
@@ -499,8 +514,16 @@ export const saveAppointments = async (items, previousItems = []) => {
   const previousIds = new Set(previousItems.map((item) => item.id));
   const newItems = items.filter((item) => !previousIds.has(item.id));
   if (newItems.length) {
-    throwIfError(await supabase.from('appointments').insert(newItems.map(mapAppointmentToDb)));
+    // Igual en el alta publica: la fila guardada trae el patient_id que
+    // puso el trigger.
+    const creado = await supabase
+      .from('appointments')
+      .insert(newItems.map(mapAppointmentToDb))
+      .select();
+    throwIfError(creado);
     await recordPrivacyConsents(newItems);
+    const porId = new Map((creado.data || []).map((row) => [row.id, mapAppointmentFromDb(row)]));
+    return items.map((item) => porId.get(item.id) || item);
   }
   return items;
 };
