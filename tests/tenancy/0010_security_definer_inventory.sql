@@ -29,6 +29,11 @@ declare
     -- Resolucion de tenant y membresia.
     'current_request_tenant',
     'is_active_member',
+    -- Agenda: responden si/no sin publicar el horario de nadie.
+    'fits_in_schedule',
+    'within_booking_window',
+    'apply_therapist_buffers',
+    'seed_default_schedule',
     -- Inmutabilidad clinica: no leen datos, solo rechazan escrituras.
     -- Son definer para que nadie pueda esquivarlas con otro rol.
     'enforce_signed_note_immutable',
