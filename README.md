@@ -106,7 +106,7 @@ No subas `node_modules/`, `dist/` ni archivos `.env` locales. Usa `.env.example`
 ## Checklist Fase 1 para produccion
 
 - Configurar `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` en el hosting.
-- Ejecutar `scripts/supabase-schema.sql` en el proyecto Supabase de produccion y confirmar que RLS queda activo.
+- Aplicar las migraciones con `./scripts/migrate.sh up` y confirmar que RLS queda activo. **No corras `scripts/legacy/supabase-schema.sql`**: reescribiria las policies y apagaria el aislamiento entre clinicas sin lanzar error (ver `scripts/legacy/README.md`).
 - Crear al menos un usuario `super_admin` con `app_metadata.role = "super_admin"`.
 - Desplegar la funcion `sync-doctor-access` si se administraran accesos de doctores desde el panel.
 - Confirmar dominio final y actualizar `index.html`, `public/robots.txt` y `public/sitemap.xml` si no sera `https://brainpsicoffee.com`.
@@ -122,7 +122,7 @@ No subas `node_modules/`, `dist/` ni archivos `.env` locales. Usa `.env.example`
 - Boton de confirmacion por WhatsApp despues de solicitar cita.
 - El precio del combo en carrito usa la promocion activa administrada.
 
-Despues de actualizar el codigo, vuelve a ejecutar `scripts/supabase-schema.sql` en Supabase para crear columnas/politicas nuevas.
+Despues de actualizar el codigo, aplica las migraciones pendientes con `./scripts/migrate.sh up`.
 
 ## Cambios Fase 3
 
@@ -256,7 +256,7 @@ El flujo de pedidos de cafetería ahora distingue pedidos normales y pedidos lig
 - El barista sigue pudiendo actualizar solo el estado del pedido.
 - El panel de pedidos se suscribe por Supabase Realtime a `orders` y `order_items` para refrescar la cola cuando entran o cambian pedidos.
 
-Despues de actualizar el codigo, vuelve a ejecutar `scripts/supabase-schema.sql` en Supabase para crear columnas, constraints, indices, funciones y triggers nuevos.
+Despues de actualizar el codigo, aplica las migraciones pendientes con `./scripts/migrate.sh up`. El esquema ya no se aplica de forma monolitica: cada cambio vive en `migrations/` y se aplica una sola vez.
 Para actualizacion automatica, activa Realtime en Supabase para las tablas `orders` y `order_items`.
 
 Pruebas manuales recomendadas para esta fase:

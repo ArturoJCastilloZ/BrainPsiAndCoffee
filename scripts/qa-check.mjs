@@ -33,7 +33,7 @@ const envExample = read('.env.example');
   assert(envExample.includes(needle), `.env.example debe documentar ${needle}.`);
 });
 
-const schema = read('scripts/supabase-schema.sql');
+const schema = read('scripts/legacy/supabase-schema.sql');
 [
   'enable row level security',
   'business_settings',

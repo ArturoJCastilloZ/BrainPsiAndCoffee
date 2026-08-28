@@ -35,7 +35,7 @@ echo "cargando stub de supabase ..."
 run_file "$ROOT/tests/tenancy/prelude.sql"
 
 echo "cargando esquema base ..."
-run_file "$ROOT/scripts/supabase-schema.sql" >/dev/null
+run_file "$ROOT/scripts/legacy/supabase-schema.sql" >/dev/null
 
 echo "aplicando migraciones ..."
 DATABASE_URL="postgres://postgres:test@localhost:$PORT/bpc" "$ROOT/scripts/migrate.sh" up
