@@ -138,7 +138,10 @@ const mapAppointmentFromDb = (row) => ({
   status: row.status,
   reminderSent: row.reminder_sent,
   createdAt: row.created_at,
+  durationMinutes: Number(row.duration_minutes || 50),
 });
+
+export const PRIVACY_NOTICE_VERSION = '2026-08-v1';
 
 const mapAppointmentToDb = (item) => ({
   id: item.id,
@@ -152,6 +155,7 @@ const mapAppointmentToDb = (item) => ({
   customer_phone: item.phone,
   notes: String(item.notes || '').slice(0, 280),
   wants_coffee: Boolean(item.wantsCoffee),
+  duration_minutes: Number(item.durationMinutes) > 0 ? Number(item.durationMinutes) : 50,
   status: item.status || 'confirmed',
   reminder_sent: Boolean(item.reminderSent),
   updated_at: new Date().toISOString(),
@@ -230,9 +234,15 @@ const mapOrderToDb = (item) => ({
 export const loadCatalogs = async () => {
   assertSupabaseConfigured();
 
+  // El publico anonimo lee la vista therapists_public, que no expone email,
+  // cedula profesional ni user_id. El personal autenticado si lee la tabla,
+  // y RLS decide que filas le corresponden.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const therapistsSource = sessionData?.session ? 'therapists' : 'therapists_public';
+
   const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult, settingsResult] = await Promise.all([
     supabase.from('therapy_services').select('*').order('created_at'),
-    supabase.from('therapists').select('*').order('created_at'),
+    supabase.from(therapistsSource).select('*').order('created_at'),
     supabase.from('specialties').select('*').order('created_at'),
     supabase.from('therapist_services').select('*'),
     supabase.from('products').select('*').order('category').order('sort_order').order('created_at'),
@@ -383,7 +393,8 @@ const hasAuthSession = async () => {
 
 const getAuthRole = async () => {
   const { data } = await supabase.auth.getSession();
-  return data.session?.user?.app_metadata?.role || data.session?.user?.user_metadata?.role || null;
+  // Solo app_metadata: user_metadata es escribible por el propio usuario.
+  return data.session?.user?.app_metadata?.role || null;
 };
 
 export const saveAppointments = async (items, previousItems = []) => {
@@ -400,8 +411,29 @@ export const saveAppointments = async (items, previousItems = []) => {
 
   const previousIds = new Set(previousItems.map((item) => item.id));
   const newItems = items.filter((item) => !previousIds.has(item.id));
-  if (newItems.length) throwIfError(await supabase.from('appointments').insert(newItems.map(mapAppointmentToDb)));
+  if (newItems.length) {
+    throwIfError(await supabase.from('appointments').insert(newItems.map(mapAppointmentToDb)));
+    await recordPrivacyConsents(newItems);
+  }
   return items;
+};
+
+// Deja constancia de que la persona acepto el aviso de privacidad, ligada a
+// la cita y con la version del aviso vigente. Un checkbox que no se guarda
+// no es evidencia de nada.
+const recordPrivacyConsents = async (appointments) => {
+  const rows = appointments
+    .filter((item) => item.privacyAccepted && item.email)
+    .map((item) => ({
+      appointment_id: item.id,
+      subject_email: item.email,
+      consent_type: 'privacy_notice',
+      document_version: PRIVACY_NOTICE_VERSION,
+      user_agent: typeof navigator === 'undefined' ? null : navigator.userAgent.slice(0, 400),
+      evidence: { source: 'booking_flow', accepted_at_client: new Date().toISOString() },
+    }));
+  if (!rows.length) return;
+  throwIfError(await supabase.from('consents').insert(rows));
 };
 
 export const saveOrders = async (items, previousItems = []) => {
@@ -464,7 +496,11 @@ const deleteMissing = async (table, ids) => {
     return;
   }
 
-  throwIfError(await supabase.from(table).delete().not('id', 'in', `(${ids.map((id) => `"${id}"`).join(',')})`));
+  // Antes se interpolaban los ids dentro del string de filtro de PostgREST.
+  // .not() usa el valor tal cual y no escapa nada, asi que un id con comillas
+  // o comas rompia el filtro. notIn() recibe el arreglo y escapa los
+  // caracteres reservados por su cuenta.
+  throwIfError(await supabase.from(table).delete().notIn('id', ids));
 };
 
 const syncDoctorAccess = async (therapists) => {
@@ -482,6 +518,10 @@ const syncDoctorAccess = async (therapists) => {
   };
   const result = await supabase.functions.invoke('sync-doctor-access', { body: payload });
   if (result.error) {
-    console.warn('No se pudo sincronizar el acceso de doctores.', result.error);
+    // Antes esto solo hacia console.warn y el guardado seguia como si nada:
+    // un doctor podia quedarse sin acceso sin que nadie se enterara.
+    const error = new Error('Los doctores se guardaron, pero no se pudo sincronizar su acceso al sistema. Revisa la lista de accesos e intenta de nuevo.');
+    error.cause = result.error;
+    throw error;
   }
 };

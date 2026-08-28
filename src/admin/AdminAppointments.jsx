@@ -138,10 +138,18 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
     }
 
     setFormError('');
+    // Igual que en el flujo publico: la duracion real viaja con la cita para
+    // que la BD pueda impedir el encimado de sesiones.
+    const assignedTherapist = therapists.find((item) => item.id === assignedTherapistId);
+    const durationMinutes = Number(assignedTherapist?.sessionDuration)
+      || Number(services.find((item) => item.id === draft.serviceId)?.duration)
+      || 50;
+
     setBookings([...bookings, {
       id: uid(),
       ...draft,
       therapistId: assignedTherapistId,
+      durationMinutes,
       status: 'confirmed',
       createdAt: new Date().toISOString(),
       reminderSent: false,

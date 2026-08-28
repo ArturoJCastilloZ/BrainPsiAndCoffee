@@ -9,7 +9,10 @@ const inactivityMs = env.authInactivityMinutes * 60 * 1000;
 
 const toAppSession = (session) => {
   if (!session?.user) return null;
-  const role = normalizeRole(session.user.app_metadata?.role || session.user.user_metadata?.role || 'user');
+  // El rol se toma SOLO de app_metadata: viaja firmado en el JWT y el usuario
+  // no puede escribirlo. user_metadata si es escribible por el propio usuario
+  // via supabase.auth.updateUser(), asi que no sirve como fuente de permisos.
+  const role = normalizeRole(session.user.app_metadata?.role || 'user');
 
   return {
     user: {
@@ -17,7 +20,7 @@ const toAppSession = (session) => {
       email: session.user.email,
       name: session.user.user_metadata?.name || session.user.email || 'Administrador',
       role,
-      therapistId: session.user.app_metadata?.therapist_id || session.user.user_metadata?.therapist_id || null,
+      therapistId: session.user.app_metadata?.therapist_id || null,
     },
     accessToken: session.access_token,
     expiresAt: Date.now() + inactivityMs,

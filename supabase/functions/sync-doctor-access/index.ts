@@ -35,7 +35,66 @@ Deno.serve(async (req) => {
     return json({ error: 'Only admins can sync doctor access.' }, 403);
   }
 
-  const { therapists = [], redirectTo } = await req.json() as { therapists: TherapistPayload[]; redirectTo?: string };
+  // El payload llega de un cliente y termina escrito en app_metadata de
+  // usuarios reales: se valida forma y contenido antes de tocar nada.
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: 'Cuerpo invalido: se esperaba JSON.' }, 400);
+  }
+
+  const rawTherapists = (body as { therapists?: unknown })?.therapists;
+  if (rawTherapists !== undefined && !Array.isArray(rawTherapists)) {
+    return json({ error: 'therapists debe ser un arreglo.' }, 400);
+  }
+  if (Array.isArray(rawTherapists) && rawTherapists.length > 200) {
+    return json({ error: 'Demasiados terapeutas en una sola peticion.' }, 400);
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const therapists: TherapistPayload[] = [];
+  for (const entry of (rawTherapists ?? []) as Record<string, unknown>[]) {
+    if (!entry || typeof entry !== 'object') {
+      return json({ error: 'Cada terapeuta debe ser un objeto.' }, 400);
+    }
+    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+    const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+    const email = typeof entry.email === 'string' ? entry.email.trim().toLowerCase() : '';
+    if (!id || id.length > 64) {
+      return json({ error: 'id de terapeuta invalido.' }, 400);
+    }
+    if (name.length > 120) {
+      return json({ error: `Nombre demasiado largo para ${id}.` }, 400);
+    }
+    if (email && !emailPattern.test(email)) {
+      return json({ error: `Correo invalido para ${id}.` }, 400);
+    }
+    therapists.push({ id, name, email, active: entry.active !== false });
+  }
+
+  // redirectTo se pasa a la invitacion por correo: solo se aceptan destinos
+  // propios, para que no pueda usarse como redireccion abierta.
+  const rawRedirect = (body as { redirectTo?: unknown })?.redirectTo;
+  let redirectTo: string | undefined;
+  if (rawRedirect !== undefined) {
+    if (typeof rawRedirect !== 'string') {
+      return json({ error: 'redirectTo invalido.' }, 400);
+    }
+    const allowedOrigins = (Deno.env.get('ALLOWED_REDIRECT_ORIGINS') ?? '')
+      .split(',').map((value) => value.trim()).filter(Boolean);
+    let parsed: URL;
+    try {
+      parsed = new URL(rawRedirect);
+    } catch {
+      return json({ error: 'redirectTo no es una URL valida.' }, 400);
+    }
+    if (allowedOrigins.length && !allowedOrigins.includes(parsed.origin)) {
+      return json({ error: 'redirectTo no esta permitido.' }, 400);
+    }
+    redirectTo = parsed.toString();
+  }
+
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const activeDoctorIds = new Set(
     therapists.filter((item) => item.active !== false && item.email).map((item) => item.id)

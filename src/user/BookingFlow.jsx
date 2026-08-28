@@ -68,10 +68,18 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
       return;
     }
 
+    // La duracion real de la sesion viaja con la cita: la BD calcula con ella
+    // el rango que impide agendar dos sesiones encimadas al mismo profesional.
+    const assignedTherapist = therapists.find((item) => item.id === assignedTherapistId);
+    const durationMinutes = Number(assignedTherapist?.sessionDuration)
+      || Number(service?.duration)
+      || 50;
+
     const newBooking = {
       id: uid(),
       ...data,
       therapistId: assignedTherapistId,
+      durationMinutes,
       notes: '',
       status: 'confirmed',
       createdAt: new Date().toISOString(),

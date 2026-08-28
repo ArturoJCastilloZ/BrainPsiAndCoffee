@@ -762,9 +762,6 @@ drop policy if exists "Admins can manage order items" on public.order_items;
 create policy "Public can read active services" on public.therapy_services
   for select using (active = true);
 
-create policy "Public can read active therapists" on public.therapists
-  for select using (active = true);
-
 create policy "Public can read active specialties" on public.specialties
   for select using (active = true);
 
@@ -924,3 +921,353 @@ create policy "Cafe staff can read order items" on public.order_items
 
 create policy "Cafe admins can manage order items" on public.order_items
   for all using (public.is_super_admin() or public.is_cafe_admin()) with check (public.is_super_admin() or public.is_cafe_admin());
+
+-- ============================================================
+-- FASE 1.2 — Prevención de solapamiento de citas a nivel de BD
+-- ------------------------------------------------------------
+-- Antes: el unico guard era un indice unico sobre la hora de
+-- inicio EXACTA. Dos citas del mismo terapeuta a las 9:40 y
+-- 10:20 con sesiones de 60 min se solapaban y la base las
+-- aceptaba, porque la logica real de traslape vivia solo en el
+-- cliente (BookingFlow.jsx). La policy de insercion publica
+-- permite escribir por API sin pasar por la UI.
+-- Ahora: la garantia la da el motor con EXCLUDE USING gist,
+-- que es para lo que ya estaba declarada la extension btree_gist.
+-- ============================================================
+
+-- Duracion efectiva de la cita. Sin ella no se puede construir
+-- el rango: la tabla solo guardaba la hora de inicio.
+alter table public.appointments
+  add column if not exists duration_minutes integer;
+
+-- Backfill: duracion del terapeuta asignado; si no hay, la del
+-- servicio; si tampoco, 50 min (el default del negocio).
+update public.appointments a
+set duration_minutes = coalesce(
+  (select t.session_duration_minutes from public.therapists t where t.id = a.therapist_id),
+  (select s.duration_minutes from public.therapy_services s where s.id = a.service_id),
+  50
+)
+where a.duration_minutes is null;
+
+alter table public.appointments
+  alter column duration_minutes set default 50;
+
+do $$
+begin
+  if exists (
+    select 1 from public.appointments where duration_minutes is null
+  ) then
+    raise exception 'Quedaron citas sin duration_minutes; revisar antes de continuar.';
+  end if;
+end $$;
+
+alter table public.appointments
+  alter column duration_minutes set not null;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'appointments_duration_positive'
+  ) then
+    alter table public.appointments
+      add constraint appointments_duration_positive
+      check (duration_minutes between 5 and 480);
+  end if;
+end $$;
+
+-- Rango ocupado por la cita. Generado por la base para que no
+-- pueda desincronizarse de fecha/hora/duracion.
+alter table public.appointments
+  add column if not exists slot tsrange
+  generated always as (
+    tsrange(
+      (appointment_date + appointment_time),
+      (appointment_date + appointment_time) + make_interval(mins => duration_minutes),
+      '[)'
+    )
+  ) stored;
+
+-- Diagnostico previo: el EXCLUDE no se puede crear sobre datos
+-- que ya se solapan. Si los hay, se reporta y se detiene, en vez
+-- de dejar la tabla sin proteccion en silencio.
+do $$
+declare
+  conflictos integer;
+  detalle text;
+begin
+  if exists (
+    select 1 from pg_constraint where conname = 'appointments_no_overlap'
+  ) then
+    raise notice 'appointments_no_overlap ya existe; nada que hacer.';
+    return;
+  end if;
+
+  select count(*), string_agg(
+    format('%s vs %s (terapeuta %s, %s)', a.id, b.id, a.therapist_id, a.appointment_date),
+    E'\n  ' order by a.appointment_date
+  )
+  into conflictos, detalle
+  from public.appointments a
+  join public.appointments b
+    on a.therapist_id = b.therapist_id
+   and a.id < b.id
+   and a.slot && b.slot
+  where a.status <> 'cancelled'
+    and b.status <> 'cancelled'
+    and a.therapist_id is not null;
+
+  if conflictos > 0 then
+    raise exception E'No se puede activar la proteccion de solapamiento: hay % par(es) de citas que ya se traslapan.\n  %\nResuelvelos (recalendarizar o cancelar) y vuelve a correr el script.', conflictos, detalle;
+  end if;
+
+  alter table public.appointments
+    add constraint appointments_no_overlap
+    exclude using gist (
+      therapist_id with =,
+      slot with &&
+    ) where (status <> 'cancelled' and therapist_id is not null);
+
+  raise notice 'Proteccion de solapamiento activada.';
+end $$;
+
+-- ============================================================
+-- FASE 1.1 — Cerrar la exposicion publica de datos de terapeutas
+-- ------------------------------------------------------------
+-- Antes: la policy "Public can read active therapists" era
+--   for select using (active = true)
+-- y RLS filtra FILAS, no COLUMNAS. La tabla contiene email,
+-- cedula profesional y user_id (el uuid de auth.users), asi que
+-- cualquiera con la anon key -que viaja en el bundle del
+-- navegador- obtenia las tres con un select *.
+-- Ahora: el publico lee una vista con solo lo necesario para
+-- agendar. La tabla queda para personal autenticado.
+-- ============================================================
+
+drop policy if exists "Public can read active therapists" on public.therapists;
+
+create or replace view public.therapists_public
+with (security_invoker = false) as
+  select id, name, specialty, color, session_duration_minutes, active
+  from public.therapists
+  where active = true;
+
+comment on view public.therapists_public is
+  'Proyeccion publica de terapeutas: NUNCA agregar email, cedula ni user_id aqui.';
+
+revoke all on public.therapists_public from public, anon, authenticated;
+grant select on public.therapists_public to anon, authenticated;
+
+-- La RPC de login resolvia nombre -> email para cualquiera que
+-- la invocara con la anon key. Solo debe poder usarla el flujo
+-- de autenticacion, no el publico anonimo navegando.
+revoke all on function public.resolve_login_identifier(text) from public, anon;
+grant execute on function public.resolve_login_identifier(text) to authenticated, service_role;
+
+-- ============================================================
+-- FASE 1.3 — Consentimiento persistido
+-- ------------------------------------------------------------
+-- El flujo de reserva pedia un checkbox de aviso de privacidad
+-- que no se guardaba en ningun lado. La LFPDPPP (vigente desde
+-- 2025-03-21) clasifica el estado de salud como dato sensible y
+-- exige consentimiento expreso y por escrito. Un checkbox no
+-- persistido no prueba nada.
+-- ============================================================
+
+create table if not exists public.consents (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid references public.patients(id) on delete restrict,
+  appointment_id text references public.appointments(id) on delete set null,
+  subject_email text not null,
+  consent_type text not null,
+  document_version text not null,
+  document_hash text,
+  accepted_at timestamptz not null default now(),
+  ip_address inet,
+  user_agent text,
+  evidence jsonb not null default '{}'::jsonb,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'consents_type_valid') then
+    alter table public.consents add constraint consents_type_valid
+      check (consent_type in ('privacy_notice','clinical_treatment','data_sharing','telehealth','calendar_sync'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'consents_email_format') then
+    alter table public.consents add constraint consents_email_format
+      check (subject_email ~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$');
+  end if;
+end $$;
+
+create index if not exists consents_patient_id_idx on public.consents (patient_id);
+create index if not exists consents_email_idx on public.consents (lower(subject_email));
+create index if not exists consents_appointment_id_idx on public.consents (appointment_id) where appointment_id is not null;
+
+-- El consentimiento es evidencia legal: se puede revocar, nunca borrar ni reescribir.
+create or replace function public.consents_are_immutable()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'Los consentimientos no se borran; usa revoked_at.';
+  end if;
+  if new.accepted_at is distinct from old.accepted_at
+     or new.subject_email is distinct from old.subject_email
+     or new.consent_type is distinct from old.consent_type
+     or new.document_version is distinct from old.document_version
+     or new.document_hash is distinct from old.document_hash
+     or new.evidence is distinct from old.evidence then
+    raise exception 'Un consentimiento registrado no se modifica; solo puede revocarse.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists consents_immutable on public.consents;
+create trigger consents_immutable
+  before update or delete on public.consents
+  for each row execute function public.consents_are_immutable();
+
+-- ============================================================
+-- FASE 1.4 — Bitacora de auditoria
+-- ------------------------------------------------------------
+-- NOM-024-SSA3 exige registros de auditoria en un expediente
+-- clinico electronico. No existia ninguno; el README ya lo
+-- reconocia como pendiente.
+-- ============================================================
+
+create table if not exists public.audit_log (
+  id bigserial primary key,
+  occurred_at timestamptz not null default now(),
+  actor_user_id uuid,
+  actor_role text,
+  action text not null,
+  table_name text not null,
+  record_id text,
+  patient_id uuid,
+  changed_fields text[],
+  old_data jsonb,
+  new_data jsonb
+);
+
+create index if not exists audit_log_occurred_at_idx on public.audit_log (occurred_at desc);
+create index if not exists audit_log_actor_idx on public.audit_log (actor_user_id, occurred_at desc);
+create index if not exists audit_log_record_idx on public.audit_log (table_name, record_id);
+create index if not exists audit_log_patient_idx on public.audit_log (patient_id) where patient_id is not null;
+
+create or replace function public.record_audit_entry()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_old jsonb;
+  v_new jsonb;
+  v_changed text[];
+  v_record_id text;
+  v_patient_id uuid;
+begin
+  v_old := case when tg_op in ('UPDATE','DELETE') then to_jsonb(old) end;
+  v_new := case when tg_op in ('INSERT','UPDATE') then to_jsonb(new) end;
+
+  if tg_op = 'UPDATE' then
+    select array_agg(key order by key) into v_changed
+    from jsonb_each(v_new)
+    where v_new -> key is distinct from v_old -> key
+      and key not in ('updated_at');
+    -- Un UPDATE que no cambia nada sustantivo no se registra.
+    if v_changed is null then
+      return new;
+    end if;
+  end if;
+
+  v_record_id := coalesce(v_new ->> 'id', v_old ->> 'id');
+  begin
+    v_patient_id := nullif(coalesce(v_new ->> 'patient_id', v_old ->> 'patient_id'), '')::uuid;
+  exception when others then
+    v_patient_id := null;
+  end;
+  if v_patient_id is null and tg_table_name = 'patients' then
+    v_patient_id := v_record_id::uuid;
+  end if;
+
+  insert into public.audit_log (
+    actor_user_id, actor_role, action, table_name, record_id,
+    patient_id, changed_fields, old_data, new_data
+  ) values (
+    auth.uid(),
+    coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'anon'),
+    tg_op, tg_table_name, v_record_id,
+    v_patient_id, v_changed, v_old, v_new
+  );
+
+  return coalesce(new, old);
+end $$;
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['patients','appointment_notes','appointments','profiles','therapists','consents']
+  loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format(
+      'create trigger audit_%1$s after insert or update or delete on public.%1$I
+         for each row execute function public.record_audit_entry()', t);
+  end loop;
+end $$;
+
+-- Postgres no tiene triggers de SELECT, asi que el acceso de
+-- LECTURA a una nota clinica -que NOM-024 tambien pide auditar-
+-- se registra explicitamente desde la aplicacion con esta funcion.
+create or replace function public.log_clinical_note_access(note_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_patient uuid;
+begin
+  select patient_id into v_patient from public.appointment_notes where id = note_id;
+  if v_patient is null then
+    return;
+  end if;
+  insert into public.audit_log (
+    actor_user_id, actor_role, action, table_name, record_id, patient_id
+  ) values (
+    auth.uid(),
+    coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'anon'),
+    'READ', 'appointment_notes', note_id::text, v_patient
+  );
+end $$;
+
+-- La bitacora es solo-anexar: nadie la edita ni la borra.
+alter table public.audit_log enable row level security;
+alter table public.consents enable row level security;
+
+revoke update, delete, truncate on public.audit_log from public, anon, authenticated;
+
+drop policy if exists "Admins can read audit log" on public.audit_log;
+create policy "Admins can read audit log" on public.audit_log
+  for select using (public.is_super_admin());
+
+drop policy if exists "Clinic staff can read consents" on public.consents;
+create policy "Clinic staff can read consents" on public.consents
+  for select using (public.is_clinic_staff());
+
+drop policy if exists "Public can register consent" on public.consents;
+create policy "Public can register consent" on public.consents
+  for insert with check (
+    consent_type in ('privacy_notice','telehealth')
+    and revoked_at is null
+    and char_length(document_version) between 1 and 40
+  );
+
+drop policy if exists "Clinic staff can manage consents" on public.consents;
+create policy "Clinic staff can manage consents" on public.consents
+  for all using (public.is_clinic_staff()) with check (public.is_clinic_staff());
