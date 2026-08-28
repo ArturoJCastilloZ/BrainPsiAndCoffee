@@ -34,19 +34,55 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
     wantsCoffee: false,
   });
   const eligibleTherapists = useMemo(() => therapists.filter(therapist => (!lockedTherapistId || therapist.id === lockedTherapistId) && (!draft.serviceId || therapist.services?.includes(draft.serviceId))), [draft.serviceId, lockedTherapistId, therapists]);
+  // Desde donde arranca la rejilla. Empieza en hoy y se mueve con los
+  // controles; no esta alineada a meses, asi que la primera columna es
+  // siempre el dia de inicio y los encabezados se derivan de el.
+  //
+  // Se guarda el ISO y no un Date para que el useMemo compare por valor:
+  // un Date nuevo con la misma fecha recalcularia todo en cada render.
+  const [calendarStart, setCalendarStart] = useState(() => localISO(new Date()));
+
+  // El "hoy" se congela al montar. Sin esto, una pestaña abierta que cruce
+  // la medianoche seguiria tratando como hoy el dia anterior — y la
+  // primera columna seria un dia que ya paso.
+  const [hoy, setHoy] = useState(() => localISO(new Date()));
+  useEffect(() => {
+    const id = setInterval(() => {
+      const ahora = localISO(new Date());
+      setHoy((previo) => (previo === ahora ? previo : ahora));
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+
   const calendarDays = useMemo(() => {
+    const inicio = localDate(calendarStart);
     return Array.from({ length: 35 }, (_, index) => {
-      const date = addDays(new Date(), index);
+      const date = addDays(inicio, index);
       const iso = localISO(date);
       const slots = getAvailableSlots(iso, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services);
+      // Navegar hacia atras es util para consultar, pero no se agenda en
+      // el pasado.
+      const pasado = iso < hoy;
       return {
         iso,
         date,
         slots,
-        disabled: !isBusinessDay(iso) || slots.length === 0,
+        pasado,
+        disabled: pasado || !isBusinessDay(iso) || slots.length === 0,
       };
     });
-  }, [bookings, draft.serviceId, draft.therapistId, eligibleTherapists, services]);
+  }, [bookings, calendarStart, draft.serviceId, draft.therapistId, eligibleTherapists, hoy, services]);
+
+  // Saltos de la rejilla. Semana y mes y año, como se pidio; el mes y el
+  // año se mueven por calendario real (no por 30 o 365 dias) para que
+  // caer en el mismo numero de dia sea predecible.
+  const moverCalendario = (unidad, signo) => {
+    const d = localDate(calendarStart);
+    if (unidad === 'semana') d.setDate(d.getDate() + 7 * signo);
+    if (unidad === 'mes') d.setMonth(d.getMonth() + signo);
+    if (unidad === 'anio') d.setFullYear(d.getFullYear() + signo);
+    setCalendarStart(localISO(d));
+  };
   const availableDates = useMemo(() => calendarDays.filter(day => !day.disabled).map(day => day.iso), [calendarDays]);
   const availableSlots = useMemo(() => getTimeSlotStates(draft.date, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services), [bookings, draft.date, draft.serviceId, draft.therapistId, eligibleTherapists, services]);
   const selectedSlot = availableSlots.find(slot => slot.time === draft.time);
@@ -198,7 +234,14 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
             )}
             <div style={{ ...fieldWrap, gridColumn: 'span 2' }}>
               <span style={fieldLabel}>FECHA DISPONIBLE</span>
-              <AvailabilityCalendar days={calendarDays} selectedDate={draft.date} onSelect={date => { setFormError(''); setDraft({ ...draft, date, time: '' }); }} />
+              <AvailabilityCalendar
+                days={calendarDays}
+                selectedDate={draft.date}
+                onSelect={date => { setFormError(''); setDraft({ ...draft, date, time: '' }); }}
+                onMove={moverCalendario}
+                onToday={() => setCalendarStart(hoy)}
+                enHoy={calendarStart === hoy}
+              />
               {!draft.date && <span style={requiredHint}>Campo requerido</span>}
             </div>
             <div style={{ ...fieldWrap, gridColumn: 'span 3' }}>
@@ -383,8 +426,38 @@ function AdminField({ label, value, onChange, type = 'text', required = false })
 
 const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 };
 
-function AvailabilityCalendar({ days, selectedDate, onSelect }) {
+function AvailabilityCalendar({ days, selectedDate, onSelect, onMove, onToday, enHoy }) {
+  const primero = days[0]?.date;
+  const ultimo = days[days.length - 1]?.date;
+  // El rango se rotula con lo que la rejilla realmente contiene, que
+  // puede cruzar dos meses o dos años.
+  const rango = primero && ultimo
+    ? `${primero.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} – ${ultimo.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}`
+    : '';
+
   return (
+    <div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 8, marginBottom: 8, flexWrap: 'wrap',
+      }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button type="button" onClick={() => onMove('anio', -1)} style={navBtn} title="Un año atrás">«</button>
+          <button type="button" onClick={() => onMove('mes', -1)} style={navBtn} title="Un mes atrás">‹‹</button>
+          <button type="button" onClick={() => onMove('semana', -1)} style={navBtn} title="Una semana atrás">‹</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: 'var(--admin-muted)', fontSize: 11, fontWeight: 700 }}>{rango}</span>
+          {!enHoy && (
+            <button type="button" onClick={onToday} style={{ ...navBtn, width: 'auto', padding: '0 10px' }}>Hoy</button>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button type="button" onClick={() => onMove('semana', 1)} style={navBtn} title="Una semana adelante">›</button>
+          <button type="button" onClick={() => onMove('mes', 1)} style={navBtn} title="Un mes adelante">››</button>
+          <button type="button" onClick={() => onMove('anio', 1)} style={navBtn} title="Un año adelante">»</button>
+        </div>
+      </div>
     <div style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
@@ -423,8 +496,23 @@ function AvailabilityCalendar({ days, selectedDate, onSelect }) {
         );
       })}
     </div>
+    </div>
   );
 }
+
+const navBtn = {
+  width: 30,
+  height: 26,
+  borderRadius: 8,
+  border: '1px solid var(--admin-border)',
+  background: 'var(--admin-surface)',
+  color: 'var(--admin-accent-text)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  fontSize: 12,
+  fontWeight: 800,
+  lineHeight: 1,
+};
 
 function TimeSlotGrid({ slots, selectedTime, onSelect }) {
   return (
