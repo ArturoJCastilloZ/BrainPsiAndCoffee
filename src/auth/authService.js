@@ -1,7 +1,7 @@
 import { BehaviorSubject } from 'rxjs';
 import { env } from '../config/env';
 import { supabase, assertSupabaseConfigured } from '../api/supabaseClient';
-import { getActiveTenant, resolveInitialTenant, setActiveTenant } from '../api/tenant';
+import { getSelectedTenant, resolveInitialTenant, setActiveTenant } from '../api/tenant';
 import { resetRequests } from '../api/requestActivity';
 import { canAccessAdmin, canAccessDoctor, normalizeRole } from './permissions';
 
@@ -17,7 +17,7 @@ const toAppSession = (session) => {
   // Ya no hay un rol global: el mismo usuario puede ser doctor en una
   // clinica y administrador en otra, asi que se lee el de la clinica
   // activa. Sin clinica elegida no hay rol, y la UI no debe dar acceso.
-  const tenantId = getActiveTenant();
+  const tenantId = getSelectedTenant();
   const memberships = session.user.app_metadata?.memberships || {};
   const role = normalizeRole(memberships[tenantId] || 'user');
 
@@ -110,6 +110,16 @@ class AuthService {
     this.session$.next(session);
     this.scheduleTimers(session);
     return session;
+  }
+
+  // Al cambiar de clinica hay que RE-DERIVAR la sesion, no solo refrescar
+  // el temporizador: el rol se calcula a partir de la clinica activa, y el
+  // mismo usuario puede ser doctor en una y administrador en otra.
+  // refreshActivity() conserva el objeto anterior y dejaria el rol viejo.
+  async reloadSession() {
+    if (!supabase) return this.session$.value;
+    const { data } = await supabase.auth.getSession();
+    return this.setSession(data.session);
   }
 
   refreshActivity() {

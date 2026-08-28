@@ -1,5 +1,5 @@
 import { MENU, OFFERS, SPECIALTIES, THERAPISTS, THERAPY_SERVICES } from '../data';
-import { getActiveTenant } from './tenant';
+import { getSelectedTenant } from './tenant';
 import { supabase, assertSupabaseConfigured } from './supabaseClient';
 import { validateAppointment, validateOrder } from '../validation';
 import { BUSINESS } from '../businessInfo';
@@ -402,7 +402,7 @@ const getAuthRole = async () => {
   // Solo app_metadata: user_metadata es escribible por el propio usuario.
   // El rol es por clinica, no global: se lee el de la activa.
   const memberships = data.session?.user?.app_metadata?.memberships || {};
-  return memberships[getActiveTenant()] || null;
+  return memberships[getSelectedTenant()] || null;
 };
 
 export const saveAppointments = async (items, previousItems = []) => {

@@ -9,6 +9,7 @@ import { useAuthSession, useInactivityTracking, useSessionWarning } from './auth
 import SessionExpiryModal from './components/SessionExpiryModal';
 import { trackPageView } from './monitoring';
 import { canAccessAdmin, canAccessDoctor, isDoctor } from './auth/permissions';
+import TenantPicker from './components/TenantPicker';
 
 const UserApp = lazy(() => import('./user/UserApp'));
 const AdminApp = lazy(() => import('./admin/AdminApp'));
@@ -42,9 +43,28 @@ export default function App() {
     // navigate('/');
   };
   useInactivityTracking(Boolean(session));
+
+  // Un usuario con varias clinicas y ninguna elegida no tiene rol: sin
+  // saber en cual esta, no se puede decidir que puede ver. Se le pregunta
+  // antes de dejarlo entrar, en vez de mostrarle un admin vacio o
+  // mandarlo al login como si no tuviera permisos.
+  const mustPickTenant =
+    Boolean(session) && !session.user.tenantId && Object.keys(session.user.memberships || {}).length > 1;
   React.useEffect(() => {
     trackPageView(location.pathname);
   }, [location.pathname]);
+
+  if (mustPickTenant) {
+    return (
+      <TenantPicker
+        memberships={session.user.memberships}
+        theme={theme}
+        // Se re-deriva la sesion para que el rol pase a ser el de la
+        // clinica recien elegida.
+        onSelected={() => authService.reloadSession()}
+      />
+    );
+  }
 
   return (
     <div data-theme={theme} style={{

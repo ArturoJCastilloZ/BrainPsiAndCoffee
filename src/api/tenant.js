@@ -39,10 +39,15 @@ const writeStored = (tenantId) => {
 
 activeTenant = readStored();
 
-// Sin clinica elegida se usa la del despliegue, que es lo que necesita el
-// visitante publico para ver el catalogo y agendar. Para trafico
-// autenticado da igual cual se mande: si no esta entre las membresias del
-// JWT, la base la ignora y devuelve cero filas.
+// La clinica que el usuario eligio, sin sustituto. Es la que manda para
+// decidir su ROL: caer al tenant del despliegue aqui le daria el rol de
+// una clinica a la que quiza ni pertenece.
+export const getSelectedTenant = () => activeTenant;
+
+// La que se manda en el header. Sin eleccion se usa la del despliegue,
+// que es lo que necesita el visitante publico para ver el catalogo y
+// agendar. Para trafico autenticado da igual cual se mande: si no esta
+// entre las membresias del JWT, la base la ignora y devuelve cero filas.
 export const getActiveTenant = () => activeTenant || env.defaultTenantId || null;
 
 export const setActiveTenant = (tenantId) => {
@@ -79,5 +84,6 @@ export const resolveInitialTenant = (session) => {
   return ids.length === 1 ? ids[0] : null;
 };
 
+// Solo se le pregunta a quien tiene de verdad algo que elegir.
 export const needsTenantSelection = (session) =>
-  Object.keys(readMemberships(session)).length > 1 && !getActiveTenant();
+  Object.keys(readMemberships(session)).length > 1 && !getSelectedTenant();
