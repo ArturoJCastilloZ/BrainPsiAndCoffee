@@ -12,6 +12,12 @@ create table if not exists auth.users (
 -- suelto y del sub dentro del JSON. El stub que se uso al verificar la
 -- Fase 1 solo leia 'request.jwt.claim.sub': con el JSON completo devolvia
 -- null y toda policy que dependa de auth.uid() daba un falso negativo.
+-- GoTrue impone correo unico. El stub tambien debe hacerlo: sin esta
+-- restriccion las pruebas pueden crear dos usuarios con el mismo correo
+-- —un estado imposible en Supabase— y tapar errores reales.
+create unique index if not exists users_email_unique
+  on auth.users (lower(email)) where email is not null;
+
 create or replace function auth.uid() returns uuid
 language sql stable as $$
   select coalesce(

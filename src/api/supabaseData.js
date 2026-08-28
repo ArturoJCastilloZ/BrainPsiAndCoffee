@@ -533,3 +533,42 @@ const syncDoctorAccess = async (therapists) => {
     throw error;
   }
 };
+
+// ---------------------------------------------------------------
+// Accesos.
+//
+// Todo pasa por funciones de la base y no por consultas directas: el
+// correo vive en auth.users, que la aplicacion no puede leer, y otorgar
+// permisos exige escribir app_metadata. La base vuelve a verificar quien
+// llama en cada una — la interfaz esconde los botones, pero quien manda
+// es el motor.
+// ---------------------------------------------------------------
+export const listTenantMembers = async () => {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc('list_tenant_members');
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    userId: row.user_id,
+    email: row.email,
+    role: row.role,
+    therapistId: row.therapist_id || '',
+    active: row.active,
+    isSelf: row.is_self,
+    createdAt: row.created_at,
+  }));
+};
+
+export const setTenantMemberRole = async (email, role) => {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc('set_tenant_member_role', {
+    p_email: email,
+    p_role: role,
+  });
+  if (error) throw error;
+};
+
+export const revokeTenantMember = async (userId) => {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc('revoke_tenant_member', { p_user_id: userId });
+  if (error) throw error;
+};

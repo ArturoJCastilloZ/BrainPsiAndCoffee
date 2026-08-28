@@ -40,6 +40,9 @@ export const canCreateOrders = (role) => isSuperAdmin(role) || isCafeAdmin(role)
 export const canManageCafeCatalog = (role) => isSuperAdmin(role) || isCafeAdmin(role);
 export const canManageClinicCatalog = (role) => isSuperAdmin(role) || isClinicAdmin(role);
 export const canManageBusinessSettings = (role) => isSuperAdmin(role);
+// Repartir permisos solo lo hace el dueño. La base lo vuelve a verificar
+// contra tenant_members en vivo: esto solo decide que se dibuja.
+export const canManageAccess = (role) => isSuperAdmin(role);
 export const canManageAppointments = (role) => canAccessClinic(role);
 export const canViewDashboard = (role) => isSuperAdmin(role);
 
@@ -56,6 +59,7 @@ export const firstAllowedAdminPage = (role) => {
 export const canAccessAdminPage = (role, page) => {
   if (page === 'general-dashboard') return canViewDashboard(role);
   if (page === 'general-business') return canManageBusinessSettings(role);
+  if (page === 'general-access') return canManageAccess(role);
   if (page === 'cafe-orders') return canManageOrders(role);
   if (page === 'cafe-products' || page === 'cafe-offers') return canManageCafeCatalog(role);
   if (

@@ -6,7 +6,7 @@ import {
     Bell, Trash2, ArrowRight, ArrowLeft,
     CheckCircle2, AlertCircle, MessageCircle, Cake,
     Home, Menu as MenuIcon, LogOut, TrendingUp, DollarSign,
-    Zap, Gift, Send, RefreshCw, Filter
+    Zap, Gift, Send, RefreshCw, Filter, KeyRound
 } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
@@ -14,9 +14,11 @@ import AdminDashboard from './AdminDashboard';
 import AdminAppointments from './AdminAppointments';
 import AdminOrders from './AdminOrders';
 import AdminCatalog from './AdminCatalog';
+import AdminAccess from './AdminAccess';
 import {
     canAccessAdminPage,
     canManageAppointments,
+    canManageAccess,
     canManageBusinessSettings,
     canManageCafeCatalog,
     canManageClinicCatalog,
@@ -37,6 +39,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             items: [
                 canViewDashboard(role) && { id: 'general-dashboard', label: 'Dashboard', icon: BarChart3 },
                 canManageBusinessSettings(role) && { id: 'general-business', label: 'Negocio', icon: Settings },
+                canManageAccess(role) && { id: 'general-access', label: 'Accesos', icon: KeyRound },
             ].filter(Boolean)
         },
         {
@@ -186,6 +189,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                 <main style={{ flex: 1, minWidth: 0, height: '100vh', overflow: 'auto', padding: '24px', paddingBottom: 100, boxSizing: 'border-box' }}>
                     <div style={{ minWidth: 900 }}>
                         {page === 'general-dashboard' && canViewDashboard(role) && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} />}
+                        {page === 'general-access' && canManageAccess(role) && <AdminAccess />}
                         {page === 'general-business' && canManageBusinessSettings(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="business" lockedTab heading="Negocio" description="Administra información general del negocio, contacto, redes, mapa y horarios." />}
                         {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} />}
                         {page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}
