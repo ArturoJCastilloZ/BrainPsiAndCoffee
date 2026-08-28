@@ -19,7 +19,38 @@ DRY_RUN="${2:-}"
 if [[ -z "${DATABASE_URL:-}" ]]; then
   echo "ERROR: falta DATABASE_URL." >&2
   echo "  local:  export DATABASE_URL=postgres://postgres:test@localhost:55432/bpc" >&2
-  echo "  remoto: la connection string de Supabase (Settings > Database)" >&2
+  echo "  remoto: la connection string de Supabase (boton Connect > Session pooler)" >&2
+  echo >&2
+  echo "  Para no dejarla en el historial del shell:" >&2
+  echo "    read -rs -p 'DATABASE_URL: ' DATABASE_URL && export DATABASE_URL" >&2
+  exit 1
+fi
+
+# Diagnostico de la cadena ANTES de conectar. psql da errores cripticos
+# para estos tres casos y cada uno cuesta un intento.
+if [[ "$DATABASE_URL" == *"pgbouncer="* ]]; then
+  echo "ERROR: la cadena trae 'pgbouncer=', que es un parametro de Prisma y no de psql." >&2
+  echo "       Quitalo: psql responde 'invalid URI query parameter'." >&2
+  exit 1
+fi
+
+if [[ "$DATABASE_URL" == *":6543/"* ]]; then
+  echo "ERROR: el puerto 6543 es el Transaction pooler de Supabase." >&2
+  echo "       No sostiene las transacciones de varias sentencias que usa este runner." >&2
+  echo "       Usa el Session pooler (puerto 5432) o la conexion directa." >&2
+  exit 1
+fi
+
+# Dos arrobas antes del host casi siempre significa una contraseña con
+# '@' sin escapar: psql corta el host ahi y el error habla de un host que
+# nadie escribio.
+sin_esquema="${DATABASE_URL#*://}"
+credenciales="${sin_esquema%%/*}"
+arrobas="$(grep -o "@" <<<"$credenciales" | wc -l | tr -d " ")"
+if [[ "$arrobas" -gt 1 ]]; then
+  echo "ERROR: la contraseña parece traer un '@' sin escapar." >&2
+  echo "       En un URI va como %40 (y '%'=%25, ':'=%3A, '/'=%2F)." >&2
+  echo "       Lo mas simple es rotar la contraseña a una sin caracteres especiales." >&2
   exit 1
 fi
 
