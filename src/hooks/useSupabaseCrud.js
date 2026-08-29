@@ -71,11 +71,24 @@ export const useSupabaseCrud = (session) => {
         catalogs = await loadCatalogs();
       }
 
-      setServicesRaw(catalogs.services.length ? catalogs.services : THERAPY_SERVICES);
-      setSpecialtiesRaw(catalogs.specialties.length ? catalogs.specialties : SPECIALTIES);
-      setTherapistsRaw(catalogs.therapists.length ? catalogs.therapists : THERAPISTS);
-      setMenuRaw(hasMenuItems(catalogs.menu) ? catalogs.menu : MENU);
-      setOffersRaw(catalogs.offers.length ? catalogs.offers : OFFERS);
+      // Los datos de demostracion solo se muestran al VISITANTE, para que
+      // la pagina publica no se vea vacia antes de que el consultorio
+      // cargue su catalogo.
+      //
+      // Para alguien con sesion son un peligro: si la consulta devuelve
+      // cero filas —porque RLS acota, porque falta una membresia o porque
+      // el catalogo esta vacio de verdad— la aplicacion mostraba doctores
+      // y servicios FANTASMA con ids que no existen en la base ('t1',
+      // 'psi-adultos'). Todo se veia bien y cada guardado fallaba con un
+      // error que no apuntaba a la causa. Vacio es vacio: las pantallas ya
+      // tienen su estado vacio y dicen que crear.
+      const demo = !session;
+
+      setServicesRaw(catalogs.services.length ? catalogs.services : (demo ? THERAPY_SERVICES : []));
+      setSpecialtiesRaw(catalogs.specialties.length ? catalogs.specialties : (demo ? SPECIALTIES : []));
+      setTherapistsRaw(catalogs.therapists.length ? catalogs.therapists : (demo ? THERAPISTS : []));
+      setMenuRaw(hasMenuItems(catalogs.menu) ? catalogs.menu : (demo ? MENU : {}));
+      setOffersRaw(catalogs.offers.length ? catalogs.offers : (demo ? OFFERS : []));
       setSettingsRaw(catalogs.settings || BUSINESS);
       setSchedules(catalogs.schedules || []);
 
@@ -95,7 +108,7 @@ export const useSupabaseCrud = (session) => {
     } finally {
       setLoading(false);
     }
-  }, [canLoadAppointments, canLoadOrders, canSeed, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
+  }, [canLoadAppointments, canLoadOrders, canSeed, session, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
 
   useEffect(() => {
     reload();
