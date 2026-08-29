@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { C } from '../theme';
 import { saveTherapistAgendaPrefs, saveTherapistSchedules } from '../api/supabaseData';
 import { useConfirm } from '../components/ConfirmDialog';
-import { timeSlotStates, toMinutes } from '../agenda.mjs';
+import { fromMinutes, timeSlotStates, toMinutes } from '../agenda.mjs';
 
 // weekday 0 = domingo, igual que getDay() y que la columna en la base.
 const DIAS = [
@@ -35,9 +35,14 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
 
   const therapist = therapists.find((t) => t.id === therapistId);
 
-  // Al cambiar de terapeuta se recarga el borrador desde los catalogos.
+  // El borrador se recarga al CAMBIAR de doctor, no cada vez que los
+  // catalogos se refrescan: si dependiera del arreglo, cualquier recarga
+  // en segundo plano borraria lo que el usuario esta escribiendo.
+  const cargadoPara = useRef(null);
   useEffect(() => {
     if (!therapist) return;
+    if (cargadoPara.current === therapist.id) return;
+    cargadoPara.current = therapist.id;
     setBlocks((catalogs?.schedules || [])
       .filter((b) => b.therapistId === therapist.id)
       .map((b) => ({ ...b })));
@@ -53,10 +58,40 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
     setNotice('');
   }, [catalogs?.schedules, therapist]);
 
-  const addBlock = (weekday) => setBlocks((b) => [
-    ...b,
-    { id: `nuevo-${weekday}-${b.length}-${Math.round(performance.now())}`, therapistId, weekday, startTime: '09:00', endTime: '14:00', active: true },
-  ]);
+  // Varios bloques el mismo dia son a proposito: asi se expresa una agenda
+  // partida y la hora de comida queda fuera. Pero uno nuevo debe empezar
+  // DESPUES del ultimo, no encima: apilar cinco bloques identicos no es
+  // una agenda, es un error de dedo que la validacion despues rechaza.
+  const addBlock = (weekday) => setBlocks((b) => {
+    const delDia = b
+      .filter((x) => x.weekday === weekday)
+      .sort((x, y) => toMinutes(x.startTime) - toMinutes(y.startTime));
+    const ultimo = delDia[delDia.length - 1];
+    // Una hora de separacion tras el bloque anterior: es el hueco de
+    // comida, que es para lo que sirve partir el dia.
+    const inicio = ultimo ? toMinutes(ultimo.endTime) + 60 : 9 * 60;
+    const fin = Math.min(inicio + 240, 23 * 60 + 59);
+    if (inicio >= fin) return b;
+    return [
+      ...b,
+      {
+        id: `nuevo-${weekday}-${b.length}-${Math.round(performance.now())}`,
+        therapistId, weekday,
+        startTime: fromMinutes(inicio),
+        endTime: fromMinutes(fin),
+        active: true,
+      },
+    ];
+  });
+
+  // Cuando el dia ya llega al final, agregar otro bloque no cabe.
+  const cabeOtroBloque = (weekday) => {
+    const delDia = blocks
+      .filter((x) => x.weekday === weekday)
+      .sort((x, y) => toMinutes(x.startTime) - toMinutes(y.startTime));
+    const ultimo = delDia[delDia.length - 1];
+    return !ultimo || toMinutes(ultimo.endTime) + 60 < 23 * 60 + 59;
+  };
 
   const updateBlock = (id, campo, valor) =>
     setBlocks((b) => b.map((x) => (x.id === id ? { ...x, [campo]: valor } : x)));
@@ -104,6 +139,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
       await saveTherapistSchedules(therapistId, blocks);
       await saveTherapistAgendaPrefs(therapistId, prefs);
       setNotice('Horario y preferencias guardados.');
+      cargadoPara.current = null;
       await reload?.();
     } catch (err) {
       setError(err.message || 'No se pudo guardar el horario.');
@@ -166,7 +202,13 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
                   <span style={{ fontSize: 13, color: delDia.length ? 'var(--admin-text)' : 'var(--admin-muted)', fontWeight: delDia.length ? 700 : 400 }}>
                     {dia.label}{!delDia.length && ' · cerrado'}
                   </span>
-                  <button type="button" onClick={() => addBlock(dia.id)} style={botonChico}>
+                  <button
+                    type="button"
+                    onClick={() => addBlock(dia.id)}
+                    disabled={!cabeOtroBloque(dia.id)}
+                    title={cabeOtroBloque(dia.id) ? 'Agregar un bloque, por ejemplo para partir el día' : 'Ya no cabe otro bloque este día'}
+                    style={{ ...botonChico, opacity: cabeOtroBloque(dia.id) ? 1 : 0.4 }}
+                  >
                     <Plus size={12} /> Bloque
                   </button>
                 </div>
@@ -249,7 +291,12 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
-        <button type="button" onClick={() => reload?.()} disabled={busy} style={botonChico}>
+        <button
+          type="button"
+          onClick={() => { cargadoPara.current = null; reload?.(); }}
+          disabled={busy}
+          style={botonChico}
+        >
           <RefreshCw size={12} /> Descartar
         </button>
         <button type="button" onClick={guardar} disabled={busy || problemas.length > 0} style={{

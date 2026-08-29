@@ -40,6 +40,15 @@ const useRemoteState = (initialValue, saveRemote) => {
 
 export const useSupabaseCrud = (session) => {
   const canSeed = isSuperAdmin(session?.user?.role);
+  // Un BOOLEANO y no el objeto de sesion.
+  //
+  // refreshActivity() emite una sesion NUEVA cada 30 segundos de
+  // actividad —click, tecla, movimiento del raton— para reponer el
+  // temporizador de inactividad. Si el objeto entra en las dependencias
+  // de reload, cada pulsacion recrea el callback, el efecto vuelve a
+  // pedir todos los catalogos, y las pantallas que derivan su borrador de
+  // catalogs pierden lo que el usuario estaba escribiendo.
+  const hasSession = Boolean(session);
   const canLoadAppointments = canManageAppointments(session?.user?.role) || session?.user?.role === 'doctor';
   const canLoadOrders = canManageOrders(session?.user?.role);
   const [services, setServicesRaw, setServices, servicesError] = useRemoteState(THERAPY_SERVICES, saveServices);
@@ -82,7 +91,7 @@ export const useSupabaseCrud = (session) => {
       // 'psi-adultos'). Todo se veia bien y cada guardado fallaba con un
       // error que no apuntaba a la causa. Vacio es vacio: las pantallas ya
       // tienen su estado vacio y dicen que crear.
-      const demo = !session;
+      const demo = !hasSession;
 
       setServicesRaw(catalogs.services.length ? catalogs.services : (demo ? THERAPY_SERVICES : []));
       setSpecialtiesRaw(catalogs.specialties.length ? catalogs.specialties : (demo ? SPECIALTIES : []));
@@ -108,7 +117,7 @@ export const useSupabaseCrud = (session) => {
     } finally {
       setLoading(false);
     }
-  }, [canLoadAppointments, canLoadOrders, canSeed, session, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
+  }, [canLoadAppointments, canLoadOrders, canSeed, hasSession, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
 
   useEffect(() => {
     reload();
