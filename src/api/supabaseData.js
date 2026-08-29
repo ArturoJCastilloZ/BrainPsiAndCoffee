@@ -762,27 +762,23 @@ export const saveTherapistSchedules = async (therapistId, blocks) => {
 export const saveTherapistAgendaPrefs = async (therapistId, prefs) => {
   assertSupabaseConfigured();
   if (!therapistId) throw new Error('No hay un doctor seleccionado.');
-  const result = await supabase
-    .from('therapists')
-    .update({
-      buffer_before_minutes: Number(prefs.bufferBefore ?? 0),
-      buffer_after_minutes: Number(prefs.bufferAfter ?? 30),
-      slot_interval_minutes: Number(prefs.slotInterval ?? 0),
-      minimum_notice_minutes: Number(prefs.minimumNotice ?? 0),
-      booking_window_days: Number(prefs.bookingWindowDays ?? 90),
-      max_bookings_per_day: Number(prefs.maxBookingsPerDay ?? 12),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', therapistId)
-    .select();
+  // Por RPC y no por update directo: los buffers viven en therapists,
+  // donde el doctor solo tiene SELECT. La funcion autoriza las dos vias
+  // —la clinica sobre cualquiera de sus fichas, el doctor sobre la suya—
+  // y escribe unicamente los campos de agenda.
+  const result = await supabase.rpc('set_agenda_prefs', {
+    p_therapist_id: therapistId,
+    p_buffer_before_minutes: Number(prefs.bufferBefore ?? 0),
+    p_buffer_after_minutes: Number(prefs.bufferAfter ?? 30),
+    p_slot_interval_minutes: Number(prefs.slotInterval ?? 0),
+    p_minimum_notice_minutes: Number(prefs.minimumNotice ?? 0),
+    p_booking_window_days: Number(prefs.bookingWindowDays ?? 90),
+    p_max_bookings_per_day: Number(prefs.maxBookingsPerDay ?? 12),
+  });
   throwIfError(result);
   // Sin .single(): cuando el update no encuentra la fila, PostgREST
   // responde "Cannot coerce the result to a single JSON object", que no
   // dice nada al usuario. Se revisa el conteo y se explica.
-  if (!result.data?.length) {
-    throw new Error(
-      `No se encontró el doctor "${therapistId}" en esta clínica. Recarga la página: puede que la lista esté desactualizada.`,
-    );
-  }
-  return mapTherapistFromDb(result.data[0]);
+  if (!result.data) throw new Error(`No se pudo guardar la agenda del doctor "${therapistId}".`);
+  return mapTherapistFromDb(result.data);
 };

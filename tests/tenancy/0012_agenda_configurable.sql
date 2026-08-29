@@ -123,3 +123,55 @@ begin
 
   raise notice 'ok · los horarios no cruzan clinicas';
 end $$;
+
+-- Preferencias de agenda: quien puede guardarlas (migracion 0018).
+--
+-- El doctor tenia policy sobre sus horarios pero no sobre sus buffers,
+-- que viven en therapists: guardar desde "Mi horario" actualizaba cero
+-- filas. Se le dio la pantalla sin darle el permiso.
+--
+-- Va por funcion y no por policy porque RLS acota filas, no columnas: una
+-- policy de UPDATE dejaria al doctor cambiar tambien su cedula.
+do $$
+declare v_buffer integer; v_nombre text;
+begin
+  insert into auth.users (id,email) values
+    ('ee000000-0000-0000-0000-0000000000b2','agenda.otro@ex.mx');
+  insert into public.therapists (tenant_id,id,name) values ('t_ag','dra-otra','Dra. Otra');
+  insert into public.tenant_members (tenant_id,user_id,role,therapist_id) values
+    ('t_ag','ee000000-0000-0000-0000-0000000000b2','doctor','dra-otra');
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    '{"sub":"ee000000-0000-0000-0000-0000000000a1","app_metadata":{"memberships":{"t_ag":"doctor"},"therapist_ids":{"t_ag":"dra-ag"}}}', true);
+  perform set_config('request.tenant','t_ag', true);
+
+  -- Sobre SU ficha: si puede.
+  perform public.set_agenda_prefs('dra-ag', 0, 45, 0, 1440, 90, 12);
+
+  set local role postgres;
+  select buffer_after_minutes into v_buffer from public.therapists
+   where tenant_id='t_ag' and id='dra-ag';
+  if v_buffer <> 45 then
+    raise exception 'FALLA: el doctor no pudo guardar su propio buffer (quedo %)', v_buffer;
+  end if;
+
+  -- ATAQUE: sobre la ficha de OTRO doctor de la misma clinica.
+  set local role authenticated;
+  begin
+    perform public.set_agenda_prefs('dra-otra', 0, 5, 0, 0, 30, 3);
+    raise exception 'FUGA: un doctor cambio la agenda de otro';
+  exception when others then
+    if position('No tienes permiso' in sqlerrm) = 0 then raise; end if;
+  end;
+
+  -- La funcion escribe SOLO los campos de agenda: el nombre y la cedula
+  -- quedan fuera de su alcance por construccion.
+  set local role postgres;
+  select name into v_nombre from public.therapists where tenant_id='t_ag' and id='dra-ag';
+  if v_nombre <> 'Dra. Agenda' then
+    raise exception 'FALLA: la funcion toco un campo que no le corresponde (%)', v_nombre;
+  end if;
+
+  raise notice 'ok · el doctor guarda su agenda, y solo la suya';
+end $$;

@@ -34,6 +34,7 @@ declare
     'within_booking_window',
     'apply_therapist_buffers',
     'seed_default_schedule',
+    'set_agenda_prefs',
     -- Inmutabilidad clinica: no leen datos, solo rechazan escrituras.
     -- Son definer para que nadie pueda esquivarlas con otro rol.
     'enforce_signed_note_immutable',
