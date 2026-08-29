@@ -157,7 +157,7 @@ export default function App() {
           } />
           <Route path="/doctor" element={
             canAccessDoctor(session?.user.role) ? (
-              <DoctorApp bookings={bookings} setBookings={setBookings} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} />
+              <DoctorApp bookings={bookings} setBookings={setBookings} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} />
             ) : canAccessAdmin(session?.user.role) ? (
               <Navigate to="/admin" replace />
             ) : (

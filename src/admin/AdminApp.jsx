@@ -15,10 +15,12 @@ import AdminAppointments from './AdminAppointments';
 import AdminOrders from './AdminOrders';
 import AdminCatalog from './AdminCatalog';
 import AdminAccess from './AdminAccess';
+import AdminSchedules from './AdminSchedules';
 import {
     canAccessAdminPage,
     canManageAppointments,
     canManageAccess,
+    canManageSchedules,
     canManageBusinessSettings,
     canManageCafeCatalog,
     canManageClinicCatalog,
@@ -57,6 +59,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                 canManageClinicCatalog(role) && { id: 'clinic-services', label: 'Servicios', icon: Brain },
                 canManageClinicCatalog(role) && { id: 'clinic-therapists', label: 'Doctores', icon: Users },
                 canManageClinicCatalog(role) && { id: 'clinic-specialties', label: 'Especialidades', icon: Sparkles },
+                canManageSchedules(role) && { id: 'clinic-schedules', label: 'Horarios', icon: Clock },
             ].filter(Boolean)
         }
     ].filter((section) => section.items.length)), [role]);
@@ -194,6 +197,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                         {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} />}
                         {page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}
                         {page === 'cafe-offers' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="offers" lockedTab heading="Promociones" description="Administra ofertas y vigencia de promociones de cafetería." />}
+                        {page === 'clinic-schedules' && canManageSchedules(role) && <AdminSchedules catalogs={catalogs} reload={catalogActions?.reload} />}
                         {page === 'clinic-appointments' && canManageAppointments(role) && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} />}
                         {page === 'clinic-services' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="services" lockedTab heading="Servicios" description="Administra servicios del consultorio, duración, precio y público objetivo." />}
                         {page === 'clinic-therapists' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="therapists" lockedTab heading="Doctores" description="Administra profesionales, cédulas, especialidades y servicios habilitados." />}

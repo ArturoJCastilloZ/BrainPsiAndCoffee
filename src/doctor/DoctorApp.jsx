@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar as CalendarIcon, FileText, Lock, LogOut, Plus, Save, Settings, User, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, FileText, Lock, LogOut, Plus, Save, Settings, User, X } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
 import AdminAppointments from '../admin/AdminAppointments';
+import AdminSchedules from '../admin/AdminSchedules';
 import {
   addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes,
   loadPatients, signClinicalNote, updateClinicalNote,
 } from '../api/supabaseData';
 
-export default function DoctorApp({ bookings, setBookings, catalogs, session, logout, theme, toggleTheme }) {
+export default function DoctorApp({ bookings, setBookings, catalogs, session, logout, theme, toggleTheme, catalogActions}) {
   const isDark = theme === 'dark';
   const therapistId = session?.user?.therapistId;
   const therapist = catalogs.therapists.find((item) => item.id === therapistId);
@@ -149,12 +150,14 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
             {page === 'appointments' ? <CalendarIcon size={20} color="var(--admin-accent-text)" /> : <User size={20} color="var(--admin-accent-text)" />}
             <div>
               <h1 className="font-display" style={{ margin: 0, color: 'var(--admin-text)', fontSize: 30 }}>
-                {page === 'appointments' ? 'Mis citas' : 'Pacientes y notas'}
+                {page === 'appointments' ? 'Mis citas' : page === 'schedule' ? 'Mi horario' : 'Pacientes y notas'}
               </h1>
               <p style={{ margin: '2px 0 0', color: 'var(--admin-muted)', fontSize: 13 }}>
                 {page === 'appointments'
                   ? 'Solo puedes administrar las citas asignadas a tu usuario.'
-                  : 'Las notas clínicas solo son visibles para el doctor autorizado.'}
+                  : page === 'schedule'
+                    ? 'Tus días de trabajo y el descanso que dejas entre citas.'
+                    : 'Las notas clínicas solo son visibles para el doctor autorizado.'}
               </p>
             </div>
           </div>
@@ -162,6 +165,9 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
             {[
               { id: 'appointments', label: 'Citas', icon: CalendarIcon },
               { id: 'patients', label: 'Pacientes', icon: User },
+              // El doctor administra SU horario: es su tiempo, y RLS ya le
+              // permite escribir solo el suyo.
+              { id: 'schedule', label: 'Horario', icon: Clock },
             ].map((item) => (
               <button key={item.id} onClick={() => setPage(item.id)} style={{
                 ...topButtonStyle,
@@ -175,6 +181,9 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
         </div>
         {page === 'appointments' && (
           <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} lockedTherapistId={therapistId} />
+        )}
+        {page === 'schedule' && (
+          <AdminSchedules catalogs={catalogs} lockedTherapistId={therapistId} reload={catalogActions?.reload} />
         )}
         {page === 'patients' && (
           <DoctorPatients

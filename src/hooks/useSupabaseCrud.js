@@ -130,7 +130,7 @@ export const useSupabaseCrud = (session) => {
     orders,
     setOrders,
     catalogs: { services, specialties, therapists, menu, offers, settings },
-    catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setSettings },
+    catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setSettings, reload },
     loading,
     error,
     reload,
