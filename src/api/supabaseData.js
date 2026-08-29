@@ -315,7 +315,9 @@ export const loadCatalogs = async () => {
   return {
     services: (servicesResult.data || []).map(mapServiceFromDb),
     therapists: (therapistsResult.data || []).map((row) => mapTherapistFromDb(row, linksByTherapist[row.id] || [])),
-    schedules: (schedulesResult?.data || []).map(mapScheduleFromDb),
+    // Si esta consulta falla, la agenda se queda sin dias y la pantalla
+    // muestra todo "cerrado" sin decir por que. Se propaga.
+    schedules: (throwIfError(schedulesResult) || schedulesResult.data || []).map(mapScheduleFromDb),
     specialties: (specialtiesResult.data || []).map(mapSpecialtyFromDb),
     menu,
     offers: (offersResult.data || []).map(mapOfferFromDb),
@@ -733,8 +735,13 @@ export const loadTherapistSchedules = async () => {
 
 export const saveTherapistSchedules = async (therapistId, blocks) => {
   assertSupabaseConfigured();
+  if (!therapistId) throw new Error('No hay un doctor seleccionado.');
   // Se reemplaza el horario completo del terapeuta: es mas simple de
   // razonar que un diff, y RLS ya acota el borrado a su clinica.
+  //
+  // El borrado va DESPUES de validar el destinatario: guardar con la
+  // lista vacia por un fallo de carga —y no por decision de nadie—
+  // borraba el horario existente sin aviso.
   throwIfError(await supabase.from('therapist_schedules').delete().eq('therapist_id', therapistId));
   if (!blocks.length) return [];
   const result = await supabase
@@ -747,6 +754,7 @@ export const saveTherapistSchedules = async (therapistId, blocks) => {
 
 export const saveTherapistAgendaPrefs = async (therapistId, prefs) => {
   assertSupabaseConfigured();
+  if (!therapistId) throw new Error('No hay un doctor seleccionado.');
   const result = await supabase
     .from('therapists')
     .update({
@@ -759,8 +767,15 @@ export const saveTherapistAgendaPrefs = async (therapistId, prefs) => {
       updated_at: new Date().toISOString(),
     })
     .eq('id', therapistId)
-    .select()
-    .single();
+    .select();
   throwIfError(result);
-  return mapTherapistFromDb(result.data);
+  // Sin .single(): cuando el update no encuentra la fila, PostgREST
+  // responde "Cannot coerce the result to a single JSON object", que no
+  // dice nada al usuario. Se revisa el conteo y se explica.
+  if (!result.data?.length) {
+    throw new Error(
+      `No se encontró el doctor "${therapistId}" en esta clínica. Recarga la página: puede que la lista esté desactualizada.`,
+    );
+  }
+  return mapTherapistFromDb(result.data[0]);
 };

@@ -86,6 +86,12 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
 
   const guardar = async () => {
     if (problemas.length) return;
+    // Guardar sin bloques BORRA el horario. Es una opcion legitima —cerrar
+    // toda la semana— pero tambien lo que pasa si la lista no alcanzo a
+    // cargar, y en ese caso el borrado seria accidental y silencioso.
+    if (!blocks.length && !window.confirm(
+      'No hay ningún bloque: el doctor quedaría sin días de atención y nadie podría agendar con él. ¿Guardar así?'
+    )) return;
     setBusy(true);
     setError('');
     setNotice('');
@@ -130,7 +136,15 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(280px, 0.6fr)', gap: 14, alignItems: 'start' }}>
+      {/* auto-fit apila en una sola columna cuando no caben dos, sin
+          media queries: la version movil es el caso base y la de
+          escritorio es la que se gana cuando hay espacio. */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+        gap: 14,
+        alignItems: 'start',
+      }}>
         <div className="admin-card" style={{ borderRadius: 16, padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Clock size={16} color={C.sageDeep} />
@@ -151,10 +165,10 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
                 </div>
 
                 {delDia.map((b) => (
-                  <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <input type="time" value={b.startTime} onChange={(e) => updateBlock(b.id, 'startTime', e.target.value)} style={campo} />
+                  <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                    <input type="time" value={b.startTime} onChange={(e) => updateBlock(b.id, 'startTime', e.target.value)} style={{ ...campo, flex: '1 1 110px', minWidth: 0 }} />
                     <span style={{ color: 'var(--admin-muted)', fontSize: 12 }}>a</span>
-                    <input type="time" value={b.endTime} onChange={(e) => updateBlock(b.id, 'endTime', e.target.value)} style={campo} />
+                    <input type="time" value={b.endTime} onChange={(e) => updateBlock(b.id, 'endTime', e.target.value)} style={{ ...campo, flex: '1 1 110px', minWidth: 0 }} />
                     <button type="button" onClick={() => removeBlock(b.id)} style={{ ...botonChico, color: C.rust }} title="Quitar bloque">
                       <Trash2 size={12} />
                     </button>
@@ -174,6 +188,12 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
           <div className="admin-card" style={{ borderRadius: 16, padding: 16 }}>
             <strong style={{ fontSize: 13, color: 'var(--admin-text)', display: 'block', marginBottom: 12 }}>Ritmo de las citas</strong>
 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))',
+              gap: '0 12px',
+              alignItems: 'start',
+            }}>
             <Campo etiquetaTexto="DESCANSO DESPUÉS DE CADA CITA (MIN)"
               valor={prefs?.bufferAfter} onChange={(v) => setPrefs({ ...prefs, bufferAfter: v })}
               ayuda="Tiempo bloqueado tras la sesión, para notas y retrasos." />
@@ -181,7 +201,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
             <Campo etiquetaTexto="PREPARACIÓN ANTES (MIN)"
               valor={prefs?.bufferBefore} onChange={(v) => setPrefs({ ...prefs, bufferBefore: v })} />
 
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10, gridColumn: '1 / -1' }}>
               <span style={etiqueta}>CÓMO SE OFRECEN LOS HORARIOS</span>
               <select
                 value={prefs?.slotInterval === 0 ? 'auto' : 'fijo'}
@@ -206,6 +226,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
 
             <Campo etiquetaTexto="MÁXIMO DE CITAS POR DÍA"
               valor={prefs?.maxBookingsPerDay} onChange={(v) => setPrefs({ ...prefs, maxBookingsPerDay: v })} />
+            </div>
           </div>
 
           <VistaPrevia therapist={therapist && prefs ? { ...therapist, ...prefs } : null} blocks={blocks} catalogs={catalogs} />
@@ -319,7 +340,9 @@ function Campo({ etiquetaTexto, valor, onChange, ayuda }) {
         onChange={(e) => onChange(Number(e.target.value))}
         style={{ ...campo, width: '100%', marginTop: 6 }}
       />
-      {ayuda && <p style={{ fontSize: 11, color: 'var(--admin-muted)', margin: '4px 0 0' }}>{ayuda}</p>}
+      {/* Alto minimo para que un campo con ayuda no empuje al de al lado
+          y las filas queden alineadas. */}
+      <p style={{ fontSize: 11, color: 'var(--admin-muted)', margin: '4px 0 0', minHeight: 15 }}>{ayuda || ''}</p>
     </div>
   );
 }
@@ -341,6 +364,9 @@ const campo = {
   background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border)',
   borderRadius: 9, padding: '8px 10px', color: 'var(--admin-text)',
   fontFamily: 'inherit', fontSize: 13,
+  // Sin box-sizing, un width 100% mas el padding desborda el contenedor:
+  // es lo que descuadraba el formulario.
+  boxSizing: 'border-box', maxWidth: '100%',
 };
 const botonChico = {
   display: 'inline-flex', alignItems: 'center', gap: 5,

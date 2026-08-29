@@ -48,6 +48,7 @@ export const useSupabaseCrud = (session) => {
   const [menu, setMenuRaw, setMenu, menuError] = useRemoteState(MENU, saveMenu);
   const [offers, setOffersRaw, setOffers, offersError] = useRemoteState(OFFERS, saveOffers);
   const [settings, setSettingsRaw, setSettings, settingsError] = useRemoteState(BUSINESS, saveSettings);
+  const [schedules, setSchedules] = useState([]);
   const [bookings, setBookingsRaw, setBookings, bookingsError] = useRemoteState([], saveAppointments);
   const [orders, setOrdersRaw, setOrders, ordersError] = useRemoteState([], saveOrders);
   const [loading, setLoading] = useState(Boolean(supabase));
@@ -76,6 +77,7 @@ export const useSupabaseCrud = (session) => {
       setMenuRaw(hasMenuItems(catalogs.menu) ? catalogs.menu : MENU);
       setOffersRaw(catalogs.offers.length ? catalogs.offers : OFFERS);
       setSettingsRaw(catalogs.settings || BUSINESS);
+      setSchedules(catalogs.schedules || []);
 
       if (canLoadAppointments || canLoadOrders) {
         const [remoteBookings, remoteOrders] = await Promise.all([
@@ -129,13 +131,13 @@ export const useSupabaseCrud = (session) => {
     setBookings,
     orders,
     setOrders,
-    catalogs: { services, specialties, therapists, menu, offers, settings },
+    catalogs: { services, specialties, therapists, menu, offers, settings, schedules },
     catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setSettings, reload },
     loading,
     error,
     reload,
     seedCatalogs,
-  }), [bookings, services, specialties, therapists, menu, offers, settings, error, loading, orders, reload, seedCatalogs, setBookings, setMenu, setOffers, setOrders, setServices, setSettings, setSpecialties, setTherapists]);
+  }), [bookings, services, specialties, therapists, menu, offers, settings, schedules, error, loading, orders, reload, seedCatalogs, setBookings, setMenu, setOffers, setOrders, setServices, setSettings, setSpecialties, setTherapists]);
 };
 
 const hasMenuItems = (menu) => Object.values(menu || {}).some((section) => section.items?.length);
