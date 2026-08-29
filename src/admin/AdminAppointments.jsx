@@ -11,11 +11,13 @@ import {
 import { C } from '../theme';
 import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { addDays, todayISO, uid, weekdayLabelsFrom } from '../utils.jsx';
+import { isWorkingDay, timeSlotStates } from '../agenda.mjs';
 import { validateAppointment } from '../validation';
 
 export default function AdminAppointments({ bookings, setBookings, catalogs, lockedTherapistId = null }) {
   const services = catalogs?.services || THERAPY_SERVICES;
   const therapists = catalogs?.therapists || THERAPISTS;
+  const schedules = catalogs?.schedules || [];
   const [filter, setFilter] = useState('upcoming');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
@@ -59,19 +61,22 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
     return Array.from({ length: 35 }, (_, index) => {
       const date = addDays(inicio, index);
       const iso = localISO(date);
-      const slots = getAvailableSlots(iso, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services);
+      const slots = getAvailableSlots(iso, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services, schedules);
       // Navegar hacia atras es util para consultar, pero no se agenda en
       // el pasado.
       const pasado = iso < hoy;
+      // Un dia es laboral si ALGUN terapeuta elegible tiene bloques ese
+      // dia: ya no hay una semana fija para toda clinica.
+      const laboral = eligibleTherapists.some((t) => isWorkingDay(schedules, t.id, iso));
       return {
         iso,
         date,
         slots,
         pasado,
-        disabled: pasado || !isBusinessDay(iso) || slots.length === 0,
+        disabled: pasado || !laboral || slots.length === 0,
       };
     });
-  }, [bookings, calendarStart, draft.serviceId, draft.therapistId, eligibleTherapists, hoy, services]);
+  }, [bookings, calendarStart, draft.serviceId, draft.therapistId, eligibleTherapists, hoy, schedules, services]);
 
   // Saltos de la rejilla. Semana y mes y año, como se pidio; el mes y el
   // año se mueven por calendario real (no por 30 o 365 dias) para que
@@ -84,7 +89,7 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
     setCalendarStart(localISO(d));
   };
   const availableDates = useMemo(() => calendarDays.filter(day => !day.disabled).map(day => day.iso), [calendarDays]);
-  const availableSlots = useMemo(() => getTimeSlotStates(draft.date, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services), [bookings, draft.date, draft.serviceId, draft.therapistId, eligibleTherapists, services]);
+  const availableSlots = useMemo(() => getTimeSlotStates(draft.date, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services, schedules), [bookings, draft.date, draft.serviceId, draft.therapistId, eligibleTherapists, schedules, services]);
   const selectedSlot = availableSlots.find(slot => slot.time === draft.time);
   const canCreateBooking = Boolean(
     Object.keys(validateAppointment(draft)).length === 0 &&
@@ -165,8 +170,17 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
       setFormError('Ese horario ya no está disponible. Selecciona otro horario.');
       return;
     }
+    // Con "cualquiera" se asigna al primero que de verdad tenga ese
+    // horario libre segun SU horario y SU buffer, no segun una regla fija.
     const assignedTherapistId = draft.therapistId === 'any'
-      ? eligibleTherapists.find((therapist) => canBookTherapist({ therapist, date: draft.date, time: draft.time, bookings, services }))?.id
+      ? eligibleTherapists.find((therapist) => timeSlotStates({
+          schedules,
+          therapist,
+          service: services.find((x) => x.id === draft.serviceId),
+          date: draft.date,
+          bookings,
+          services,
+        }).some((slot) => slot.time === draft.time && slot.available))?.id
       : draft.therapistId;
     if (!assignedTherapistId) {
       setFormError('Ese horario ya no está disponible. Selecciona otro horario.');
@@ -361,7 +375,7 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
                     setDraft={setRescheduleDraft}
                     bookings={bookings}
                     therapists={therapists}
-                    services={services}
+                    services={services} schedules={schedules}
                     onSave={() => saveExistingReschedule(b)}
                     onClose={() => setReschedulingId(null)}
                   />
@@ -375,12 +389,14 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
   );
 }
 
-function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, services, onSave, onClose }) {
+function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, services, schedules, onSave, onClose }) {
   const therapistPool = therapists.filter(therapist => therapist.id === booking.therapistId && therapist.services?.includes(booking.serviceId));
+  // Los dias los da el horario del terapeuta de esta cita, no una semana
+  // fija: reprogramar tiene que ofrecer lo mismo que agendar.
   const days = Array.from({ length: 28 }, (_, index) => addDays(new Date(), index))
     .map(localISO)
-    .filter(isBusinessDay);
-  const slots = getTimeSlotStates(draft.date, booking.therapistId, booking.serviceId, bookings.filter(item => item.id !== booking.id), therapistPool, services)
+    .filter((iso) => isWorkingDay(schedules, booking.therapistId, iso));
+  const slots = getTimeSlotStates(draft.date, booking.therapistId, booking.serviceId, bookings.filter(item => item.id !== booking.id), therapistPool, services, schedules)
     .filter(slot => slot.available);
 
   return (
@@ -547,78 +563,42 @@ function TimeSlotGrid({ slots, selectedTime, onSelect }) {
   );
 }
 
-function getAvailableSlots(date, therapistId, serviceId, bookings, eligibleTherapists, services) {
-  return getTimeSlotStates(date, therapistId, serviceId, bookings, eligibleTherapists, services)
-    .filter(slot => slot.available)
-    .map(slot => slot.time);
+// Estas dos delegan en src/agenda.mjs, que es donde vive la aritmetica y
+// donde se puede probar. Aqui solo se resuelve QUE terapeutas entran:
+// con "cualquiera", un horario esta disponible si al menos uno puede.
+function getAvailableSlots(date, therapistId, serviceId, bookings, eligibleTherapists, services, schedules) {
+  return getTimeSlotStates(date, therapistId, serviceId, bookings, eligibleTherapists, services, schedules)
+    .filter((slot) => slot.available)
+    .map((slot) => slot.time);
 }
 
-function getTimeSlotStates(date, therapistId, serviceId, bookings, eligibleTherapists, services) {
+function getTimeSlotStates(date, therapistId, serviceId, bookings, eligibleTherapists, services, schedules) {
   if (!date || !serviceId) return [];
 
-  const therapistPool = therapistId === 'any'
+  const pool = therapistId === 'any'
     ? eligibleTherapists
-    : eligibleTherapists.filter(therapist => therapist.id === therapistId);
+    : eligibleTherapists.filter((t) => t.id === therapistId);
+  if (!pool.length) return [];
 
-  if (!therapistPool.length) return [];
+  const service = services.find((x) => x.id === serviceId);
 
-  const slots = generateBusinessTimeSlots(getSlotIntervalMinutes(therapistPool, therapistId, serviceId, services));
-
-  return slots.map(time => {
-    if (!isBusinessDay(date)) return { time, available: false, reason: 'Fuera de horario' };
-    if (new Date(`${date}T${time}`) < new Date()) return { time, available: false, reason: 'Horario pasado' };
-
-    const available = therapistPool.some(therapist => canBookTherapist({ therapist, date, time, bookings, services }));
-    return { time, available, reason: available ? 'Disponible' : 'Ocupado' };
-  });
-}
-
-function getSlotIntervalMinutes(therapistPool, therapistId, serviceId, services) {
-  if (therapistId !== 'any') {
-    return Number(therapistPool[0]?.sessionDuration || services.find(service => service.id === serviceId)?.duration || 50) + 10;
+  // Se unen los horarios de todos los terapeutas del pool: un horario
+  // aparece si alguno lo ofrece, y queda disponible si alguno lo tiene
+  // libre. Asi "cualquiera" no esconde la disponibilidad del que si puede.
+  const porHora = new Map();
+  for (const therapist of pool) {
+    for (const slot of timeSlotStates({
+      schedules, therapist, service, date, bookings, services,
+    })) {
+      const previo = porHora.get(slot.time);
+      if (!previo || (!previo.available && slot.available)) porHora.set(slot.time, slot);
+    }
   }
 
-  const intervals = therapistPool.map(therapist => Number(therapist.sessionDuration || 50) + 10);
-  return intervals.length ? Math.min(...intervals) : Number(services.find(service => service.id === serviceId)?.duration || 50) + 10;
+  return [...porHora.values()].sort((a, b) => a.time.localeCompare(b.time));
 }
 
-function canBookTherapist({ therapist, date, time, bookings, services }) {
-  const duration = Number(therapist.sessionDuration || 50) + 10;
-  const start = toMinutes(time);
-  const end = start + duration;
-  if (end > 19 * 60) return false;
 
-  return !bookings.some(booking => {
-    if (booking.status === 'cancelled' || booking.date !== date) return false;
-    if (booking.therapistId !== therapist.id && booking.therapistId !== 'any') return false;
-
-    const bookedTherapist = booking.therapistId === therapist.id
-      ? therapist
-      : services.find(service => service.id === booking.serviceId)
-        ? null
-        : therapist;
-    const bookedService = services.find(service => service.id === booking.serviceId);
-    const bookedDuration = Number(bookedTherapist?.sessionDuration || bookedService?.duration || 50) + 10;
-    const bookedStart = toMinutes(booking.time);
-    const bookedEnd = bookedStart + bookedDuration;
-
-    return start < bookedEnd && end > bookedStart;
-  });
-}
-
-function generateBusinessTimeSlots(stepMinutes = 30) {
-  const slots = [];
-  const interval = Math.max(15, Number(stepMinutes || 30));
-  for (let minutes = 9 * 60; minutes + interval <= 19 * 60; minutes += interval) {
-    slots.push(fromMinutes(minutes));
-  }
-  return slots;
-}
-
-function isBusinessDay(date) {
-  const day = localDate(date).getDay();
-  return day >= 2 && day <= 6;
-}
 
 function localISO(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;

@@ -64,7 +64,7 @@ create index if not exists therapist_schedules_lookup_idx
 alter table public.therapists
   add column if not exists buffer_before_minutes  integer not null default 0,
   add column if not exists buffer_after_minutes   integer not null default 30,
-  add column if not exists slot_interval_minutes  integer not null default 15,
+  add column if not exists slot_interval_minutes  integer not null default 0,
   add column if not exists minimum_notice_minutes integer not null default 1440,
   add column if not exists booking_window_days    integer not null default 90,
   add column if not exists max_bookings_per_day   integer not null default 12,
@@ -72,6 +72,8 @@ alter table public.therapists
 
 comment on column public.therapists.buffer_after_minutes is
   'Minutos bloqueados despues de la cita. Admite negativo a proposito: es el mecanismo de solape intencional, como el padding negativo de Acuity.';
+comment on column public.therapists.slot_interval_minutes is
+  '0 = automatico: cada horario arranca cuando el anterior libera (duracion + buffer). > 0 = rejilla fija cada N minutos.';
 comment on column public.therapists.timezone is
   'Mexico tiene 4 husos y no aplica horario de verano desde 2022: no se asume uno solo.';
 
@@ -88,7 +90,10 @@ begin
   end if;
   if not exists (select 1 from pg_constraint where conname = 'therapists_agenda_positivos') then
     alter table public.therapists add constraint therapists_agenda_positivos
-      check (slot_interval_minutes  between 5 and 240
+      -- 0 = automatico: los horarios se encadenan a duracion + buffer, que
+      -- es como trabaja un consultorio. Un valor > 0 da una rejilla pareja
+      -- tipo Calendly. Los dos son legitimos.
+      check (slot_interval_minutes = 0 or slot_interval_minutes between 5 and 240
          and minimum_notice_minutes >= 0
          and booking_window_days    between 1 and 730
          and max_bookings_per_day   between 1 and 100);

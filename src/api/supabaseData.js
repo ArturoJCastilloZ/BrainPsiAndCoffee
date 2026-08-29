@@ -45,6 +45,36 @@ const mapTherapistFromDb = (row, services = []) => ({
   color: row.color || '#7A9E7E',
   active: row.active,
   services,
+  // Preferencias de agenda. La vista publica no las expone, asi que un
+  // visitante cae a los defaults; para agendar solo necesita los horarios,
+  // que se consultan aparte.
+  bufferBefore: Number(row.buffer_before_minutes ?? 0),
+  bufferAfter: Number(row.buffer_after_minutes ?? 30),
+  // 0 = automatico: los horarios se encadenan a duracion + buffer.
+  slotInterval: Number(row.slot_interval_minutes ?? 0),
+  minimumNotice: Number(row.minimum_notice_minutes ?? 0),
+  bookingWindowDays: Number(row.booking_window_days ?? 90),
+  maxBookingsPerDay: Number(row.max_bookings_per_day ?? 12),
+  timezone: row.timezone || 'America/Mexico_City',
+});
+
+const mapScheduleFromDb = (row) => ({
+  id: row.id,
+  therapistId: row.therapist_id,
+  weekday: Number(row.weekday),
+  startTime: String(row.start_time).slice(0, 5),
+  endTime: String(row.end_time).slice(0, 5),
+  active: row.active !== false,
+});
+
+const mapScheduleToDb = (item) => ({
+  id: item.id || undefined,
+  therapist_id: item.therapistId,
+  weekday: Number(item.weekday),
+  start_time: item.startTime,
+  end_time: item.endTime,
+  active: item.active !== false,
+  updated_at: new Date().toISOString(),
 });
 
 const mapTherapistToDb = (item) => ({
@@ -243,7 +273,7 @@ export const loadCatalogs = async () => {
   const { data: sessionData } = await supabase.auth.getSession();
   const therapistsSource = sessionData?.session ? 'therapists' : 'therapists_public';
 
-  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult, settingsResult] = await Promise.all([
+  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult, settingsResult, schedulesResult] = await Promise.all([
     supabase.from('therapy_services').select('*').order('created_at'),
     supabase.from(therapistsSource).select('*').order('created_at'),
     supabase.from('specialties').select('*').order('created_at'),
@@ -253,6 +283,12 @@ export const loadCatalogs = async () => {
     // Ya no es el singleton 'main': hay una fila por clinica y RLS
     // devuelve solo la del tenant activo.
     supabase.from('business_settings').select('*').maybeSingle(),
+    // Los horarios los lee solo el personal autenticado: para el visitante
+    // la disponibilidad se valida en la base, sin publicar la agenda de
+    // nadie. Sin sesion se devuelve vacio en vez de fallar.
+    sessionData?.session
+      ? supabase.from('therapist_schedules').select('*').order('weekday').order('start_time')
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult].forEach(throwIfError);
@@ -279,6 +315,7 @@ export const loadCatalogs = async () => {
   return {
     services: (servicesResult.data || []).map(mapServiceFromDb),
     therapists: (therapistsResult.data || []).map((row) => mapTherapistFromDb(row, linksByTherapist[row.id] || [])),
+    schedules: (schedulesResult?.data || []).map(mapScheduleFromDb),
     specialties: (specialtiesResult.data || []).map(mapSpecialtyFromDb),
     menu,
     offers: (offersResult.data || []).map(mapOfferFromDb),
@@ -678,4 +715,52 @@ export const revokeTenantMember = async (userId) => {
   assertSupabaseConfigured();
   const { error } = await supabase.rpc('revoke_tenant_member', { p_user_id: userId });
   if (error) throw error;
+};
+
+// ---------------------------------------------------------------
+// Horarios de trabajo.
+// ---------------------------------------------------------------
+export const loadTherapistSchedules = async () => {
+  assertSupabaseConfigured();
+  const result = await supabase
+    .from('therapist_schedules')
+    .select('*')
+    .order('weekday')
+    .order('start_time');
+  throwIfError(result);
+  return (result.data || []).map(mapScheduleFromDb);
+};
+
+export const saveTherapistSchedules = async (therapistId, blocks) => {
+  assertSupabaseConfigured();
+  // Se reemplaza el horario completo del terapeuta: es mas simple de
+  // razonar que un diff, y RLS ya acota el borrado a su clinica.
+  throwIfError(await supabase.from('therapist_schedules').delete().eq('therapist_id', therapistId));
+  if (!blocks.length) return [];
+  const result = await supabase
+    .from('therapist_schedules')
+    .insert(blocks.map((b) => mapScheduleToDb({ ...b, therapistId, id: undefined })))
+    .select();
+  throwIfError(result);
+  return (result.data || []).map(mapScheduleFromDb);
+};
+
+export const saveTherapistAgendaPrefs = async (therapistId, prefs) => {
+  assertSupabaseConfigured();
+  const result = await supabase
+    .from('therapists')
+    .update({
+      buffer_before_minutes: Number(prefs.bufferBefore ?? 0),
+      buffer_after_minutes: Number(prefs.bufferAfter ?? 30),
+      slot_interval_minutes: Number(prefs.slotInterval ?? 0),
+      minimum_notice_minutes: Number(prefs.minimumNotice ?? 0),
+      booking_window_days: Number(prefs.bookingWindowDays ?? 90),
+      max_bookings_per_day: Number(prefs.maxBookingsPerDay ?? 12),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', therapistId)
+    .select()
+    .single();
+  throwIfError(result);
+  return mapTherapistFromDb(result.data);
 };
