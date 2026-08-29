@@ -3,6 +3,7 @@ import { KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react
 import { C } from '../theme';
 import { listTenantMembers, revokeTenantMember, setTenantMemberRole } from '../api/supabaseData';
 import { supabase } from '../api/supabaseClient';
+import { useConfirm } from '../components/ConfirmDialog';
 
 const ROLE_OPTIONS = [
   { id: 'owner', label: 'Dueño', help: 'Todo, incluido administrar accesos' },
@@ -24,6 +25,7 @@ export default function AdminAccess() {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('admin_consultorio');
   const [therapistId, setTherapistId] = useState('');
+  const { confirmar, dialogo } = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,6 +83,7 @@ export default function AdminAccess() {
 
   return (
     <div>
+      {dialogo}
       <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
         Accesos
       </h1>
@@ -169,16 +172,19 @@ export default function AdminAccess() {
                 <select
                   value={m.role}
                   disabled={busy}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const nuevo = e.target.value;
                     // Pasar a doctor exige elegir ficha: se pregunta aqui
-                    // en vez de dejar que la base lo rechace despues.
+                    // en vez de dejar que la base lo rechace despues, y se
+                    // ofrece la lista real en vez de pedir un id escrito.
                     let ficha = null;
                     if (nuevo === 'doctor') {
-                      ficha = m.therapistId || window.prompt(
-                        `Id de la ficha de terapeuta para ${m.email}:\n${therapists.map((t) => `${t.id} · ${t.name}`).join('\n')}`,
-                        m.therapistId || '',
-                      );
+                      ficha = m.therapistId || await confirmar({
+                        titulo: 'Ficha de terapeuta',
+                        mensaje: `¿Con qué ficha se vincula ${m.email}? Sin ella no podrá crear citas ni ver a sus pacientes.`,
+                        aceptar: 'Vincular',
+                        opciones: therapists.map((t) => ({ id: t.id, label: t.name })),
+                      });
                       if (!ficha) return;
                     }
                     run(
@@ -193,9 +199,14 @@ export default function AdminAccess() {
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => {
-                    if (!window.confirm(`Quitar el acceso de ${m.email} a este consultorio?`)) return;
-                    run(() => revokeTenantMember(m.userId), `Se le quito el acceso a ${m.email}.`);
+                  onClick={async () => {
+                    if (!(await confirmar({
+                      titulo: 'Quitar acceso',
+                      mensaje: `${m.email} dejará de tener acceso a este consultorio. Su cuenta y sus otras clínicas no se tocan.`,
+                      aceptar: 'Quitar acceso',
+                      destructivo: true,
+                    }))) return;
+                    run(() => revokeTenantMember(m.userId), `Se le quitó el acceso a ${m.email}.`);
                   }}
                   style={boton('ghost', busy)}
                 >

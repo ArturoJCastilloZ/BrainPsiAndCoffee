@@ -4,6 +4,7 @@ import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
 import AdminAppointments from '../admin/AdminAppointments';
 import AdminSchedules from '../admin/AdminSchedules';
+import { useConfirm } from '../components/ConfirmDialog';
 import {
   addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes,
   loadPatients, signClinicalNote, updateClinicalNote,
@@ -394,6 +395,7 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(note.content);
   const [addingAddendum, setAddingAddendum] = useState(false);
+  const { confirmar, dialogo } = useConfirm();
   const [addendum, setAddendum] = useState('');
 
   const save = async () => {
@@ -412,9 +414,11 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
   // Firmar no se deshace: despues solo quedan los addenda. Por eso se
   // confirma, y el texto dice exactamente que implica.
   const sign = async () => {
-    if (!window.confirm(
-      'Al firmar, la nota queda cerrada: no se podrá editar ni borrar. Solo podrás agregar correcciones como addendum. ¿Firmar?'
-    )) return;
+    if (!(await confirmar({
+      titulo: 'Firmar la nota',
+      mensaje: 'Al firmar, la nota queda cerrada: no se podrá editar ni borrar. Solo podrás agregar correcciones como addendum.',
+      aceptar: 'Firmar',
+    }))) return;
     setError('');
     try {
       const saved = await signClinicalNote(note.id, session);
@@ -442,6 +446,7 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
 
   return (
     <article style={{ border: '1px solid var(--admin-border)', borderRadius: 12, padding: 14, background: 'var(--admin-surface-soft)' }}>
+      {dialogo}
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
         <div style={{ color: 'var(--admin-muted)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
           {new Date(note.createdAt).toLocaleDateString('es-MX')}

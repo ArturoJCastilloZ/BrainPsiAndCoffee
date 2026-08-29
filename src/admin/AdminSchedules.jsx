@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Clock, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { C } from '../theme';
 import { saveTherapistAgendaPrefs, saveTherapistSchedules } from '../api/supabaseData';
+import { useConfirm } from '../components/ConfirmDialog';
 import { timeSlotStates, toMinutes } from '../agenda.mjs';
 
 // weekday 0 = domingo, igual que getDay() y que la columna en la base.
@@ -26,6 +27,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const { confirmar, dialogo } = useConfirm();
 
   useEffect(() => {
     if (!therapistId && therapists[0]) setTherapistId(therapists[0].id);
@@ -89,9 +91,12 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
     // Guardar sin bloques BORRA el horario. Es una opcion legitima —cerrar
     // toda la semana— pero tambien lo que pasa si la lista no alcanzo a
     // cargar, y en ese caso el borrado seria accidental y silencioso.
-    if (!blocks.length && !window.confirm(
-      'No hay ningún bloque: el doctor quedaría sin días de atención y nadie podría agendar con él. ¿Guardar así?'
-    )) return;
+    if (!blocks.length && !(await confirmar({
+      titulo: 'Sin días de atención',
+      mensaje: 'No hay ningún bloque: el doctor quedaría sin días de atención y nadie podría agendar con él.',
+      aceptar: 'Guardar así',
+      destructivo: true,
+    }))) return;
     setBusy(true);
     setError('');
     setNotice('');
@@ -110,6 +115,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
   if (!therapists.length) {
     return (
       <div>
+        {dialogo}
         <Encabezado />
         <div className="admin-card" style={{ borderRadius: 16, padding: 30, textAlign: 'center' }}>
           <p style={{ color: 'var(--admin-muted)', margin: 0, fontSize: 13 }}>
@@ -122,6 +128,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
 
   return (
     <div>
+      {dialogo}
       <Encabezado />
 
       {error && <Aviso tono="error">{error}</Aviso>}

@@ -67,8 +67,15 @@ const mapScheduleFromDb = (row) => ({
   active: row.active !== false,
 });
 
+// El id NO se incluye: la base lo genera.
+//
+// Mandarlo como undefined no es lo mismo que omitirlo. supabase-js arma
+// la lista de columnas con Object.keys(), y una clave con valor undefined
+// SIGUE SIENDO una clave propia: viaja en ?columns=... aunque
+// JSON.stringify la deje fuera del cuerpo. PostgREST entonces escribe
+// NULL en esa columna en vez de aplicar su DEFAULT, y el insert revienta
+// con 'null value in column "id" violates not-null constraint'.
 const mapScheduleToDb = (item) => ({
-  id: item.id || undefined,
   therapist_id: item.therapistId,
   weekday: Number(item.weekday),
   start_time: item.startTime,
@@ -746,7 +753,7 @@ export const saveTherapistSchedules = async (therapistId, blocks) => {
   if (!blocks.length) return [];
   const result = await supabase
     .from('therapist_schedules')
-    .insert(blocks.map((b) => mapScheduleToDb({ ...b, therapistId, id: undefined })))
+    .insert(blocks.map((b) => mapScheduleToDb({ ...b, therapistId })))
     .select();
   throwIfError(result);
   return (result.data || []).map(mapScheduleFromDb);

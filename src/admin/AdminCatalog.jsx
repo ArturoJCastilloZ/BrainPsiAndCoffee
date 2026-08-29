@@ -5,6 +5,7 @@ import { uid } from '../utils.jsx';
 import { SPECIALTIES } from '../data';
 import { isValidEmail, isValidMoney, isValidPositiveInteger } from '../validation';
 import { canManageBusinessSettings, canManageCafeCatalog, canManageClinicCatalog } from '../auth/permissions';
+import { useConfirm } from '../components/ConfirmDialog';
 
 const PRODUCT_TABS = [
   { id: 'hot', label: 'Calientes' },
@@ -111,6 +112,7 @@ function ProductsManager({ menu, setMenu }) {
 }
 
 function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summary }) {
+  const { confirmar, dialogo } = useConfirm();
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState(emptyItem);
 
@@ -132,9 +134,14 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
     setEditing(null);
   };
 
-  const remove = (id) => {
+  const remove = async (id) => {
     const item = items.find(row => row.id === id);
-    if (!window.confirm(`¿Eliminar "${item?.name || 'este registro'}"? Esta accion no se puede deshacer.`)) return;
+    if (!(await confirmar({
+      titulo: 'Eliminar registro',
+      mensaje: `Se va a eliminar "${item?.name || 'este registro'}". Esta acción no se puede deshacer.`,
+      aceptar: 'Eliminar',
+      destructivo: true,
+    }))) return;
     setItems(items.filter(item => item.id !== id));
   };
   const toggleActive = (item) => setItems(items.map(row => row.id === item.id ? { ...row, active: row.active === false } : row));
@@ -142,6 +149,7 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
 
   return (
     <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
+      {dialogo}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <h2 style={{ margin: 0, color: 'var(--admin-text)', fontSize: 15 }}>{title}</h2>
         <button onClick={startNew} style={{ background: selectedPill.background, color: selectedPill.color, border: 'none', borderRadius: 999, padding: '8px 13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>
