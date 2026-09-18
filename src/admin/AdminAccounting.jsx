@@ -434,6 +434,7 @@ function Desglose({ titulo, filas, vacio, nota = null }) {
           </tbody>
         </table>
       )}
+      {nota}
     </div>
   );
 }
@@ -501,7 +502,6 @@ function PorCobrar({ filas, onCobrar }) {
           </tbody>
         </table>
       )}
-      {nota}
     </div>
   );
 }
