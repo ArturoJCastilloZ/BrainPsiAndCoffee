@@ -188,7 +188,45 @@ if [[ "$CMD" == "baseline" ]]; then
     "0012_encounters|to_regclass('public.encounters')"
     "0013_clinical_notes|to_regclass('public.clinical_notes')"
     "0014_migrate_appointment_notes|(select case when to_regclass('public.appointment_notes') is null then 1 end)"
+    # 0015 REDEFINE funciones que ya existian: su existencia no prueba
+    # nada. Lo que 0015 agrega es el cuarto parametro de grant_tenant_role.
+    "0015_link_doctor_to_therapist|(select 1 from pg_proc where proname='grant_tenant_role' and pronargs=4)"
+    "0016_therapist_schedules|to_regclass('public.therapist_schedules')"
+    "0017_schedule_aware_booking|(select 1 from pg_proc where proname='within_booking_window')"
+    "0018_agenda_prefs_rpc|(select 1 from pg_proc where proname='set_agenda_prefs')"
+    "0019_profiles_by_tenant|(select 1 from pg_proc where proname='user_belongs_to_current_tenant')"
+    # Mismo caso que 0015: resolve_login_identifier ya existia, en sql. La
+    # version acotada por tenant es plpgsql, y eso si la distingue.
+    "0020_login_identifier_by_tenant|(select 1 from pg_proc p join pg_language l on l.oid = p.prolang where p.proname='resolve_login_identifier' and l.lanname='plpgsql')"
   )
+
+  # Ninguna migracion puede marcarse sin centinela.
+  #
+  # El bucle de abajo marcaba TODOS los archivos, pero solo verificaba los
+  # que estuvieran en esta lista — y la lista se habia quedado en 0014. De
+  # 0015 en adelante se marcaban a ciegas: exactamente "escribir en el
+  # registro que algo se aplico porque alguien lo dijo", que es lo que el
+  # comentario de arriba dice que no se debe hacer.
+  #
+  # Ahora falta un centinela = baseline se niega. Agregar una migracion
+  # obliga a decir como se comprueba que esta puesta.
+  sin_centinela=()
+  for f in "${files[@]}"; do
+    version="$(basename "$f" .sql)"
+    encontrado=0
+    for entrada in "${CENTINELAS[@]}"; do
+      [[ "${entrada%%|*}" == "$version" ]] && { encontrado=1; break; }
+    done
+    [[ $encontrado -eq 0 ]] && sin_centinela+=("$version")
+  done
+  if [[ ${#sin_centinela[@]} -gt 0 ]]; then
+    echo "ERROR: estas migraciones no tienen centinela y no se pueden verificar:" >&2
+    for v in "${sin_centinela[@]}"; do echo "  $v" >&2; done
+    echo >&2
+    echo "Agrega un centinela por cada una en CENTINELAS (un objeto que solo" >&2
+    echo "exista si esa migracion corrio) antes de hacer baseline." >&2
+    exit 1
+  fi
 
   faltan=0
   for entrada in "${CENTINELAS[@]}"; do
