@@ -45,6 +45,7 @@ declare
     -- Acotan por el tenant de la fila, no por el JWT.
     'price_of_order_item',
     'order_is_closed',
+    'block_closed_order_item_delete',
     'combo_savings_of_order',
     'freeze_order_amounts',
     'enforce_order_item_price',

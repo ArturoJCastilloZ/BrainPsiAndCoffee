@@ -700,6 +700,18 @@ export const saveOrders = async (items, previousItems = []) => {
   if (authenticated) await deleteMissing('orders', items.map((item) => item.id));
 
   for (const order of itemsToPersist) {
+    // Un pedido cobrado no se reescribe.
+    //
+    // Este bucle BORRA las lineas y las reinserta, en dos peticiones sin
+    // transaccion. Con la inmutabilidad de 0026 el borrado se rechaza, asi
+    // que sin este filtro cualquier guardado desde el panel fallaria al
+    // topar el primer pedido entregado del historial.
+    //
+    // Y sin la inmutabilidad era peor: el borrado pasaba, el insert
+    // tronaba, y el pedido quedaba sin lineas. La causa raiz no era el
+    // trigger — era reescribir el historial completo en cada guardado.
+    if (order.status === 'delivered' || order.status === 'cancelled') continue;
+
     if (authenticated) throwIfError(await supabase.from('order_items').delete().eq('order_id', order.id));
     const rows = (order.items || []).map((item) => ({
       order_id: order.id,

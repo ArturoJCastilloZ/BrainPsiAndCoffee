@@ -335,3 +335,80 @@ begin
   end if;
   raise notice 'ok · ninguna funcion de precio es alcanzable por RPC';
 end $$;
+
+-- ============================================================
+-- Un pedido cerrado es inmutable por sus CUATRO puertas (0026).
+--
+-- 0025 cerro el INSERT y dejo el DELETE. Como saveOrders borra y
+-- reinserta, el borrado pasaba y el insert tronaba: el pedido entregado
+-- quedaba con CERO lineas — la misma perdida de datos que 0024 existia
+-- para arreglar, reintroducida por el vecino.
+-- ============================================================
+
+insert into public.orders (tenant_id,id,customer_name,customer_phone,status,order_source,subtotal,total)
+  values ('t_pay','ord-cerr','Cliente','5588888888','received','public_menu',0,0);
+insert into public.order_items (tenant_id,order_id,product_id,name,quantity,unit_price,options)
+  values ('t_pay','ord-cerr','h1','Espresso',2,0,'{}'::jsonb);
+update public.orders set status='delivered' where tenant_id='t_pay' and id='ord-cerr';
+
+-- H · La secuencia REAL de saveOrders: borrar y reinsertar.
+do $$
+declare v_n integer; v_falló boolean := false;
+begin
+  begin
+    delete from public.order_items where tenant_id='t_pay' and order_id='ord-cerr';
+  exception when others then v_falló := true;
+  end;
+
+  if not v_falló then
+    raise exception 'DESTRUIDO: se borraron las lineas de un pedido ya cobrado';
+  end if;
+
+  select count(*) into v_n from public.order_items where order_id='ord-cerr';
+  if v_n <> 1 then
+    raise exception 'DESTRUIDO: el pedido cerrado quedo con % lineas', v_n;
+  end if;
+  raise notice 'ok · no se pueden borrar las lineas de un pedido cobrado';
+end $$;
+
+-- I · quantity y product_id tampoco se tocan en un pedido cerrado.
+do $$
+declare v_q integer; v_total numeric;
+begin
+  update public.order_items set quantity = 99
+   where tenant_id='t_pay' and order_id='ord-cerr';
+
+  select quantity into v_q from public.order_items where order_id='ord-cerr';
+  if v_q is distinct from 2 then
+    raise exception 'HISTORIAL: la cantidad de un pedido cobrado paso a %', coalesce(v_q::text,'NULL');
+  end if;
+
+  select total into v_total from public.orders where id='ord-cerr';
+  if v_total is distinct from 60 then
+    raise exception 'HISTORIAL: el total del pedido cobrado quedo en % (2 x 30)', coalesce(v_total::text,'NULL');
+  end if;
+  raise notice 'ok · cantidad y producto de un pedido cobrado son inmutables';
+end $$;
+
+-- J · Y no se puede REABRIR para editarlo.
+--
+-- Congelar los importes no sirve si se puede descongelar el pedido:
+-- reabrir, editar, volver a cerrar.
+do $$
+declare v_estado text; v_falló boolean := false;
+begin
+  begin
+    update public.orders set status='received' where tenant_id='t_pay' and id='ord-cerr';
+  exception when others then v_falló := true;
+  end;
+
+  if not v_falló then
+    raise exception 'HISTORIAL: se reabrio un pedido ya entregado';
+  end if;
+
+  select status into v_estado from public.orders where id='ord-cerr';
+  if v_estado is distinct from 'delivered' then
+    raise exception 'HISTORIAL: el estado quedo en % y no en delivered', coalesce(v_estado,'NULL');
+  end if;
+  raise notice 'ok · un pedido cobrado no se reabre';
+end $$;

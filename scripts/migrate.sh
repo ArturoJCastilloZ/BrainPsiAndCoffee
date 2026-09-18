@@ -203,6 +203,7 @@ if [[ "$CMD" == "baseline" ]]; then
     "0023_order_pricing_server_side|(select 1 from pg_proc where proname='enforce_order_item_price')"
     "0024_pricing_and_audit_fixes|(select 1 from pg_proc where proname='freeze_order_amounts')"
     "0025_pricing_neighbours|(select 1 from information_schema.columns where table_name='offers' and column_name='kind')"
+    "0026_closed_orders_immutable|(select 1 from pg_proc where proname='block_closed_order_item_delete')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.

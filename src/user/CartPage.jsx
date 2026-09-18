@@ -51,7 +51,11 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
     const coffees = cart.filter(esCafe);
     const desserts = cart.filter(esPostre);
     const minCoffee = Math.min(...coffees.map(c => c.customizations?.totalPrice || c.price));
-    const minDessert = Math.min(...desserts.map(d => d.price));
+    // Igual que el cafe de la linea de arriba. Hoy no diverge porque solo
+    // se personalizan bebidas, pero el servidor usa min(unit_price) sin
+    // distinguir categoria: el dia que se personalice un postre, el ahorro
+    // mostrado y el aplicado dejarian de coincidir.
+    const minDessert = Math.min(...desserts.map(d => d.customizations?.totalPrice || d.price));
     if (minCoffee + minDessert > comboPrice) comboSavings = (minCoffee + minDessert) - comboPrice;
   }
   const total = subtotal - comboSavings;
@@ -179,7 +183,11 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
         </div>
       </div>
 
-      {!comboApplied && (hasCoffee || hasDessert) && (
+      {/* comboOffer en la condicion, no solo !comboApplied: sin oferta de
+          combo, comboPrice es null y formatMXN hace null.toFixed() — un
+          TypeError que tumba el carrito entero. Y aunque no reventara,
+          "estas cerca del combo" sin combo no dice nada. */}
+      {comboOffer && !comboApplied && (hasCoffee || hasDessert) && (
         <div style={{ background: C.caramelLight, border: `1px dashed ${C.caramel}`, borderRadius: 12, padding: 12, marginBottom: 16, fontSize: 12, color: onLightAccent, display: 'flex', gap: 10, alignItems: 'center' }}>
           <Sparkles size={16} color={onLightAccent} />
           <div>
