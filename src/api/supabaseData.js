@@ -405,6 +405,29 @@ const validarContenido = (texto) => {
   return limpio;
 };
 
+// Deja constancia de que alguien LEYO una nota clinica.
+//
+// Postgres no tiene triggers de SELECT, asi que esta huella no se produce
+// sola: la aplicacion tiene que pedirla. NOM-024 pide auditar el acceso al
+// expediente, no solo sus cambios.
+//
+// La funcion de la base es silenciosa si la nota no es del tenant activo o
+// no es del autor, asi que llamarla de mas no crea entradas falsas.
+export const logClinicalNoteAccess = async (noteIds) => {
+  assertSupabaseConfigured();
+  const ids = [...new Set((Array.isArray(noteIds) ? noteIds : [noteIds]).filter(Boolean))];
+  if (!ids.length) return;
+  const resultados = await Promise.all(
+    ids.map((id) => supabase.rpc('log_clinical_note_access', { note_id: id })),
+  );
+  const fallo = resultados.find((r) => r.error);
+  // Se propaga a proposito. Una lectura de expediente que no queda
+  // registrada es un hueco de cumplimiento, y un hueco que nadie ve es
+  // peor que uno que molesta: quien llama decide como avisarlo, pero no
+  // puede ignorarlo por omision.
+  if (fallo) throw fallo.error;
+};
+
 export const loadClinicalNotes = async () => {
   assertSupabaseConfigured();
   const result = await supabase

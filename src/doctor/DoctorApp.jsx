@@ -6,7 +6,7 @@ import AdminAppointments from '../admin/AdminAppointments';
 import AdminSchedules from '../admin/AdminSchedules';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
-  addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes,
+  addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes, logClinicalNoteAccess,
   loadPatients, signClinicalNote, updateClinicalNote,
 } from '../api/supabaseData';
 
@@ -243,6 +243,20 @@ function DoctorPatients({
   const patientNotes = notes
     .filter((note) => note.patientId === selectedPatientId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  // Abrir el expediente de un paciente es un ACCESO, y NOM-024 pide
+  // auditarlo. Postgres no tiene triggers de SELECT: si la aplicacion no
+  // lo pide, la lectura no deja rastro.
+  //
+  // Las dependencias son el id del paciente y la lista de ids de sus
+  // notas, no el arreglo de notas: ese objeto se recrea en cada render y
+  // dispararia el efecto —y una entrada de bitacora— con cada tecla.
+  const notasVistas = patientNotes.map((note) => note.id).join(',');
+  useEffect(() => {
+    if (!selectedPatientId || !notasVistas) return;
+    logClinicalNoteAccess(notasVistas.split(','))
+      .catch((err) => setError(`Se mostró el expediente, pero no se pudo registrar el acceso en la bitácora. ${err.message || ''}`));
+  }, [selectedPatientId, notasVistas, setError]);
 
   if (!patients.length) {
     return (

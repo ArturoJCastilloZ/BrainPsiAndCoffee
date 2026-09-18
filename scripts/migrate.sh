@@ -199,6 +199,7 @@ if [[ "$CMD" == "baseline" ]]; then
     # version acotada por tenant es plpgsql, y eso si la distingue.
     "0020_login_identifier_by_tenant|(select 1 from pg_proc p join pg_language l on l.oid = p.prolang where p.proname='resolve_login_identifier' and l.lanname='plpgsql')"
     "0021_product_options|to_regclass('public.product_options')"
+    "0022_clinical_audit|(select 1 from pg_proc where proname='log_clinical_note_access' and pg_get_functiondef(oid) like '%clinical_notes%')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.

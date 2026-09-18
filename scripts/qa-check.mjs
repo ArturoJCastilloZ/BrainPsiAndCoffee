@@ -88,6 +88,17 @@ const dataLayer = read('src/api/supabaseData.js');
 assert(!dataLayer.includes('export const deleteClinicalNote'), 'La capa de datos no debe exponer borrado de notas clínicas.');
 assert(doctor.includes('Pacientes'), 'DoctorApp debe incluir vista de pacientes.');
 
+// La bitacora de LECTURA del expediente no se produce sola: Postgres no
+// tiene triggers de SELECT, asi que si la aplicacion no la pide, abrir un
+// expediente no deja rastro. La funcion de la base existia desde el
+// esquema base y NADIE la llamaba — un control de cumplimiento que
+// parecia estar y no estaba. En posicion de llamada, no un includes() del
+// nombre: el import lo menciona igual.
+assert(
+  /logClinicalNoteAccess\s*\(/.test(doctor),
+  'DoctorApp debe registrar el acceso al expediente llamando a logClinicalNoteAccess: sin eso, NOM-024 se queda sin bitacora de lectura.',
+);
+
 // La sincronizacion de doctores corre con service_role y auth.users.email
 // NO esta acotado por tenant: es el login del usuario en todas sus
 // clinicas. Quien lo controla controla la cuenta, porque el enlace de
