@@ -113,3 +113,50 @@ begin
   end if;
   raise notice 'ok · el combo solo descuenta cuando de verdad conviene';
 end $$;
+
+-- El recalculo no sirve de nada si despues se puede pisar el total.
+--
+-- Los triggers corrigen al escribir las lineas; si el visitante pudiera
+-- mandar luego un UPDATE a orders.total, recuperaria el pedido en $0 con
+-- una segunda peticion. Las policies de 0005 solo dan update a
+-- is_cafe_staff(), pero eso es leer la policy: aqui se intenta.
+set role anon;
+do $$
+declare v_n integer;
+begin
+  perform set_config('request.jwt.claims','', true);
+  perform set_config('request.tenant','t_pay', true);
+
+  -- Dos formas validas de "no puede": sin privilegio de tabla (el grant
+  -- nunca se otorgo) o con privilegio pero cero filas (RLS). Se aceptan
+  -- las dos; lo que no se acepta es que TOQUE una fila. De hecho aqui
+  -- salta la primera barrera, el grant, antes de llegar a RLS.
+  begin
+    update public.orders set total = 0, subtotal = 0 where id = 'ord-hack';
+    get diagnostics v_n = row_count;
+    if v_n <> 0 then
+      raise exception 'ROBO: el visitante piso el total de % pedido(s) despues del recalculo', v_n;
+    end if;
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
+    update public.order_items set unit_price = 0 where order_id = 'ord-hack';
+    get diagnostics v_n = row_count;
+    if v_n <> 0 then
+      raise exception 'ROBO: el visitante modifico % linea(s) despues de crearlas', v_n;
+    end if;
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+do $$
+declare v_total numeric;
+begin
+  select total into v_total from public.orders where id='ord-hack';
+  if v_total is distinct from 270 then
+    raise exception 'ROBO: el total quedo en % tras el intento de pisarlo', coalesce(v_total::text,'NULL');
+  end if;
+  raise notice 'ok · el visitante no puede pisar el total despues del recalculo';
+end $$;
