@@ -10,14 +10,20 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { MENU, THERAPISTS, THERAPY_SERVICES } from '../data';
-import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, todayISO, uid, localDate } from '../utils.jsx';
+import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, todayISO, uid, localDate, localISO } from '../utils.jsx';
 import { validateAppointment } from '../validation';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
 import { trackEvent } from '../monitoring';
+import { poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
 
 export default function BookingFlow({ setPage, bookings, setBookings, addToCart, setLinkedBookingId, showToast, catalogs }) {
   const services = (catalogs?.services || THERAPY_SERVICES).filter(item => item.active !== false);
   const therapists = (catalogs?.therapists || THERAPISTS).filter(item => item.active !== false);
+  // El horario REAL del consultorio. Antes esta pantalla no lo miraba
+  // siquiera: tenia 9:00-19:00 y martes-sabado escritos a mano, asi que
+  // aceptaba reservas fuera del horario configurado. Requiere la policy
+  // de lectura publica de 0029.
+  const schedules = catalogs?.schedules || [];
   const business = businessFromSettings(catalogs?.settings);
   const onLightAccent = '#1E1B18';
   const formNoticeStyle = {
@@ -60,7 +66,11 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
       return;
     }
     const assignedTherapistId = data.therapistId === 'any'
-      ? therapists.find((item) => item.services?.includes(data.serviceId) && canBookTherapist({ therapist: item, date: data.date, time: data.time, bookings, services }))?.id
+      ? therapists.find((item) => item.services?.includes(data.serviceId)
+          && poolAvailableSlots({
+            date: data.date, therapistId: item.id, serviceId: data.serviceId,
+            bookings, services, eligibleTherapists: [item], schedules,
+          }).includes(data.time))?.id
       : data.therapistId;
     if (!assignedTherapistId) {
       setErrors({ time: 'Ese horario ya no esta disponible. Elige otro horario.' });
@@ -187,7 +197,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
 
           {/* Step 3: Date and time */}
           {step === 3 && (
-            <DateTimePicker data={data} update={update} onContinue={() => setStep(4)} bookings={bookings} therapists={therapists} services={services} />
+            <DateTimePicker data={data} update={update} onContinue={() => setStep(4)} bookings={bookings} therapists={therapists} services={services} schedules={schedules} />
           )}
 
           {/* Step 4: Personal info */}
@@ -366,7 +376,7 @@ function Input({ label, value, onChange, icon: Icon, placeholder, type = 'text',
 
 // ============ DATE TIME PICKER ============
 
-function DateTimePicker({ data, update, onContinue, bookings, therapists, services }) {
+function DateTimePicker({ data, update, onContinue, bookings, therapists, services, schedules }) {
   const [weekStart, setWeekStart] = useState(0); // weeks from today
   const eligibleTherapists = useMemo(
     () => therapists.filter(therapist => !data.serviceId || therapist.services?.includes(data.serviceId)),
@@ -375,20 +385,37 @@ function DateTimePicker({ data, update, onContinue, bookings, therapists, servic
   const therapistPool = data.therapistId === 'any'
     ? eligibleTherapists
     : eligibleTherapists.filter(therapist => therapist.id === data.therapistId);
-  const slots = useMemo(
-    () => generateBusinessTimeSlots(getSlotIntervalMinutes(therapistPool, data.therapistId, data.serviceId, services)),
-    [data.serviceId, data.therapistId, therapistPool, services]
-  );
-
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(), weekStart * 7 + i)), [weekStart]);
 
-  const isAvailable = (date, time) => {
-    const dateObj = new Date(date + 'T' + time);
-    if (dateObj < new Date()) return false;
-    if (!isBusinessDay(date)) return false;
-    if (!therapistPool.length) return false;
-    return therapistPool.some(therapist => canBookTherapist({ therapist, date, time, bookings, services }));
-  };
+  // Un solo motor: el mismo que usa el panel de administracion. Antes esta
+  // pantalla tenia el suyo, con el horario y los dias habiles escritos a
+  // mano, y por eso ignoraba lo que el consultorio configuraba.
+  //
+  // Se calcula el estado de TODOS los dias de la semana visible de una
+  // vez: la rejilla pregunta por celda, y hacerlo por celda repetiria el
+  // calculo 7 x (numero de horarios) veces por render.
+  const estadoPorDia = useMemo(() => {
+    const mapa = new Map();
+    for (const dia of days) {
+      const iso = localISO(dia);
+      mapa.set(iso, poolSlotStates({
+        date: iso, therapistId: data.therapistId, serviceId: data.serviceId,
+        bookings, services, eligibleTherapists, schedules,
+      }));
+    }
+    return mapa;
+  }, [days, data.therapistId, data.serviceId, bookings, services, eligibleTherapists, schedules]);
+
+  // La union ordenada de los horarios de la semana: es lo que la rejilla
+  // pinta como renglones.
+  const slots = useMemo(() => {
+    const todos = new Set();
+    for (const estados of estadoPorDia.values()) estados.forEach((s) => todos.add(s.time));
+    return [...todos].sort((a, b) => a.localeCompare(b));
+  }, [estadoPorDia]);
+
+  const isAvailable = (date, time) =>
+    Boolean(estadoPorDia.get(date)?.find((s) => s.time === time)?.available);
 
   return (
     <div className="animate-fade-up">
@@ -438,6 +465,15 @@ function DateTimePicker({ data, update, onContinue, bookings, therapists, servic
       {data.date ? (
         <div>
           <div style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 12, letterSpacing: 0.5 }}>HORARIOS DISPONIBLES — {fullDayLabel(localDate(data.date))}</div>
+          {/* Un dia sin horarios se DICE. Antes quedaba un hueco mudo, y
+              con el horario real —no el hardcodeado— este caso es normal:
+              el consultorio simplemente no atiende ese dia. */}
+          {slots.length === 0 && (
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: C.brownMid }}>
+              No hay horarios disponibles ese día. Prueba con otro, o escríbenos por WhatsApp
+              y lo acomodamos.
+            </p>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(82px, 1fr))', gap: 8 }}>
             {slots.map(time => {
               const available = isAvailable(data.date, time);
@@ -472,48 +508,6 @@ function DateTimePicker({ data, update, onContinue, bookings, therapists, servic
       )}
     </div>
   );
-}
-
-function getSlotIntervalMinutes(therapistPool, therapistId, serviceId, services) {
-  if (therapistId !== 'any') {
-    return Number(therapistPool[0]?.sessionDuration || services.find(service => service.id === serviceId)?.duration || 50) + 10;
-  }
-
-  const intervals = therapistPool.map(therapist => Number(therapist.sessionDuration || 50) + 10);
-  return intervals.length ? Math.min(...intervals) : Number(services.find(service => service.id === serviceId)?.duration || 50) + 10;
-}
-
-function canBookTherapist({ therapist, date, time, bookings, services }) {
-  const duration = Number(therapist.sessionDuration || 50) + 10;
-  const start = toMinutes(time);
-  const end = start + duration;
-  if (end > 19 * 60) return false;
-
-  return !bookings.some(booking => {
-    if (booking.status === 'cancelled' || booking.date !== date) return false;
-    if (booking.therapistId !== therapist.id && booking.therapistId !== 'any') return false;
-
-    const bookedService = services.find(service => service.id === booking.serviceId);
-    const bookedDuration = Number(booking.therapistId === therapist.id ? therapist.sessionDuration : bookedService?.duration || 50) + 10;
-    const bookedStart = toMinutes(booking.time);
-    const bookedEnd = bookedStart + bookedDuration;
-
-    return start < bookedEnd && end > bookedStart;
-  });
-}
-
-function generateBusinessTimeSlots(stepMinutes = 30) {
-  const slots = [];
-  const interval = Math.max(15, Number(stepMinutes || 30));
-  for (let minutes = 9 * 60; minutes + interval <= 19 * 60; minutes += interval) {
-    slots.push(fromMinutes(minutes));
-  }
-  return slots;
-}
-
-function isBusinessDay(date) {
-  const day = new Date(`${date}T12:00:00`).getDay();
-  return day >= 2 && day <= 6;
 }
 
 function toMinutes(time) {

@@ -19,6 +19,14 @@ export const localDate = (iso) => {
   return new Date(year, month - 1, day, 12, 0, 0);
 };
 
+// La inversa de localDate: de Date a 'YYYY-MM-DD' en hora LOCAL.
+//
+// toISOString() daria el dia en UTC, que al oeste de Greenwich es el
+// anterior a partir de las 18:00. Estaba copiada en AdminAppointments y
+// en MyBookings; su inversa ya vivia aqui.
+export const localISO = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
 export const dayLabel = (d) => d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
 export const fullDayLabel = (d) => d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 export const uid = () => Math.random().toString(36).slice(2, 9);

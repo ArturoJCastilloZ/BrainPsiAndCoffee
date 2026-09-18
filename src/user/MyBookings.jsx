@@ -9,12 +9,16 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
+import { isWorkingDay, poolAvailableSlots } from '../agenda.mjs';
 import { THERAPISTS, THERAPY_SERVICES } from '../data';
-import { addDays, dayLabel, localDate } from '../utils.jsx';
+import { addDays, dayLabel, localDate, localISO } from '../utils.jsx';
 
 export default function MyBookings({ bookings, setBookings, setPage, showToast, catalogs }) {
   const services = catalogs?.services || THERAPY_SERVICES;
   const therapists = catalogs?.therapists || THERAPISTS;
+  // El horario REAL. Esta pantalla tambien tenia 9:00-19:00 y
+  // martes-sabado escritos a mano. Requiere la policy de 0029.
+  const schedules = catalogs?.schedules || [];
   const [reschedulingId, setReschedulingId] = useState(null);
   const [rescheduleDraft, setRescheduleDraft] = useState({ date: '', time: '' });
   const upcoming = bookings.filter(b => b.status !== 'cancelled' && new Date(b.date + 'T' + b.time) >= new Date()).sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
@@ -60,6 +64,7 @@ export default function MyBookings({ bookings, setBookings, setPage, showToast, 
                 onStartReschedule={() => startReschedule(b)}
                 onSaveReschedule={() => saveReschedule(b)}
                 onCancelReschedule={() => setReschedulingId(null)}
+                schedules={schedules}
                 rescheduling={reschedulingId === b.id}
                 rescheduleDraft={rescheduleDraft}
                 setRescheduleDraft={setRescheduleDraft}
@@ -77,7 +82,7 @@ export default function MyBookings({ bookings, setBookings, setPage, showToast, 
         <>
           <h2 style={{ fontSize: 14, color: C.brownMid, fontWeight: 700, letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase' }}>Historial</h2>
           <div style={{ display: 'grid', gap: 10 }}>
-            {past.map(b => <BookingCard key={b.id} booking={b} active={false} services={services} therapists={therapists} />)}
+            {past.map(b => <BookingCard key={b.id} booking={b} active={false} services={services} therapists={therapists} schedules={schedules} />)}
           </div>
         </>
       )}
@@ -85,13 +90,30 @@ export default function MyBookings({ bookings, setBookings, setPage, showToast, 
   );
 }
 
-function BookingCard({ booking, onCancel, onStartReschedule, onSaveReschedule, onCancelReschedule, rescheduling, rescheduleDraft, setRescheduleDraft, bookings = [], active, services = THERAPY_SERVICES, therapists = THERAPISTS }) {
+function BookingCard({ booking, onCancel, onStartReschedule, onSaveReschedule, onCancelReschedule, rescheduling, rescheduleDraft, setRescheduleDraft, bookings = [], active, services = THERAPY_SERVICES, therapists = THERAPISTS, schedules = [] }) {
   const service = services.find(s => s.id === booking.serviceId);
   const therapist = therapists.find(t => t.id === booking.therapistId);
   const isPast = new Date(booking.date + 'T' + booking.time) < new Date();
   const onLightAccent = '#1E1B18';
-  const days = useMemo(() => Array.from({ length: 21 }, (_, index) => addDays(new Date(), index)).filter(isBusinessDay), []);
-  const slots = useMemo(() => getAvailableSlots({ booking, date: rescheduleDraft?.date, therapist, service, bookings }), [booking, bookings, rescheduleDraft?.date, service, therapist]);
+  // Dias y horarios del motor compartido, con el horario configurado del
+  // terapeuta. Antes esta tarjeta tenia su propia copia con los dias
+  // habiles y el rango 9:00-19:00 escritos a mano.
+  const days = useMemo(
+    () => Array.from({ length: 21 }, (_, index) => addDays(new Date(), index))
+      .filter((d) => isWorkingDay(schedules, booking.therapistId, localISO(d))),
+    [schedules, booking.therapistId],
+  );
+  const slots = useMemo(
+    () => (rescheduleDraft?.date && therapist && service
+      ? poolAvailableSlots({
+        date: rescheduleDraft.date, therapistId: booking.therapistId, serviceId: booking.serviceId,
+        // La propia cita no se estorba a si misma al reagendarse.
+        bookings: bookings.filter((item) => item.id !== booking.id),
+        services, eligibleTherapists: [therapist], schedules,
+      })
+      : []),
+    [booking, bookings, rescheduleDraft?.date, service, therapist, services, schedules],
+  );
 
   return (
     <div style={{
@@ -189,44 +211,6 @@ const ghostAction = {
   cursor: 'pointer'
 };
 
-function getAvailableSlots({ booking, date, therapist, service, bookings }) {
-  if (!date || !therapist || !service || !isBusinessDay(localDate(date))) return [];
-  const duration = Number(therapist.sessionDuration || service.duration || 50) + 10;
-  const slots = [];
-  for (let minutes = 9 * 60; minutes + duration <= 19 * 60; minutes += Math.max(15, duration)) {
-    const time = fromMinutes(minutes);
-    if (new Date(`${date}T${time}`) < new Date()) continue;
-    const start = minutes;
-    const end = start + duration;
-    const blocked = bookings.some((item) => {
-      if (item.id === booking.id || item.status === 'cancelled' || item.date !== date || item.therapistId !== therapist.id) return false;
-      const itemService = service;
-      const itemDuration = Number(therapist.sessionDuration || itemService.duration || 50) + 10;
-      const itemStart = toMinutes(item.time);
-      return start < itemStart + itemDuration && end > itemStart;
-    });
-    if (!blocked) slots.push(time);
-  }
-  return slots;
-}
 
-function isBusinessDay(date) {
-  const day = date.getDay();
-  return day >= 2 && day <= 6;
-}
-
-function localISO(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-
-function toMinutes(time) {
-  const [hours, minutes] = String(time || '00:00').split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-function fromMinutes(minutes) {
-  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-}
 
 // ============ ADMIN APP ============

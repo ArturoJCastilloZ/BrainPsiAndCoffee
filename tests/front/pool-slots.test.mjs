@@ -10,6 +10,8 @@
 // Reagendar estaba roto al 100% y ninguna prueba lo veia, porque la
 // funcion vivia dentro de un componente y no se podia importar.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { poolSlotStates, poolAvailableSlots } from '../../src/agenda.mjs';
 
 const SERVICIO = { id: 'sv1', duration: 50 };
@@ -78,4 +80,29 @@ const BASE = {
   assert.deepEqual(poolSlotStates({ ...BASE, serviceId: '', schedules: HORARIO }), []);
 }
 
-console.log('pool-slots: la pantalla y el guardado ven los mismos horarios');
+// --- Guard: nadie vuelve a meter un motor de agenda paralelo ------------
+//
+// Habia TRES implementaciones de "que horarios hay libres": agenda.mjs, y
+// dos copias en las pantallas del PACIENTE con 9:00-19:00 y martes-sabado
+// HARDCODEADOS, que ignoraban por completo el horario configurado. Un
+// consultorio que pusiera lunes 8:00-13:00 seguia recibiendo reservas
+// martes-sabado, y luego veia esas citas fuera de horario en su rejilla.
+{
+  const archivos = execFileSync('git', ['ls-files', 'src']).toString().trim().split('\n')
+    .filter((f) => /\.(jsx|js|mjs)$/.test(f) && f !== 'src/agenda.mjs');
+
+  const culpables = [];
+  for (const f of archivos) {
+    readFileSync(f, 'utf8').split('\n').forEach((linea, i) => {
+      // La firma de un motor paralelo: un rango horario fijo, o la regla
+      // de dias habiles como comparacion cruda de getDay().
+      if (/const\s+(START|END)_HOUR\s*=/.test(linea)) culpables.push(`${f}:${i + 1} (hora fija)`);
+      if (/day\s*>=\s*\d\s*&&\s*day\s*<=\s*\d/.test(linea)) culpables.push(`${f}:${i + 1} (dias habiles fijos)`);
+    });
+  }
+
+  assert.deepEqual(culpables, [],
+    'la disponibilidad se calcula SOLO en agenda.mjs, con los horarios configurados');
+}
+
+console.log('pool-slots: un solo motor de agenda, y la pantalla y el guardado coinciden');
