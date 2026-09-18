@@ -116,9 +116,23 @@ export default function AdminAppointments({
     }
   }, [draft.serviceId, services]);
 
+  // Con un doctor FIJADO su identidad no se negocia, y el retorno
+  // temprano va ANTES de la caida a 'any' a proposito.
+  //
+  // Los dos bloques se peleaban: si el doctor no figuraba como apto para
+  // el servicio del borrador, el de abajo lo mandaba a 'any' y el de
+  // arriba lo devolvia al doctor, sin parar. React tiraba "Maximum update
+  // depth exceeded" en bucle nada mas abrir el panel doctor.
+  //
+  // Se disparaba porque el doctor no puede leer therapy_services (ver
+  // is_clinic_staff en 0005): su catalogo cae al hardcodeado de data.js,
+  // cuyos ids no casan con therapist_services, asi que NINGUN terapeuta
+  // resultaba apto. Aqui se corta el ciclo; el hueco de lectura es aparte.
   useEffect(() => {
-    if (lockedTherapistId && draft.therapistId !== lockedTherapistId) {
-      setDraft(current => ({ ...current, therapistId: lockedTherapistId }));
+    if (lockedTherapistId) {
+      if (draft.therapistId !== lockedTherapistId) {
+        setDraft(current => ({ ...current, therapistId: lockedTherapistId }));
+      }
       return;
     }
     if (draft.therapistId !== 'any' && !eligibleTherapists.some(therapist => therapist.id === draft.therapistId)) {
