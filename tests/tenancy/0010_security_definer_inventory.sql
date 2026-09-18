@@ -50,6 +50,8 @@ declare
     'combo_savings_of_order',
     'freeze_order_amounts',
     'enforce_order_item_price',
+    -- 0028: el importe del cobro lo topa el servidor, no el navegador.
+    'enforce_payment_within_balance',
     'recalc_order_totals',
     -- Inmutabilidad clinica: no leen datos, solo rechazan escrituras.
     -- Son definer para que nadie pueda esquivarlas con otro rol.
