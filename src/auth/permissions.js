@@ -64,7 +64,7 @@ export const canAccessAdminPage = (role, page) => {
   if (page === 'general-access') return canManageAccess(role);
   if (page === 'clinic-schedules') return canManageSchedules(role);
   if (page === 'cafe-orders') return canManageOrders(role);
-  if (page === 'cafe-products' || page === 'cafe-offers') return canManageCafeCatalog(role);
+  if (page === 'cafe-products' || page === 'cafe-options' || page === 'cafe-offers') return canManageCafeCatalog(role);
   if (
     page === 'clinic-appointments' ||
     page === 'clinic-services' ||

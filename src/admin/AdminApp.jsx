@@ -6,7 +6,7 @@ import {
     Bell, Trash2, ArrowRight, ArrowLeft,
     CheckCircle2, AlertCircle, MessageCircle, Cake,
     Home, Menu as MenuIcon, LogOut, TrendingUp, DollarSign,
-    Zap, Gift, Send, RefreshCw, Filter, KeyRound
+    Zap, Gift, Send, RefreshCw, Filter, KeyRound, Milk
 } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
@@ -49,6 +49,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             items: [
                 canManageOrders(role) && { id: 'cafe-orders', label: 'Pedidos café', icon: Coffee },
                 canManageCafeCatalog(role) && { id: 'cafe-products', label: 'Menú / productos', icon: Cake },
+                canManageCafeCatalog(role) && { id: 'cafe-options', label: 'Personalización', icon: Milk },
                 canManageCafeCatalog(role) && { id: 'cafe-offers', label: 'Promociones', icon: Gift },
             ].filter(Boolean)
         },
@@ -196,6 +197,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                         {page === 'general-business' && canManageBusinessSettings(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="business" lockedTab heading="Negocio" description="Administra información general del negocio, contacto, redes, mapa y horarios." />}
                         {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} />}
                         {page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}
+                        {page === 'cafe-options' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="options" lockedTab heading="Personalización" description="Tipos de leche, sabores y extras que el cliente puede elegir al pedir un café, con lo que suma cada uno al precio." />}
                         {page === 'cafe-offers' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="offers" lockedTab heading="Promociones" description="Administra ofertas y vigencia de promociones de cafetería." />}
                         {page === 'clinic-schedules' && canManageSchedules(role) && <AdminSchedules catalogs={catalogs} reload={catalogActions?.reload} />}
                         {page === 'clinic-appointments' && canManageAppointments(role) && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} />}
