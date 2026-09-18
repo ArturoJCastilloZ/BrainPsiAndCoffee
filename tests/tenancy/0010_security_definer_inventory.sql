@@ -40,6 +40,12 @@ declare
     'apply_therapist_buffers',
     'seed_default_schedule',
     'set_agenda_prefs',
+    -- Precio de un pedido. Definer para leer el catalogo sin depender de
+    -- que el visitante anonimo tenga select sobre products/offers.
+    -- Acotan por el tenant de la fila, no por el JWT.
+    'price_of_order_item',
+    'enforce_order_item_price',
+    'recalc_order_totals',
     -- Inmutabilidad clinica: no leen datos, solo rechazan escrituras.
     -- Son definer para que nadie pueda esquivarlas con otro rol.
     'enforce_signed_note_immutable',

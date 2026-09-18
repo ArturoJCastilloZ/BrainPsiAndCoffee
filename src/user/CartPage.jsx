@@ -25,8 +25,14 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
   const [errors, setErrors] = useState({});
 
   // Calculate combo
-  const hasCoffee = cart.some(i => i.id?.startsWith('h') || i.id?.startsWith('c'));
-  const hasDessert = cart.some(i => i.id?.startsWith('p'));
+  // Por CATEGORIA, no por el prefijo del id. El trigger de 0023 usa
+  // products.category; con prefijos, un producto con otro id dejaria de
+  // contar para el combo aqui y si contaria alla, y el total mostrado no
+  // coincidiria con el cobrado.
+  const esCafe = (i) => i.category === 'hot' || i.category === 'cold';
+  const esPostre = (i) => i.category === 'desserts';
+  const hasCoffee = cart.some(esCafe);
+  const hasDessert = cart.some(esPostre);
   const comboOffer = activeOffers(catalogs?.offers || [])[0];
   const comboPrice = Number(comboOffer?.price || 99);
   const comboApplied = Boolean(comboOffer && hasCoffee && hasDessert);
@@ -36,8 +42,8 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
   // Find cheapest coffee + dessert for combo savings
   let comboSavings = 0;
   if (comboApplied) {
-    const coffees = cart.filter(i => i.id?.startsWith('h') || i.id?.startsWith('c'));
-    const desserts = cart.filter(i => i.id?.startsWith('p'));
+    const coffees = cart.filter(esCafe);
+    const desserts = cart.filter(esPostre);
     const minCoffee = Math.min(...coffees.map(c => c.customizations?.totalPrice || c.price));
     const minDessert = Math.min(...desserts.map(d => d.price));
     if (minCoffee + minDessert > comboPrice) comboSavings = (minCoffee + minDessert) - comboPrice;

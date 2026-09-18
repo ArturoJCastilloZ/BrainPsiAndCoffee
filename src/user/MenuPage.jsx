@@ -211,11 +211,20 @@ function CustomizeModal({ item, options, theme, onClose, onAdd }) {
           borderTop: `1px solid ${modalColors.border}`, boxShadow: '0 -8px 18px rgba(58,40,24,0.08)'
         }}>
           <button onClick={() => onAdd(item, {
+            // Los IDS son lo que el servidor valida contra el catalogo.
+            // Un nombre no es una llave: no se puede comprobar, y dos
+            // clinicas pueden tener sabores homonimos a precios distintos.
+            // Sin esto, el trigger de 0023 cobraria solo el precio base.
+            optionIds: [milk?.id, flavor?.id, ...chosenAddons.map((a) => a.id)].filter(Boolean),
+            // Los nombres se conservan solo para mostrarlos en el carrito
+            // y en el ticket del barista.
             milk: milk?.name || null,
             flavor: flavor?.name || null,
             addons: chosenAddons.map((a) => a.name),
             // Se conserva para no romper pedidos ya guardados que lo leen.
             extraShot: chosenAddons.length > 0,
+            // Lo que se le muestra al cliente. El servidor lo recalcula y
+            // manda; si divergen, gana el catalogo.
             totalPrice: total,
           })} style={{
             width: '100%', background: modalColors.primary, color: modalColors.primaryText, border: 'none',

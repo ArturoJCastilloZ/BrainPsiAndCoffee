@@ -112,6 +112,11 @@ const mapSpecialtyToDb = (item) => ({
 
 const mapProductFromDb = (row) => ({
   id: row.id,
+  // La categoria viaja al carrito para decidir el combo por DATO y no por
+  // el prefijo del id ('h', 'c', 'p'), que es lo que hacia la pantalla. El
+  // trigger de 0023 usa products.category, asi que sin esto el cliente
+  // mostraria un descuento que el servidor no aplica, o al reves.
+  category: row.category,
   name: row.name,
   sub: row.subtitle || '',
   price: toNumber(row.price),

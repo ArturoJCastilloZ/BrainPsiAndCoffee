@@ -76,6 +76,26 @@ const login = read('src/components/Login.jsx');
 assert(login.includes('Recuperar contraseña'), 'Login debe incluir recuperación de contraseña.');
 assert(login.includes('requestPasswordReset'), 'Login debe llamar requestPasswordReset.');
 
+// Solo se quitan las lineas que EMPIEZAN con //. Nada mas.
+//
+// La primera version tambien borraba bloques /* ... */ y eso producia un
+// FALSO NEGATIVO: el regex corre sobre texto plano, sin saber de strings.
+// Un literal con '/*' dentro —una regex, un 'text/*' de Content-Type— abre
+// un bloque que se cierra en el primer '*/' que aparezca mas abajo, y se
+// lleva por delante todo el codigo intermedio. Si en ese tramo estaba la
+// regresion, la asercion pasaba en VERDE sobre codigo vulnerable.
+// Comprobado: con 'text/*' antes de un updateUserById({ email }), la
+// asercion de email daba false.
+//
+// El problema real que se queria resolver —la prosa que explica el
+// peligro disparando el guard— vive en comentarios de LINEA, asi que el
+// strip de bloques nunca hizo falta. Se prefiere un guard que a veces
+// moleste de mas a uno que calle cuando importa.
+const sinComentarios = (source) => source
+  .split('\n')
+  .filter((line) => !/^\s*\/\//.test(line))
+  .join('\n');
+
 const doctor = read('src/doctor/DoctorApp.jsx');
 assert(doctor.includes('createClinicalNote'), 'DoctorApp debe poder crear notas clínicas.');
 assert(doctor.includes('signClinicalNote'), 'DoctorApp debe poder firmar la nota.');
@@ -87,6 +107,24 @@ assert(!doctor.includes('deleteClinicalNote'), 'DoctorApp no debe poder borrar n
 const dataLayer = read('src/api/supabaseData.js');
 assert(!dataLayer.includes('export const deleteClinicalNote'), 'La capa de datos no debe exponer borrado de notas clínicas.');
 assert(doctor.includes('Pacientes'), 'DoctorApp debe incluir vista de pacientes.');
+
+// El servidor recalcula el precio del pedido desde el catalogo (0023) y
+// identifica los modificadores por ID. Si MenuPage vuelve a mandar solo
+// nombres, el trigger no encuentra los ids, cobra solo el precio base, y
+// el negocio regala los extras de cada pedido sin que nada falle.
+const menuPage = sinComentarios(read('src/user/MenuPage.jsx'));
+assert(
+  /optionIds\s*:/.test(menuPage),
+  'MenuPage debe mandar optionIds: el servidor valida los modificadores por id, no por nombre, y sin ellos cobra solo el precio base.',
+);
+
+// El combo se decide por categoria en los dos lados. Con prefijos de id,
+// el total mostrado y el cobrado podian diferir.
+const cartPage = sinComentarios(read('src/user/CartPage.jsx'));
+assert(
+  !/startsWith\(\s*'[hcp]'\s*\)/.test(cartPage),
+  'CartPage no debe decidir el combo por el prefijo del id: el servidor usa products.category y los totales divergirian.',
+);
 
 // La bitacora de LECTURA del expediente no se produce sola: Postgres no
 // tiene triggers de SELECT, asi que si la aplicacion no la pide, abrir un
@@ -117,26 +155,6 @@ assert(
 // recortar desde ahi borraria codigo real — un falso NEGATIVO, que es el
 // error caro. Queda vivo el caso de un comentario al final de una linea
 // de codigo; es aceptable y preferible al otro lado del error.
-// Solo se quitan las lineas que EMPIEZAN con //. Nada mas.
-//
-// La primera version tambien borraba bloques /* ... */ y eso producia un
-// FALSO NEGATIVO: el regex corre sobre texto plano, sin saber de strings.
-// Un literal con '/*' dentro —una regex, un 'text/*' de Content-Type— abre
-// un bloque que se cierra en el primer '*/' que aparezca mas abajo, y se
-// lleva por delante todo el codigo intermedio. Si en ese tramo estaba la
-// regresion, la asercion pasaba en VERDE sobre codigo vulnerable.
-// Comprobado: con 'text/*' antes de un updateUserById({ email }), la
-// asercion de email daba false.
-//
-// El problema real que se queria resolver —la prosa que explica el
-// peligro disparando el guard— vive en comentarios de LINEA, asi que el
-// strip de bloques nunca hizo falta. Se prefiere un guard que a veces
-// moleste de mas a uno que calle cuando importa.
-const sinComentarios = (source) => source
-  .split('\n')
-  .filter((line) => !/^\s*\/\//.test(line))
-  .join('\n');
-
 const syncDoctor = sinComentarios(read('supabase/functions/sync-doctor-access/index.ts'));
 assert(
   syncDoctor.includes('buildIdentityUpdate'),
