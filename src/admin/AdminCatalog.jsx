@@ -306,7 +306,7 @@ function ServiceForm({ draft, setDraft }) {
   </>;
 }
 
-function SelectField({ label, value, onChange, children, required = false, className = '' }) {
+function SelectField({ label, value, onChange, children, required = false, className = '', ayuda = null }) {
   const missing = required && String(value || '').trim().length === 0;
   return (
     <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
@@ -314,6 +314,7 @@ function SelectField({ label, value, onChange, children, required = false, class
       <select value={value || ''} onChange={e => onChange(e.target.value)} required={required} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', borderColor: missing ? C.rust : undefined }}>
         {children}
       </select>
+      {ayuda && <span style={campoAyuda}>{ayuda}</span>}
       {missing && <span style={requiredHint}>Campo requerido</span>}
     </label>
   );
@@ -357,7 +358,14 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
       <Field className="therapist-form-name" label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
       <Field className="therapist-form-email" label="CORREO DE ACCESO" type="email" value={draft.email} onChange={email => setDraft({ ...draft, email })} required />
       <Field className="therapist-form-cedula" label="CÉDULA" value={draft.cedula} onChange={cedula => setDraft({ ...draft, cedula })} required />
-      <SelectField className="therapist-form-specialty" label="ESPECIALIDAD" value={draft.specialty || ''} onChange={specialty => setDraft({ ...draft, specialty })} required>
+      <SelectField
+        className="therapist-form-specialty"
+        label="ESPECIALIDAD QUE VE EL PACIENTE"
+        ayuda="Solo se muestra: aparece bajo su nombre al agendar, junto a la cédula."
+        value={draft.specialty || ''}
+        onChange={specialty => setDraft({ ...draft, specialty })}
+        required
+      >
         <option value="">Selecciona especialidad</option>
         {activeSpecialties.map(specialty => <option key={specialty.id} value={specialty.name}>{specialty.name}</option>)}
       </SelectField>
@@ -391,7 +399,13 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
       </div>
     </div>
     <div style={{ marginTop: 12 }}>
-      <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>SERVICIOS HABILITADOS</div>
+      <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 2 }}>SERVICIOS HABILITADOS</div>
+      {/* El par se confunde: el de arriba se muestra, este DECIDE. Sin
+          decirlo, un servicio sin marcar deja al doctor fuera de la
+          agenda sin que nada lo avise. */}
+      <div style={{ ...campoAyuda, marginBottom: 8 }}>
+        Decide para qué servicios se le puede agendar, a ti y al paciente. Si uno no está marcado, no aparece como opción.
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {services.map(service => {
           const checked = draft.services?.includes(service.id);
@@ -521,6 +535,8 @@ function adminButton(kind) {
     fontWeight: 700
   };
 }
+
+const campoAyuda = { color: 'var(--admin-muted)', fontSize: 11, lineHeight: 1.45, fontWeight: 400, letterSpacing: 0 };
 
 const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 };
 
