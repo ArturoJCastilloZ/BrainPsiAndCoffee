@@ -85,6 +85,12 @@ export default function App() {
       '--bp-caramel': isDark ? '#C08A4D' : '#C08A4D',
       '--bp-caramel-light': isDark ? '#D9A96A' : '#D9A96A',
       '--bp-rust': isDark ? '#D97A7A' : '#B85C5C',
+      // Rust CUANDO ES TEXTO. El --bp-rust de arriba tambien pinta bordes y
+      // fondos (rust-alpha-*), donde el contraste de texto no aplica; sobre
+      // cream (#E8D9C5) daba 3.21:1, por debajo del 4.5:1 que pide AA, y el
+      // mensaje de error terminaba siendo lo menos legible de la pantalla.
+      // En oscuro el mismo tono ya daba 4.58:1, asi que solo cambia el claro.
+      '--bp-rust-text': isDark ? '#D97A7A' : '#973F3F',
       '--bp-surface': isDark ? '#332C27' : '#FFFFFF',
       '--bp-surface-2': isDark ? '#2A2521' : '#E8D9C5',
       '--bp-primary': isDark ? '#C08A4D' : '#5A3E2B',

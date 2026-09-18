@@ -13,6 +13,7 @@ export const C = {
   caramel: 'var(--bp-caramel)',
   caramelLight: 'var(--bp-caramel-light)',
   rust: 'var(--bp-rust)',
+  rustText: 'var(--bp-rust-text)',
   brownAlpha30: 'var(--bp-brown-alpha-30)',
   sageDeepAlpha30: 'var(--bp-sage-deep-alpha-30)',
   caramelLightAlpha30: 'var(--bp-caramel-light-alpha-30)',
