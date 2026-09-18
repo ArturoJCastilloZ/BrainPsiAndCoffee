@@ -207,7 +207,12 @@ export default function AdminOrders({ orders, setOrders, catalogs, session }) {
                 {o.items.map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--admin-row-text)' }}>
                     <span>{Number(item.qty || 1) > 1 ? `${item.qty}x ` : ''}{item.name}{item.customizations?.milk ? ` · ${item.customizations.milk}` : ''}{item.customizations?.flavor ? ` · ${item.customizations.flavor}` : ''}{(item.customizations?.addons || []).map((a) => ` · ${a}`).join('')}</span>
-                    <span style={{ color: 'var(--admin-text)' }}>${(item.customizations?.totalPrice || item.price) * Number(item.qty || 1)}</span>
+                    {/* item.price viene de order_items.unit_price, que el servidor
+                        calcula desde el catalogo. customizations.totalPrice es
+                        el numero que guardo el NAVEGADOR dentro del jsonb y
+                        ningun trigger lo valida: tenia precedencia, asi que el
+                        cliente podia cobrarse 45 y mostrarle $5 al barista. */}
+                    <span style={{ color: 'var(--admin-text)' }}>${Number(item.price || 0) * Number(item.qty || 1)}</span>
                   </div>
                 ))}
               </div>

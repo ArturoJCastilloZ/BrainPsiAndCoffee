@@ -156,6 +156,8 @@ const mapProductOptionToDb = (item, index = 0) => ({
 });
 
 const mapOfferFromDb = (row) => ({
+  // combo = la promocion que descuenta el total; generic = informativa.
+  kind: row.kind || 'generic',
   id: row.id,
   name: row.name,
   desc: row.description || '',
@@ -166,6 +168,7 @@ const mapOfferFromDb = (row) => ({
 });
 
 const mapOfferToDb = (item) => ({
+  kind: item.kind === 'combo' ? 'combo' : 'generic',
   id: item.id,
   name: item.name,
   description: item.desc || '',

@@ -18,7 +18,7 @@ const emptyService = { name: '', desc: '', duration: 50, price: 600, icon: 'hear
 const emptyTherapist = { name: '', email: '', cedula: '', specialty: '', sessionDuration: 50, services: [], color: C.sageDark, active: true };
 const emptySpecialty = { name: '', active: true };
 const emptyProduct = { name: '', sub: '', price: 45, active: true };
-const emptyOffer = { name: '', desc: '', price: 99, active: true };
+const emptyOffer = { name: '', desc: '', price: 99, kind: 'generic', active: true };
 const emptyOption = { kind: 'flavor', name: '', priceDelta: 0, active: true };
 const OPTION_TABS = [
   { id: 'milk', label: 'Leches', vacio: 'No hay tipos de leche. El cliente no verá esa opción.' },
@@ -427,6 +427,19 @@ function OfferForm({ draft, setDraft }) {
     <Field label="INICIA" type="date" value={draft.startsAt || ''} onChange={startsAt => setDraft({ ...draft, startsAt })} />
     <Field label="TERMINA" type="date" value={draft.endsAt || ''} onChange={endsAt => setDraft({ ...draft, endsAt })} />
     <Field label="DESCRIPCIÓN" value={draft.desc} onChange={desc => setDraft({ ...draft, desc })} />
+    {/* Cual de las promociones DESCUENTA. Antes se tomaba "la primera
+        activa", asi que una promo informativa cualquiera acababa
+        descontando contra su precio en todos los pedidos con cafe y
+        postre. Ahora es una eleccion, no un accidente de orden. */}
+    <label style={{ display: 'grid', gap: 6, minWidth: 0 }}>
+      <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>TIPO</span>
+      <select className="admin-input" value={draft.kind || 'generic'}
+              onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' }}>
+        <option value="generic">Informativa — se muestra, no descuenta</option>
+        <option value="combo">Combo café + postre — descuenta del total</option>
+      </select>
+    </label>
   </FormGrid>;
 }
 

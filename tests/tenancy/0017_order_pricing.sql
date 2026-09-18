@@ -192,20 +192,37 @@ begin
 end $$;
 update public.products set active = true where tenant_id='t_pay' and id='h1';
 
--- B · Un pedido ENTREGADO no se reprecia.
+-- B · Un pedido ENTREGADO conserva su precio, y no admite lineas nuevas.
+--
+-- NOTA DE METODO: la primera version insertaba con unit_price = 45 y
+-- verificaba que valiera 45 — afirmaba el numero que ella misma mandaba.
+-- Como en un pedido cerrado el trigger no lo tocaba, pasaba siempre;
+-- mandando 1 el servidor guardaba 1.00. Ahora el valor que se manda es
+-- DISTINTO del esperado, que es lo unico que hace la prueba util.
 do $$
-declare v_precio numeric; v_total numeric;
+declare v_precio numeric; v_n integer; v_falló boolean := false;
 begin
   update public.orders set status='delivered' where tenant_id='t_pay' and id='ord-1';
   update public.products set price = 500 where tenant_id='t_pay' and id='h1';
 
-  delete from public.order_items where tenant_id='t_pay' and order_id='ord-1';
-  insert into public.order_items (tenant_id,order_id,product_id,name,quantity,unit_price,options)
-    values ('t_pay','ord-1','h1','Espresso',1,45,'{}'::jsonb);
+  -- Una linea NUEVA sobre un pedido cerrado se rechaza.
+  begin
+    insert into public.order_items (tenant_id,order_id,product_id,name,quantity,unit_price,options)
+      values ('t_pay','ord-1','h1','Espresso',1,1,'{}'::jsonb);
+  exception when others then v_falló := true;
+  end;
+  if not v_falló then
+    raise exception 'HISTORIAL: se agrego una linea a un pedido ya entregado';
+  end if;
+
+  -- Y un UPDATE de la linea existente NO cambia su precio, aunque se
+  -- mande otro. 45 es lo que costo cuando se cobro; el catalogo dice 500.
+  update public.order_items set unit_price = 1
+   where tenant_id='t_pay' and order_id='ord-1';
 
   select unit_price into v_precio from public.order_items where order_id='ord-1';
   if v_precio is distinct from 45 then
-    raise exception 'HISTORIAL: un pedido entregado se reprecio a % (el catalogo subio a 500)', coalesce(v_precio::text,'NULL');
+    raise exception 'HISTORIAL: el precio de un pedido entregado quedo en % (se cobro 45, el catalogo dice 500)', coalesce(v_precio::text,'NULL');
   end if;
   raise notice 'ok · un pedido entregado conserva el precio con que se cobro';
   update public.products set price = 30 where tenant_id='t_pay' and id='h1';
@@ -236,4 +253,85 @@ begin
     raise exception 'ROBO: el barista dejo el total en %', coalesce(v_total::text,'NULL');
   end if;
   raise notice 'ok · el personal del cafe tampoco fija los importes a mano';
+end $$;
+
+-- ============================================================
+-- Vecinos que 0024 dejo abiertos y 0025 cierra.
+-- ============================================================
+
+-- D · Un pedido no puede NACER cerrado con el total puesto a mano.
+--
+-- 0024 puso freeze_order_amounts solo en 'before update'. Insertando el
+-- pedido ya como 'delivered', nada lo recalculaba despues.
+do $$
+declare v_total numeric;
+begin
+  insert into public.orders (tenant_id,id,customer_name,customer_phone,status,order_source,subtotal,total)
+    values ('t_pay','ord-nace','Listillo','5566666666','delivered','public_menu',5,5);
+  select total into v_total from public.orders where id='ord-nace';
+  if v_total is distinct from 0 then
+    raise exception 'ROBO: un pedido nacio cerrado con total % y sin lineas que lo respalden', coalesce(v_total::text,'NULL');
+  end if;
+  raise notice 'ok · un pedido sin lineas nace en cero, no con el total que le pongan';
+end $$;
+
+-- E · Borrar las lineas y despues inventar el total.
+--
+-- La salida temprana de 0024 cuando no habia lineas dejaba pasar los
+-- importes tal cual.
+do $$
+declare v_total numeric;
+begin
+  delete from public.order_items where tenant_id='t_pay' and order_id='ord-combo';
+  update public.orders set total = 9999, subtotal = 9999 where tenant_id='t_pay' and id='ord-combo';
+  select total into v_total from public.orders where id='ord-combo';
+  if v_total = 9999 then
+    raise exception 'ROBO: sin lineas se fijo un total de 9999 a mano';
+  end if;
+  raise notice 'ok · sin lineas no se puede inventar el total';
+end $$;
+
+-- F · Una promo cualquiera no se toma por el combo.
+--
+-- combo_savings_of_order tomaba la PRIMERA oferta activa. Una promo de
+-- $25 hacia que todo pedido con cafe y postre descontara contra ella.
+-- Como el cliente calculaba igual, nadie lo notaba.
+insert into public.offers (tenant_id,id,name,price,active,kind) values
+  ('t_pay','promo-postre','Postre del dia',25,true,'generic');
+
+do $$
+declare v_ahorro numeric; v_total numeric;
+begin
+  insert into public.orders (tenant_id,id,customer_name,customer_phone,status,order_source,subtotal,total)
+    values ('t_pay','ord-promo','Cliente','5577777777','received','public_menu',0,0);
+  insert into public.order_items (tenant_id,order_id,product_id,name,quantity,unit_price,options) values
+    ('t_pay','ord-promo','h1','Espresso',1,0,'{}'::jsonb),
+    ('t_pay','ord-promo','p1','Pastel',1,0,'{}'::jsonb);
+
+  select combo_savings, total into v_ahorro, v_total from public.orders where id='ord-promo';
+  -- 30 + 65 = 95. Contra el combo real (99) no hay ahorro. Contra la
+  -- promo generica de 25 habria 70 de descuento.
+  if v_ahorro is distinct from 0 then
+    raise exception 'FUGA: una promo generica se tomo por el combo y desconto %', coalesce(v_ahorro::text,'NULL');
+  end if;
+  if v_total is distinct from 95 then
+    raise exception 'FUGA: el total quedo en % y no en 95', coalesce(v_total::text,'NULL');
+  end if;
+  raise notice 'ok · solo la oferta marcada como combo descuenta';
+end $$;
+
+-- G · Las tres funciones de precio, revocadas por igual.
+do $$
+declare v_expuestas text;
+begin
+  select string_agg(p.proname, ', ') into v_expuestas
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname='public'
+    and p.proname in ('price_of_order_item','order_is_closed','combo_savings_of_order')
+    and (has_function_privilege('anon', p.oid, 'execute')
+         or has_function_privilege('authenticated', p.oid, 'execute'));
+  if v_expuestas is not null then
+    raise exception 'FUGA: estas funciones de precio siguen expuestas como RPC: %', v_expuestas;
+  end if;
+  raise notice 'ok · ninguna funcion de precio es alcanzable por RPC';
 end $$;

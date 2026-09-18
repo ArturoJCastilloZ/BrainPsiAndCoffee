@@ -33,9 +33,15 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
   const esPostre = (i) => i.category === 'desserts';
   const hasCoffee = cart.some(esCafe);
   const hasDessert = cart.some(esPostre);
-  const comboOffer = activeOffers(catalogs?.offers || [])[0];
-  const comboPrice = Number(comboOffer?.price || 99);
-  const comboApplied = Boolean(comboOffer && hasCoffee && hasDessert);
+  // La de tipo 'combo', no "la primera". El trigger de 0025 usa
+  // offers.kind; tomar la primera hacia que una promo cualquiera se
+  // tratara como el combo — y como ambos lados se equivocaban igual, los
+  // totales coincidian y nadie lo notaba.
+  const comboOffer = activeOffers(catalogs?.offers || []).find((o) => o.kind === 'combo');
+  // Sin '|| 99': con una oferta de precio 0 el cliente caia al 99 y el
+  // servidor usaba 0, y ahi si divergian el total mostrado y el cobrado.
+  const comboPrice = comboOffer ? Number(comboOffer.price) : null;
+  const comboApplied = Boolean(comboOffer && comboPrice !== null && hasCoffee && hasDessert);
 
   const subtotal = cart.reduce((sum, item) => sum + (item.customizations?.totalPrice || item.price) * item.qty, 0);
 

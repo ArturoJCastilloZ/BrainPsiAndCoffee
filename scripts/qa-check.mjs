@@ -118,9 +118,27 @@ assert(
   'MenuPage debe mandar optionIds: el servidor valida los modificadores por id, no por nombre, y sin ellos cobra solo el precio base.',
 );
 
+// La pantalla del STAFF muestra el precio que cobra el servidor, no el
+// que guardo el navegador. customizations.totalPrice viaja dentro del
+// jsonb de options y ningun trigger lo valida: si tiene precedencia, el
+// cliente se cobra 45 y al barista le aparece $5.
+const adminOrders = sinComentarios(read('src/admin/AdminOrders.jsx'));
+assert(
+  !/customizations\?\.totalPrice\s*\|\|/.test(adminOrders),
+  'AdminOrders no debe preferir customizations.totalPrice sobre item.price: ese numero lo pone el navegador y nadie lo valida.',
+);
+
 // El combo se decide por categoria en los dos lados. Con prefijos de id,
 // el total mostrado y el cobrado podian diferir.
 const cartPage = sinComentarios(read('src/user/CartPage.jsx'));
+
+// La oferta que descuenta se elige por dato. "La primera activa" hacia
+// que cualquier promo informativa descontara del total.
+assert(
+  !/activeOffers\([^)]*\)\[0\]/.test(cartPage),
+  'CartPage debe elegir la oferta de combo por kind, no tomar la primera activa: una promo cualquiera descontaria del total.',
+);
+
 assert(
   !/startsWith\(\s*'[hcp]'\s*\)/.test(cartPage),
   'CartPage no debe decidir el combo por el prefijo del id: el servidor usa products.category y los totales divergirian.',
