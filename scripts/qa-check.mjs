@@ -88,6 +88,22 @@ const dataLayer = read('src/api/supabaseData.js');
 assert(!dataLayer.includes('export const deleteClinicalNote'), 'La capa de datos no debe exponer borrado de notas clínicas.');
 assert(doctor.includes('Pacientes'), 'DoctorApp debe incluir vista de pacientes.');
 
+// La sincronizacion de doctores corre con service_role y auth.users.email
+// NO esta acotado por tenant: es el login del usuario en todas sus
+// clinicas. Quien lo controla controla la cuenta, porque el enlace de
+// recuperacion va ahi. La decision de escribirlo vive en identity.mjs,
+// que si se puede probar; si vuelve a escribirse a mano dentro de la
+// funcion, ese control se evapora sin que ninguna prueba se entere.
+const syncDoctor = read('supabase/functions/sync-doctor-access/index.ts');
+assert(
+  syncDoctor.includes('buildIdentityUpdate'),
+  'sync-doctor-access debe decidir la identidad con buildIdentityUpdate, no a mano.',
+);
+assert(
+  !/updateUserById\([^)]*\bemail\s*:/s.test(syncDoctor),
+  'sync-doctor-access no debe pasar email directo a updateUserById: puede secuestrar la cuenta de un doctor que atiende en otra clinica.',
+);
+
 if (failures.length) {
   console.error('QA check failed:');
   failures.forEach((failure) => console.error(`- ${failure}`));

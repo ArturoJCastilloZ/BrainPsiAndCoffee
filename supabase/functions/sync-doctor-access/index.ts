@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Las decisiones de identidad viven fuera para poder probarlas: a quien se
+// considera el mismo usuario, y que se le escribe encima. Ver identity.mjs.
+import { matchDoctorUser, buildIdentityUpdate, normalizeEmail } from './identity.mjs';
 
 type TherapistPayload = {
   id: string;
@@ -124,11 +127,8 @@ Deno.serve(async (req) => {
   for (const therapist of therapists) {
     if (therapist.active === false || !therapist.email) continue;
 
-    const normalizedEmail = therapist.email.trim().toLowerCase();
-    const existing = doctorUsers.find((user) =>
-      user.email?.toLowerCase() === normalizedEmail ||
-      (user.app_metadata?.therapist_ids || {})[tenantId] === therapist.id
-    );
+    const normalizedEmail = normalizeEmail(therapist.email);
+    const { user: existing, matchedBy } = matchDoctorUser(doctorUsers, therapist, tenantId);
 
     if (existing) {
       if (!existing.confirmed_at) {
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      await grantMembership(adminClient, existing, tenantId, therapist, normalizedEmail);
+      await grantMembership(adminClient, existing, tenantId, therapist, matchedBy);
       await setTherapistUser(adminClient, tenantId, therapist.id, existing.id);
       continue;
     }
@@ -212,12 +212,8 @@ const grantMembership = async (
   user: { id: string; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> },
   tenantId: string,
   therapist: TherapistPayload,
-  normalizedEmail: string,
+  matchedBy: string | null,
 ) => {
-  const appMeta = (user.app_metadata || {}) as Record<string, unknown>;
-  const memberships = { ...((appMeta.memberships || {}) as Record<string, string>), [tenantId]: 'doctor' };
-  const therapistIds = { ...((appMeta.therapist_ids || {}) as Record<string, string>), [tenantId]: therapist.id };
-
   const { error } = await adminClient.from('tenant_members').upsert({
     tenant_id: tenantId,
     user_id: user.id,
@@ -228,11 +224,13 @@ const grantMembership = async (
   }, { onConflict: 'tenant_id,user_id' });
   if (error) throw error;
 
-  await adminClient.auth.admin.updateUserById(user.id, {
-    email: normalizedEmail,
-    user_metadata: { ...(user.user_metadata || {}), name: therapist.name },
-    app_metadata: { ...appMeta, memberships, therapist_ids: therapistIds },
-  });
+  // buildIdentityUpdate decide si el correo de login entra en el payload.
+  // No entra cuando el usuario tambien pertenece a otra clinica: ese
+  // correo es su acceso alla tambien, y esta clinica no manda sobre el.
+  await adminClient.auth.admin.updateUserById(
+    user.id,
+    buildIdentityUpdate({ user, tenantId, therapist, matchedBy }),
+  );
 };
 
 const revokeMembership = async (
@@ -275,12 +273,14 @@ const inviteDoctor = async (
   const userId = created.data.user?.id;
   if (!userId) return;
 
+  // matchedBy va en null: el usuario se acaba de crear con inviteUserByEmail
+  // y su correo ya es este. No hay identidad previa que reescribir.
   await grantMembership(
     adminClient,
     { id: userId, app_metadata: {}, user_metadata: { name: therapist.name } },
     tenantId,
     therapist,
-    normalizedEmail,
+    null,
   );
   await setTherapistUser(adminClient, tenantId, therapist.id, userId);
 };
