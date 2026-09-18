@@ -204,6 +204,7 @@ if [[ "$CMD" == "baseline" ]]; then
     "0024_pricing_and_audit_fixes|(select 1 from pg_proc where proname='freeze_order_amounts')"
     "0025_pricing_neighbours|(select 1 from information_schema.columns where table_name='offers' and column_name='kind')"
     "0026_closed_orders_immutable|(select 1 from pg_proc where proname='block_closed_order_item_delete')"
+    "0027_accounting|to_regclass('public.payments')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.
