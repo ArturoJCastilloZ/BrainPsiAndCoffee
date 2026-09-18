@@ -16,7 +16,7 @@ const DIAS = [
   { id: 0, label: 'Domingo' },
 ];
 
-export default function AdminSchedules({ catalogs, reload, lockedTherapistId = null }) {
+export default function AdminSchedules({ catalogs, reload, lockedTherapistId = null, embedded = false }) {
   const therapists = useMemo(
     () => (catalogs?.therapists || []).filter((t) => !lockedTherapistId || t.id === lockedTherapistId),
     [catalogs?.therapists, lockedTherapistId],
@@ -152,7 +152,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
     return (
       <div>
         {dialogo}
-        <Encabezado />
+        <Encabezado embedded={embedded} />
         <div className="admin-card" style={{ borderRadius: 16, padding: 30, textAlign: 'center' }}>
           <p style={{ color: 'var(--admin-muted)', margin: 0, fontSize: 13 }}>
             No hay doctores dados de alta. Créalos primero en Doctores.
@@ -165,7 +165,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
   return (
     <div>
       {dialogo}
-      <Encabezado />
+      <Encabezado embedded={embedded} />
 
       {error && <Aviso tono="error">{error}</Aviso>}
       {notice && <Aviso tono="ok">{notice}</Aviso>}
@@ -371,7 +371,10 @@ function VistaPrevia({ therapist, blocks, catalogs }) {
   );
 }
 
-function Encabezado() {
+function Encabezado({ embedded = false }) {
+  // Incrustado en el panel doctor no se pinta: ese ya puso su titulo. Y
+  // "cada doctor" era falso ahi — el doctor solo ve y edita el suyo.
+  if (embedded) return null;
   return (
     <>
       <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>

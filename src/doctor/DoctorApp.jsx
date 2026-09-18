@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar as CalendarIcon, Clock, FileText, Lock, LogOut, Plus, Save, Settings, User, X } from 'lucide-react';
 import { C } from '../theme';
+import { localDate } from '../utils.jsx';
 import BrandMark from '../components/BrandMark';
 import AdminAppointments from '../admin/AdminAppointments';
 import AdminSchedules from '../admin/AdminSchedules';
@@ -145,46 +146,69 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
           </button>
         </div>
       </header>
-      <main style={{ padding: 24, maxWidth: 1180, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {page === 'appointments' ? <CalendarIcon size={20} color="var(--admin-accent-text)" /> : <User size={20} color="var(--admin-accent-text)" />}
-            <div>
-              <h1 className="font-display" style={{ margin: 0, color: 'var(--admin-text)', fontSize: 30 }}>
-                {page === 'appointments' ? 'Mis citas' : page === 'schedule' ? 'Mi horario' : 'Pacientes y notas'}
-              </h1>
-              <p style={{ margin: '2px 0 0', color: 'var(--admin-muted)', fontSize: 13 }}>
-                {page === 'appointments'
-                  ? 'Solo puedes administrar las citas asignadas a tu usuario.'
-                  : page === 'schedule'
-                    ? 'Tus días de trabajo y el descanso que dejas entre citas.'
-                    : 'Las notas clínicas solo son visibles para el doctor autorizado.'}
-              </p>
-            </div>
+      <main style={{ padding: '0 24px 64px', maxWidth: 1120, margin: '0 auto' }}>
+        {/* Un solo encabezado. Antes este bloque pintaba el titulo y luego
+            la pantalla incrustada pintaba el suyo: dos titulos peleando el
+            mismo rol, y por eso todo empezaba a mitad de pantalla. */}
+        <div style={{
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+          gap: 24, flexWrap: 'wrap',
+          padding: '28px 0 16px',
+          borderBottom: '1px solid var(--admin-border-soft)',
+          marginBottom: 24,
+        }}>
+          <div>
+            <h1 className="font-display" style={{
+              margin: 0, color: 'var(--admin-text)',
+              fontSize: 30, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1.1,
+            }}>
+              {PAGINAS[page].titulo}
+            </h1>
+            <p style={{ margin: '6px 0 0', color: 'var(--admin-muted)', fontSize: 13, lineHeight: 1.5, maxWidth: '58ch' }}>
+              {PAGINAS[page].descripcion}
+            </p>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {[
-              { id: 'appointments', label: 'Citas', icon: CalendarIcon },
-              { id: 'patients', label: 'Pacientes', icon: User },
-              // El doctor administra SU horario: es su tiempo, y RLS ya le
-              // permite escribir solo el suyo.
-              { id: 'schedule', label: 'Horario', icon: Clock },
-            ].map((item) => (
-              <button key={item.id} onClick={() => setPage(item.id)} style={{
-                ...topButtonStyle,
-                background: page === item.id ? 'var(--admin-surface)' : 'transparent',
-                color: page === item.id ? 'var(--admin-text)' : 'var(--admin-accent-text)',
-              }}>
-                <item.icon size={14} /> {item.label}
-              </button>
-            ))}
-          </div>
+
+          {/* Control segmentado: una sola pieza que dice donde estas,
+              en vez de tres botones sueltos que se ven igual entre si. */}
+          <nav aria-label="Secciones del panel" style={{
+            display: 'inline-flex', gap: 2, padding: 3,
+            background: 'var(--admin-surface-soft)',
+            border: '1px solid var(--admin-border)',
+            borderRadius: 12,
+          }}>
+            {ORDEN_PAGINAS.map((id) => {
+              const activa = page === id;
+              const Icono = PAGINAS[id].icono;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setPage(id)}
+                  aria-current={activa ? 'page' : undefined}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 7,
+                    minHeight: 36, padding: '0 14px', borderRadius: 9,
+                    border: '1px solid transparent',
+                    background: activa ? 'var(--admin-surface)' : 'transparent',
+                    borderColor: activa ? 'var(--admin-border)' : 'transparent',
+                    color: activa ? 'var(--admin-text)' : 'var(--admin-muted)',
+                    fontFamily: 'inherit', fontSize: 13,
+                    fontWeight: activa ? 700 : 500,
+                    cursor: 'pointer', transition: 'color 150ms, background 150ms',
+                  }}
+                >
+                  <Icono size={15} aria-hidden="true" /> {PAGINAS[id].pestana}
+                </button>
+              );
+            })}
+          </nav>
         </div>
+
         {page === 'appointments' && (
-          <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} lockedTherapistId={therapistId} />
+          <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} lockedTherapistId={therapistId} embedded />
         )}
         {page === 'schedule' && (
-          <AdminSchedules catalogs={catalogs} lockedTherapistId={therapistId} reload={catalogActions?.reload} />
+          <AdminSchedules catalogs={catalogs} lockedTherapistId={therapistId} reload={catalogActions?.reload} embedded />
         )}
         {page === 'patients' && (
           <DoctorPatients
@@ -206,6 +230,32 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
     </div>
   );
 }
+
+// El titulo, la frase y la pestaña de cada seccion en UN lugar. Antes
+// estaban en tres ternarios encadenados dentro del JSX, que es donde se
+// desincronizan.
+const PAGINAS = {
+  appointments: {
+    titulo: 'Mis citas',
+    pestana: 'Citas',
+    icono: CalendarIcon,
+    descripcion: 'Las citas asignadas a tu usuario. Puedes confirmarlas, reprogramarlas o cancelarlas.',
+  },
+  patients: {
+    titulo: 'Pacientes y notas',
+    pestana: 'Pacientes',
+    icono: User,
+    descripcion: 'El expediente de cada paciente. Las notas clínicas solo las ve el doctor autorizado, y cada lectura queda en la bitácora.',
+  },
+  schedule: {
+    titulo: 'Mi horario',
+    pestana: 'Horario',
+    icono: Clock,
+    descripcion: 'Tus días de trabajo y el descanso que dejas entre citas. Define los horarios que el paciente puede reservar.',
+  },
+};
+
+const ORDEN_PAGINAS = ['appointments', 'patients', 'schedule'];
 
 const topButtonStyle = {
   display: 'inline-flex',
@@ -237,12 +287,22 @@ function DoctorPatients({
   setError,
 }) {
   const patient = patients.find((item) => item.id === selectedPatientId);
-  const patientAppointments = appointments
+  // MEMOIZADAS a proposito, no por rendimiento.
+  //
+  // Construidas en cada render eran un arreglo NUEVO cada vez, y
+  // ClinicalNoteEditor tiene un useEffect que depende de `appointments`:
+  // identidad nueva -> efecto -> setContent('') -> render -> efecto...
+  // React tiraba "Maximum update depth exceeded" en bucle y, peor, el
+  // efecto BORRABA la nota en cada vuelta: no se podia escribir.
+  const patientAppointments = useMemo(() => appointments
     .filter((appointment) => appointment.patientId === selectedPatientId)
-    .sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
-  const patientNotes = notes
+    .sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`)),
+  [appointments, selectedPatientId]);
+
+  const patientNotes = useMemo(() => notes
     .filter((note) => note.patientId === selectedPatientId)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+  [notes, selectedPatientId]);
 
   // Abrir el expediente de un paciente es un ACCESO, y NOM-024 pide
   // auditarlo. Postgres no tiene triggers de SELECT: si la aplicacion no
@@ -270,50 +330,88 @@ function DoctorPatients({
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 0.35fr) minmax(420px, 1fr)', gap: 16 }}>
-      <aside className="admin-card" style={{ borderRadius: 16, padding: 14, alignSelf: 'start' }}>
-        <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, margin: '0 0 10px 4px' }}>PACIENTES</div>
-        <div style={{ display: 'grid', gap: 8 }}>
-          {patients.map((item) => (
-            <button key={item.id} onClick={() => setSelectedPatientId(item.id)} style={{
-              border: `1px solid ${selectedPatientId === item.id ? C.sageDark : 'var(--admin-border)'}`,
-              background: selectedPatientId === item.id ? 'var(--admin-surface-soft)' : 'transparent',
-              color: 'var(--admin-text)',
-              borderRadius: 12,
-              padding: 12,
-              textAlign: 'left',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}>
-              <div style={{ fontWeight: 800, fontSize: 13 }}>{item.name}</div>
-              <div style={{ color: 'var(--admin-muted)', fontSize: 11, marginTop: 2 }}>{item.email}</div>
-            </button>
-          ))}
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(230px, 0.3fr) minmax(420px, 1fr)', gap: 24, alignItems: 'start' }}>
+      {/* Lista de navegacion, no una reja de tarjetas: son nombres que se
+          recorren con la vista. Una tarjeta por paciente pesaba mas que el
+          dato que llevaba dentro. */}
+      <aside style={{ alignSelf: 'start', position: 'sticky', top: 16 }}>
+        <div style={{
+          color: 'var(--admin-muted)', fontSize: 12, fontWeight: 600,
+          padding: '0 0 8px 12px',
+        }}>
+          {patients.length} {patients.length === 1 ? 'paciente' : 'pacientes'}
+        </div>
+        <div role="listbox" aria-label="Pacientes" style={{ display: 'grid', gap: 1 }}>
+          {patients.map((item) => {
+            const activo = selectedPatientId === item.id;
+            return (
+              <button
+                key={item.id}
+                role="option"
+                aria-selected={activo}
+                onClick={() => setSelectedPatientId(item.id)}
+                style={{
+                  display: 'grid', gap: 2,
+                  // La barra de la izquierda dice cual esta abierto sin
+                  // encerrar cada nombre en su propia caja.
+                  borderLeft: `2px solid ${activo ? C.sageLight : 'transparent'}`,
+                  border: 'none', borderLeftWidth: 2, borderLeftStyle: 'solid',
+                  borderLeftColor: activo ? C.sageLight : 'transparent',
+                  background: activo ? 'var(--admin-surface)' : 'transparent',
+                  color: 'var(--admin-text)',
+                  borderRadius: '0 10px 10px 0',
+                  padding: '10px 12px',
+                  textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                  transition: 'background 150ms',
+                }}
+              >
+                <span style={{ fontWeight: activo ? 700 : 500, fontSize: 13.5 }}>{item.name}</span>
+                <span style={{ color: 'var(--admin-muted)', fontSize: 11.5 }}>{item.email}</span>
+              </button>
+            );
+          })}
         </div>
       </aside>
 
-      <section style={{ display: 'grid', gap: 14 }}>
+      <section style={{ display: 'grid', gap: 28, minWidth: 0 }}>
         {error && (
           <div style={{ background: C.rustAlpha20, border: `1px solid ${C.rustAlpha40}`, color: C.rust, borderRadius: 12, padding: 12, fontSize: 12, fontWeight: 700 }}>
             {error}
           </div>
         )}
-        <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+        {/* Sin tarjeta: el nombre del paciente ES el encabezado de esta
+            columna, y meterlo en una caja lo bajaba al mismo rango visual
+            que el resto. Las tres cifras van como una linea legible en vez
+            de tres tarjetas que compiten con el contenido real. */}
+        <header>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
             <div>
-              <h2 className="font-display" style={{ margin: 0, fontSize: 24, color: 'var(--admin-text)' }}>{patient?.name}</h2>
-              <div style={{ color: 'var(--admin-muted)', fontSize: 12, marginTop: 4 }}>{patient?.email} · {patient?.phone}</div>
+              <h2 className="font-display" style={{ margin: 0, fontSize: 26, fontWeight: 500, letterSpacing: '-0.015em', color: 'var(--admin-text)' }}>
+                {patient?.name}
+              </h2>
+              <div style={{ color: 'var(--admin-muted)', fontSize: 12.5, marginTop: 5 }}>
+                {[patient?.email, patient?.phone].filter(Boolean).join(' · ')}
+              </div>
             </div>
-            <button onClick={reload} disabled={loading} style={smallButtonStyle}>
-              {loading ? 'Cargando...' : 'Actualizar'}
+            <button onClick={reload} disabled={loading} style={ghostButtonStyle}>
+              {loading ? 'Cargando…' : 'Actualizar'}
             </button>
           </div>
-          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-            <Stat label="Citas" value={patientAppointments.length} />
-            <Stat label="Notas clínicas" value={patientNotes.length} />
-            <Stat label="Última cita" value={patientAppointments[0] ? `${patientAppointments[0].date} ${patientAppointments[0].time}` : 'Sin historial'} />
-          </div>
-        </div>
+
+          <dl style={{
+            display: 'flex', flexWrap: 'wrap', gap: '0 28px', margin: '16px 0 0',
+            paddingTop: 14, borderTop: '1px solid var(--admin-border-soft)',
+          }}>
+            <Dato etiqueta="Citas" valor={patientAppointments.length} />
+            <Dato etiqueta="Notas clínicas" valor={patientNotes.length} />
+            <Dato
+              etiqueta="Última cita"
+              valor={patientAppointments[0]
+                ? fechaLegible(patientAppointments[0].date, patientAppointments[0].time)
+                : 'Sin historial'}
+            />
+          </dl>
+        </header>
 
         <ClinicalNoteEditor
           patient={patient}
@@ -324,10 +422,22 @@ function DoctorPatients({
           setError={setError}
         />
 
-        <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
-          <h3 style={{ margin: '0 0 12px', color: 'var(--admin-text)', fontSize: 14 }}>Historial de notas</h3>
+        <section>
+          <h3 style={{
+            margin: '0 0 12px', color: 'var(--admin-text)',
+            fontSize: 15, fontWeight: 600,
+          }}>
+            Historial de notas
+          </h3>
           {patientNotes.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--admin-muted)', fontSize: 13 }}>No hay notas clínicas para este paciente.</p>
+            /* Un estado vacio dice que hacer, no solo que no hay nada. */
+            <p style={{
+              margin: 0, color: 'var(--admin-muted)', fontSize: 13, lineHeight: 1.6,
+              padding: '16px 0', borderTop: '1px solid var(--admin-border-soft)',
+            }}>
+              Todavía no hay notas de este paciente. La primera queda como borrador: puedes
+              corregirla hasta que la firmes.
+            </p>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
               {patientNotes.map((note) => (
@@ -335,7 +445,7 @@ function DoctorPatients({
               ))}
             </div>
           )}
-        </div>
+        </section>
       </section>
     </div>
   );
@@ -346,10 +456,13 @@ function ClinicalNoteEditor({ patient, appointments, session, therapistId, setNo
   const [content, setContent] = useState('');
   const canSave = Boolean(patient?.id && appointmentId && content.trim().length > 0 && content.trim().length <= 5000);
 
+  // Depende del ID de la primera cita y del paciente, no del ARREGLO: un
+  // arreglo recreado no debe vaciar lo que el doctor lleva escrito.
+  const primeraCitaId = appointments[0]?.id || '';
   useEffect(() => {
-    setAppointmentId(appointments[0]?.id || '');
+    setAppointmentId(primeraCitaId);
     setContent('');
-  }, [appointments, patient?.id]);
+  }, [primeraCitaId, patient?.id]);
 
   const save = async () => {
     if (!canSave) return;
@@ -376,28 +489,46 @@ function ClinicalNoteEditor({ patient, appointments, session, therapistId, setNo
   };
 
   return (
-    <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
-      <h3 style={{ margin: '0 0 12px', color: 'var(--admin-text)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <FileText size={16} /> Nueva nota clínica
+    <div className="admin-card" style={{ borderRadius: 14, padding: 18 }}>
+      <h3 style={{
+        margin: '0 0 4px', color: 'var(--admin-text)', fontSize: 15, fontWeight: 600,
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <FileText size={16} aria-hidden="true" style={{ color: 'var(--admin-accent-text)' }} /> Nueva nota clínica
       </h3>
-      <div style={{ display: 'grid', gap: 10 }}>
+      <p style={{ margin: '0 0 14px', color: 'var(--admin-muted)', fontSize: 12.5, lineHeight: 1.5 }}>
+        Se guarda como borrador. Podrás corregirla hasta que la firmes.
+      </p>
+      <div style={{ display: 'grid', gap: 12 }}>
         <label style={{ display: 'grid', gap: 6 }}>
-          <span style={fieldLabel}>CITA RELACIONADA</span>
+          <span style={fieldLabel}>Cita que se documenta</span>
           <select value={appointmentId} onChange={(event) => setAppointmentId(event.target.value)} className="admin-input" style={fieldInput}>
-            <option value="">Selecciona cita</option>
+            <option value="">Selecciona la cita</option>
             {appointments.map((appointment) => (
-              <option key={appointment.id} value={appointment.id}>{appointment.date} {appointment.time}</option>
+              <option key={appointment.id} value={appointment.id}>
+                {fechaLegible(appointment.date, appointment.time)}
+              </option>
             ))}
           </select>
         </label>
         <label style={{ display: 'grid', gap: 6 }}>
-          <span style={fieldLabel}>NOTA</span>
-          <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={5} maxLength={5000} className="admin-input" style={{ ...fieldInput, resize: 'vertical' }} />
+          <span style={fieldLabel}>Nota</span>
+          <textarea
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            rows={6}
+            maxLength={5000}
+            placeholder="Lo observado en la sesión, el plan y los acuerdos."
+            className="admin-input"
+            style={{ ...fieldInput, resize: 'vertical', lineHeight: 1.6 }}
+          />
         </label>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <span style={{ color: content.length > 5000 ? C.rust : 'var(--admin-muted)', fontSize: 11 }}>{content.length}/5000</span>
-          <button onClick={save} disabled={!canSave} style={{ ...smallButtonStyle, opacity: canSave ? 1 : 0.45, cursor: canSave ? 'pointer' : 'not-allowed' }}>
-            <Plus size={14} /> Guardar nota
+          <span style={{ color: content.length > 4500 ? C.caramel : 'var(--admin-muted)', fontSize: 11.5 }}>
+            {content.length.toLocaleString('es-MX')} / 5,000
+          </span>
+          <button onClick={save} disabled={!canSave} style={{ ...smallButtonStyle, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}>
+            <Plus size={14} aria-hidden="true" /> Guardar nota
           </button>
         </div>
       </div>
@@ -529,16 +660,26 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
   );
 }
 
-function Stat({ label, value }) {
+// Etiqueta arriba en minusculas y dato abajo. Tres de estos en linea
+// pesan menos que tres tarjetas y se leen igual de rapido.
+function Dato({ etiqueta, valor }) {
   return (
-    <div style={{ background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border)', borderRadius: 12, padding: 12 }}>
-      <div style={{ color: 'var(--admin-muted)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>{label.toUpperCase()}</div>
-      <div style={{ color: 'var(--admin-text)', fontSize: 16, fontWeight: 800, marginTop: 4 }}>{value}</div>
+    <div>
+      <dt style={{ color: 'var(--admin-muted)', fontSize: 11.5, fontWeight: 500 }}>{etiqueta}</dt>
+      <dd style={{ color: 'var(--admin-text)', fontSize: 15, fontWeight: 600, margin: '3px 0 0' }}>{valor}</dd>
     </div>
   );
 }
 
-const fieldLabel = { color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 };
+// '2026-09-01 15:00' no es una fecha que alguien lea entre paciente y
+// paciente. localDate evita el desfase de un dia del parseo UTC.
+function fechaLegible(iso, hora) {
+  if (!iso) return 'Sin historial';
+  const d = localDate(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' });
+  return hora ? `${d}, ${hora}` : d;
+}
+
+const fieldLabel = { color: 'var(--admin-muted)', fontSize: 12, fontWeight: 500 };
 const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' };
 const smallButtonStyle = {
   display: 'inline-flex',
@@ -554,6 +695,14 @@ const smallButtonStyle = {
   fontSize: 12,
   fontWeight: 800,
 };
+const ghostButtonStyle = {
+  display: 'inline-flex', alignItems: 'center', gap: 7,
+  background: 'transparent', border: '1px solid var(--admin-border)',
+  color: 'var(--admin-text)', borderRadius: 9,
+  minHeight: 36, padding: '0 14px',
+  cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
+};
+
 const iconButtonStyle = {
   background: 'var(--admin-surface)',
   border: '1px solid var(--admin-border)',

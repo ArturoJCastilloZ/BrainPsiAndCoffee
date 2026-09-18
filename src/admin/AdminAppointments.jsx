@@ -23,6 +23,10 @@ export default function AdminAppointments({
   // pantalla y ninguna policy de 0027 incluye al doctor, asi que el valor
   // por omision falla cerrado en vez de ofrecer un boton que la base niega.
   payments = [], canRecordPayments = false, onRegistrarCobro = null,
+  // El panel doctor ya pinta su propio titulo antes de incrustar esta
+  // pantalla. Sin esto salen DOS encabezados peleandose el mismo rol:
+  // "Mis citas" y debajo "Citas / Gestiona reservaciones...".
+  embedded = false,
 }) {
   const services = catalogs?.services || THERAPY_SERVICES;
   const therapists = catalogs?.therapists || THERAPISTS;
@@ -220,8 +224,12 @@ export default function AdminAppointments({
 
   return (
     <div>
-      <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Citas</h1>
-      <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginBottom: 24 }}>Gestiona reservaciones, confirma o reprograma</p>
+      {!embedded && (
+        <>
+          <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Citas</h1>
+          <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginBottom: 24 }}>Gestiona reservaciones, confirma o reprograma</p>
+        </>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
         <button onClick={() => setCreating(!creating)} style={{
@@ -324,82 +332,146 @@ export default function AdminAppointments({
       }} />
 
       {filtered.length === 0 ? (
-        <div className="admin-card" style={{ borderRadius: 14, padding: 40, textAlign: 'center' }}>
-          <CalendarIcon size={32} color="var(--admin-subtle)" strokeWidth={1.5} style={{ margin: '0 auto 10px', display: 'block' }} />
-          <p style={{ fontSize: 13, color: 'var(--admin-muted)', margin: 0 }}>No hay citas en esta vista</p>
+        /* El vacio dice que hacer, y distingue "no hay nada" de "tu
+           filtro no encontro nada": son dos situaciones distintas y la
+           salida de cada una es distinta. */
+        <div style={{ maxWidth: 380, padding: '56px 0', margin: '0 auto', textAlign: 'center' }}>
+          <CalendarIcon size={28} color="var(--admin-subtle)" strokeWidth={1.5} style={{ margin: '0 auto 12px', display: 'block' }} />
+          <p style={{ fontSize: 14, color: 'var(--admin-text)', margin: '0 0 6px', fontWeight: 600 }}>
+            {search.trim()
+              ? `Ningún resultado para “${search.trim()}”`
+              : filter === 'upcoming' ? 'No hay citas próximas'
+                : filter === 'cancelled' ? 'Ninguna cita cancelada'
+                  : filter === 'past' ? 'Todavía no hay citas pasadas'
+                    : 'Aún no hay citas'}
+          </p>
+          <p style={{ fontSize: 12.5, color: 'var(--admin-muted)', margin: 0, lineHeight: 1.55 }}>
+            {search.trim()
+              ? 'Revisa el nombre o el correo, o limpia la búsqueda.'
+              : filter === 'upcoming' ? 'Las citas ya atendidas están en “Pasadas”.'
+                : 'Agenda la primera con “Nueva cita”.'}
+          </p>
+          {search.trim() && (
+            <button onClick={() => setSearch('')} style={{
+              marginTop: 14, background: 'transparent', border: '1px solid var(--admin-border)',
+              color: 'var(--admin-text)', borderRadius: 9, minHeight: 36, padding: '0 14px',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
+            }}>Limpiar búsqueda</button>
+          )}
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
-          {filtered.map(b => {
-            const s = services.find(sv => sv.id === b.serviceId);
-            const t = therapists.find(th => th.id === b.therapistId);
-            return (
-              <div key={b.id} className="admin-card" style={{ borderRadius: 12, padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                  <div style={{ background: 'var(--admin-surface-soft)', padding: '10px 14px', borderRadius: 10, textAlign: 'center', minWidth: 56 }}>
-                    <div className="font-display" style={{ fontSize: 18, color: 'var(--admin-text)', fontWeight: 600, lineHeight: 1 }}>{localDate(b.date).getDate()}</div>
-                    <div style={{ fontSize: 9, color: 'var(--admin-accent-text)', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{localDate(b.date).toLocaleDateString('es-MX', { month: 'short' })}</div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ fontSize: 14, color: 'var(--admin-text)', fontWeight: 600 }}>{b.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--admin-muted)', marginTop: 2 }}>{s?.name} · {t?.name || 'Sin asignar'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--admin-accent-text)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={10} /> {b.time}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={10} /> {b.phone}</span>
-                    </div>
-                  </div>
-                  <span style={{
-                    fontSize: 9, padding: '3px 8px', borderRadius: 999, fontWeight: 700, letterSpacing: 0.5,
-                    background: b.status === 'cancelled' ? C.rustAlpha30 : (b.status === 'completed' ? 'var(--admin-border)' : C.sageDark),
-                    color: b.status === 'cancelled' ? C.rust : (b.status === 'completed' ? 'var(--admin-accent-text)' : 'var(--admin-on-accent)')
-                  }}>{b.status.toUpperCase()}</span>
-                  {canRecordPayments && b.status !== 'cancelled' && (
-                    <CobroChip
-                      booking={b}
-                      payments={payments}
-                      onCobrar={() => setCobrando(b)}
-                    />
-                  )}
-                  {b.status === 'confirmed' && (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => startReschedule(b)} title="Reagendar" style={{
-                        background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border)', color: 'var(--admin-accent-text)', padding: 6, borderRadius: 8, cursor: 'pointer'
-                      }}>
-                        <RefreshCw size={14} />
-                      </button>
-                      <button onClick={() => updateStatus(b.id, 'completed')} title="Marcar completada" style={{
-                        background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border)', color: 'var(--admin-accent-text)', padding: 6, borderRadius: 8, cursor: 'pointer'
-                      }}>
-                        <Check size={14} />
-                      </button>
-                      <button onClick={() => updateStatus(b.id, 'cancelled')} title="Cancelar" style={{
-                        background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border)', color: C.rust, padding: 6, borderRadius: 8, cursor: 'pointer'
-                      }}>
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {b.notes && (
-                  <div style={{ marginTop: 10, padding: 10, background: 'var(--admin-surface-soft)', borderRadius: 8, fontSize: 11, color: 'var(--admin-row-text)', borderLeft: `2px solid ${C.caramel}` }}>
-                    <strong style={{ color: 'var(--admin-text)' }}>Nota:</strong> {b.notes}
-                  </div>
-                )}
-                {reschedulingId === b.id && (
-                  <AdminReschedulePanel
-                    booking={b}
-                    draft={rescheduleDraft}
-                    setDraft={setRescheduleDraft}
-                    bookings={bookings}
-                    therapists={therapists}
-                    services={services} schedules={schedules}
-                    onSave={() => saveExistingReschedule(b)}
-                    onClose={() => setReschedulingId(null)}
-                  />
-                )}
+        /* Agrupadas por dia. Antes era una lista plana de tarjetas: el
+           dia solo se leia en un cuadro por fila, asi que para saber
+           "que tengo el jueves" habia que ir sumando con la vista. */
+        <div style={{ display: 'grid', gap: 26 }}>
+          {agruparPorDia(filtered).map(([dia, citas]) => (
+            <section key={dia}>
+              <div style={{
+                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                gap: 12, padding: '0 2px 8px',
+                borderBottom: '1px solid var(--admin-border-soft)', marginBottom: 2,
+              }}>
+                <h2 style={{
+                  margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--admin-text)',
+                }}>
+                  {etiquetaDia(dia)}
+                </h2>
+                <span style={{ fontSize: 12, color: 'var(--admin-muted)' }}>
+                  {citas.length} {citas.length === 1 ? 'cita' : 'citas'}
+                </span>
               </div>
-            );
-          })}
+
+              {citas.map(b => {
+                const s = services.find(sv => sv.id === b.serviceId);
+                const t = therapists.find(th => th.id === b.therapistId);
+                return (
+                  <div key={b.id} style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: ' 76px minmax(0, 1fr) auto',
+                      alignItems: 'center', gap: 14, padding: '12px 2px',
+                      opacity: b.status === 'cancelled' ? 0.55 : 1,
+                    }}>
+                      {/* Columna de hora fija: es lo que hace que la lista
+                          se lea en vertical de un vistazo. tabular-nums
+                          evita que los digitos bailen de fila en fila. */}
+                      <div>
+                        <div style={{
+                          fontSize: 14.5, fontWeight: 600, color: 'var(--admin-text)',
+                          fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
+                        }}>{b.time}</div>
+                        <div style={{ fontSize: 11.5, color: 'var(--admin-muted)', marginTop: 1 }}>
+                          {b.durationMinutes || s?.duration || 50} min
+                        </div>
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        {/* El nombre del paciente no se trunca sin mas: en
+                            contexto clinico una identificacion a medias es
+                            un riesgo, asi que lleva title. */}
+                        <div title={b.name} style={{
+                          fontSize: 14, color: 'var(--admin-text)', fontWeight: 600,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>{b.name}</div>
+                        <div style={{
+                          fontSize: 12, color: 'var(--admin-muted)', marginTop: 2,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {[s?.name, t?.name || 'Sin asignar', b.phone].filter(Boolean).join(' · ')}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <EstadoCita status={b.status} />
+                        {canRecordPayments && b.status !== 'cancelled' && (
+                          <CobroChip booking={b} payments={payments} onCobrar={() => setCobrando(b)} />
+                        )}
+                        {b.status === 'confirmed' && (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button onClick={() => startReschedule(b)} title="Reagendar" aria-label={`Reagendar la cita de ${b.name}`} style={accionStyle}>
+                              <RefreshCw size={14} aria-hidden="true" />
+                            </button>
+                            <button onClick={() => updateStatus(b.id, 'completed')} title="Marcar completada" aria-label={`Marcar como completada la cita de ${b.name}`} style={accionStyle}>
+                              <Check size={14} aria-hidden="true" />
+                            </button>
+                            <button onClick={() => updateStatus(b.id, 'cancelled')} title="Cancelar" aria-label={`Cancelar la cita de ${b.name}`} style={accionStyle}>
+                              <X size={14} aria-hidden="true" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {b.notes && (
+                      <div style={{
+                        margin: '0 0 12px', padding: '8px 12px', borderRadius: 8,
+                        background: 'var(--admin-surface-soft)',
+                        borderLeft: `2px solid ${C.caramel}`,
+                        fontSize: 12, color: 'var(--admin-row-text)', lineHeight: 1.5,
+                      }}>
+                        {b.notes}
+                      </div>
+                    )}
+
+                    {reschedulingId === b.id && (
+                      <div style={{ marginBottom: 12 }}>
+                        <AdminReschedulePanel
+                          booking={b}
+                          draft={rescheduleDraft}
+                          setDraft={setRescheduleDraft}
+                          bookings={bookings}
+                          therapists={therapists}
+                          services={services} schedules={schedules}
+                          onSave={() => saveExistingReschedule(b)}
+                          onClose={() => setReschedulingId(null)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          ))}
         </div>
       )}
 
@@ -417,6 +489,72 @@ export default function AdminAppointments({
     </div>
   );
 }
+
+// Agrupa por fecha conservando el orden que trae la lista filtrada.
+function agruparPorDia(citas) {
+  const mapa = new Map();
+  citas.forEach((c) => {
+    const dia = String(c.date || '').slice(0, 10);
+    if (!mapa.has(dia)) mapa.set(dia, []);
+    mapa.get(dia).push(c);
+  });
+  // Dentro del dia, por hora: una agenda se lee de la mañana a la noche.
+  mapa.forEach((filas) => filas.sort((a, b) => String(a.time).localeCompare(String(b.time))));
+  return Array.from(mapa.entries());
+}
+
+// "Hoy" y "Mañana" primero, la fecha despues: es lo que ahorra el calculo
+// mental de a que dia corresponde un 19.
+function etiquetaDia(iso) {
+  const d = localDate(iso);
+  const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+  const dias = Math.round((d - hoy) / 86400000);
+  // Solo la primera letra. textTransform:'capitalize' ponia mayuscula en
+  // cada palabra y producia "Sábado, 19 De Septiembre".
+  const crudo = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+  const fecha = crudo.charAt(0).toUpperCase() + crudo.slice(1);
+  if (dias === 0) return `Hoy · ${fecha}`;
+  if (dias === 1) return `Mañana · ${fecha}`;
+  if (dias === -1) return `Ayer · ${fecha}`;
+  return fecha;
+}
+
+// El estado normal NO lleva color.
+//
+// En software clinico el presupuesto de color es de seguridad, no de
+// estetica: cuando todo grita, nada se lee. "Cancelada" es un hecho
+// administrativo corriente y antes se pintaba en rojo, el mismo rojo que
+// deberia quedar para un fallo real al guardar una nota.
+//
+// Ademas del color va la PALABRA, para quien no distingue los tonos.
+const ESTADO_CITA = {
+  confirmed: { texto: 'Confirmada', acento: true },
+  completed: { texto: 'Completada', acento: false },
+  cancelled: { texto: 'Cancelada', acento: false },
+};
+
+function EstadoCita({ status }) {
+  const e = ESTADO_CITA[status] || { texto: status, acento: false };
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      height: 22, padding: '0 9px', borderRadius: 6,
+      fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+      background: e.acento ? C.sageDarkAlpha50 : 'var(--admin-surface-soft)',
+      border: `1px solid ${e.acento ? C.sageDark : 'var(--admin-border)'}`,
+      color: e.acento ? 'var(--admin-text)' : 'var(--admin-muted)',
+    }}>
+      {e.texto}
+    </span>
+  );
+}
+
+const accionStyle = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: 30, height: 30,
+  background: 'transparent', border: '1px solid var(--admin-border)',
+  color: 'var(--admin-muted)', borderRadius: 8, cursor: 'pointer',
+};
 
 // El estado de cobro de la cita, y el boton que la cobra.
 //
