@@ -48,6 +48,23 @@ export const canManageSchedules = (role) => canAccessClinic(role);
 export const canManageAppointments = (role) => canAccessClinic(role);
 export const canViewDashboard = (role) => isSuperAdmin(role);
 
+// Contabilidad. Los tres entran, pero cada uno a lo suyo: el area que ve
+// NO se decide aqui sino en RLS (0027), porque una policy no se esquiva y
+// una pantalla si. Esto solo decide si el menu dibuja la entrada.
+export const canViewAccounting = (role) => (
+  isSuperAdmin(role) || isCafeAdmin(role) || isClinicAdmin(role)
+);
+
+// Que areas puede ELEGIR en el selector. El dueño las dos y el total;
+// cada administrador queda fijado a la suya, sin selector que ofrezca algo
+// que la base le va a negar igual.
+export const accountingAreas = (role) => {
+  if (isSuperAdmin(role)) return ['todo', 'consultorio', 'cafeteria'];
+  if (isClinicAdmin(role)) return ['consultorio'];
+  if (isCafeAdmin(role)) return ['cafeteria'];
+  return [];
+};
+
 export const firstAllowedAdminPage = (role) => {
   if (canViewDashboard(role)) return 'general-dashboard';
   if (canManageOrders(role)) return 'cafe-orders';
@@ -64,6 +81,7 @@ export const canAccessAdminPage = (role, page) => {
   if (page === 'general-access') return canManageAccess(role);
   if (page === 'clinic-schedules') return canManageSchedules(role);
   if (page === 'cafe-orders') return canManageOrders(role);
+  if (page === 'general-accounting') return canViewAccounting(role);
   if (page === 'cafe-products' || page === 'cafe-options' || page === 'cafe-offers') return canManageCafeCatalog(role);
   if (
     page === 'clinic-appointments' ||

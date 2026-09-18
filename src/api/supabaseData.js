@@ -436,6 +436,99 @@ export const logClinicalNoteAccess = async (noteIds) => {
   if (fallo) throw fallo.error;
 };
 
+// --- Contabilidad -----------------------------------------------------
+//
+// RLS decide que filas devuelve: el admin de cafeteria solo ve cobros de
+// pedidos, el de consultorio solo de citas, y el dueño ambos. La consulta
+// es la misma para los tres — el filtro no viaja en el cliente.
+
+const mapPaymentFromDb = (row) => ({
+  id: row.id,
+  appointmentId: row.appointment_id,
+  orderId: row.order_id,
+  amount: toNumber(row.amount),
+  method: row.method,
+  paidAt: row.paid_at,
+  reference: row.reference || '',
+  notes: row.notes || '',
+});
+
+const mapPaymentToDb = (item) => ({
+  id: item.id,
+  appointment_id: item.appointmentId || null,
+  order_id: item.orderId || null,
+  amount: Number(item.amount || 0),
+  method: item.method,
+  paid_at: item.paidAt || new Date().toISOString(),
+  reference: item.reference || null,
+  notes: item.notes || null,
+  updated_at: new Date().toISOString(),
+});
+
+const mapExpenseFromDb = (row) => ({
+  id: row.id,
+  area: row.area,
+  category: row.category,
+  description: row.description || '',
+  amount: toNumber(row.amount),
+  spentAt: row.spent_at,
+  method: row.method || '',
+  reference: row.reference || '',
+});
+
+const mapExpenseToDb = (item) => ({
+  id: item.id,
+  area: item.area,
+  category: item.category,
+  description: item.description || null,
+  amount: Number(item.amount || 0),
+  spent_at: item.spentAt,
+  method: item.method || null,
+  reference: item.reference || null,
+  updated_at: new Date().toISOString(),
+});
+
+export const loadAccounting = async () => {
+  assertSupabaseConfigured();
+  const [pagos, gastos] = await Promise.all([
+    supabase.from('payments').select('*').order('paid_at', { ascending: false }),
+    supabase.from('expenses').select('*').order('spent_at', { ascending: false }),
+  ]);
+  throwIfError(pagos);
+  throwIfError(gastos);
+  return {
+    payments: (pagos.data || []).map(mapPaymentFromDb),
+    expenses: (gastos.data || []).map(mapExpenseFromDb),
+  };
+};
+
+export const savePayment = async (payment) => {
+  assertSupabaseConfigured();
+  const result = await supabase.from('payments').upsert(mapPaymentToDb(payment)).select().maybeSingle();
+  throwIfError(result);
+  return result.data ? mapPaymentFromDb(result.data) : null;
+};
+
+export const saveExpense = async (expense) => {
+  assertSupabaseConfigured();
+  const result = await supabase.from('expenses').upsert(mapExpenseToDb(expense)).select().maybeSingle();
+  throwIfError(result);
+  return result.data ? mapExpenseFromDb(result.data) : null;
+};
+
+// Se borran de uno en uno y por id. NUNCA con deleteMissing: ese patron
+// borra "todo lo que no este en la lista", y sobre un libro contable
+// significaria que un catalogo a medio cargar arrasa el historial.
+export const deletePayment = async (id) => {
+  assertSupabaseConfigured();
+  throwIfError(await supabase.from('payments').delete().eq('id', id));
+};
+
+export const deleteExpense = async (id) => {
+  assertSupabaseConfigured();
+  throwIfError(await supabase.from('expenses').delete().eq('id', id));
+};
+
 export const loadClinicalNotes = async () => {
   assertSupabaseConfigured();
   const result = await supabase

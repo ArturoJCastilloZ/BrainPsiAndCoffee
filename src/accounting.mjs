@@ -14,6 +14,22 @@
 //              no menos los pagos del periodo. Un pago de enero contra una
 //              cita de diciembre no reduce lo por cobrar de enero.
 
+// Dinero en pantalla contable.
+//
+// formatMXN (utils.jsx) redondea a enteros y pega el signo despues del
+// simbolo: -8955 sale como '$-8955', 10300 como '$10300' y 1234.56 pierde
+// los centavos. En el menu eso esta bien —'$30' se lee mejor que
+// '$30.00'— pero en un estado de resultados no: el separador de miles es
+// legibilidad, los centavos son exactitud, y el signo va ANTES.
+//
+// Por eso es un formateador aparte y no un cambio al global: el mismo
+// criterio que separar --bp-rust-text de --bp-rust. Un formato por uso.
+const FORMATO_MXN = new Intl.NumberFormat('es-MX', {
+  style: 'currency', currency: 'MXN', minimumFractionDigits: 2, maximumFractionDigits: 2,
+});
+
+export const formatMoney = (n) => FORMATO_MXN.format(Number(n) || 0);
+
 export const CAFETERIA = 'cafeteria';
 export const CONSULTORIO = 'consultorio';
 export const COMPARTIDO = 'compartido';

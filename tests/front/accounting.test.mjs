@@ -5,7 +5,7 @@ import {
   periodRange, previousRange, billedClinic, billedCafe, collected,
   receivableClinic, receivableCafe, expensesOf, profit, variation,
   byService, byTherapist, byProduct, byMethod, nonDeductibleCash,
-  monthlySeries, CAFETERIA, CONSULTORIO,
+  monthlySeries, formatMoney, CAFETERIA, CONSULTORIO,
 } from '../../src/accounting.mjs';
 
 const RANGO = { from: '2026-09-01', to: '2026-09-30' };
@@ -141,5 +141,13 @@ assert.equal(billedClinic([{ id: 'x', date: null, price: 900, status: 'confirmed
 assert.equal(collected([{ amount: 'abc', paidAt: '2026-09-01' }], RANGO), 0);
 assert.equal(billedClinic(undefined, RANGO), 0);
 assert.equal(expensesOf(undefined, RANGO), 0);
+
+// --- Dinero en pantalla ----------------------------------------------
+// formatMXN daba '$-8955', sin separador de miles y sin centavos. En el
+// menu esta bien; en un estado de resultados no.
+assert.equal(formatMoney(-8955), '-$8,955.00', 'el signo va ANTES del simbolo');
+assert.equal(formatMoney(10300), '$10,300.00', 'separador de miles');
+assert.equal(formatMoney(1234.56), '$1,234.56', 'los centavos no se pierden');
+assert.equal(formatMoney(undefined), '$0.00', 'un dato roto no imprime NaN');
 
 console.log('accounting: facturado, cobrado y por cobrar son tres cosas distintas');
