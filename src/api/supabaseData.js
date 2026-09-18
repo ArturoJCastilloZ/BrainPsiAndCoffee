@@ -209,6 +209,11 @@ const mapAppointmentFromDb = (row) => ({
   reminderSent: row.reminder_sent,
   createdAt: row.created_at,
   durationMinutes: Number(row.duration_minutes || 50),
+  // El precio CONGELADO al agendar (0027). Sin esto la contabilidad suma
+  // cero: la columna existe, el motor la lee, y el puente faltaba.
+  // No viaja de vuelta en mapAppointmentToDb a proposito — lo pone y lo
+  // conserva el trigger freeze_appointment_price.
+  price: toNumber(row.price),
 });
 
 export const PRIVACY_NOTICE_VERSION = '2026-08-v1';

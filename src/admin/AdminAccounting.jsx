@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, Minus, Plus, RefreshCw, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, Minus, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
 import { C } from '../theme';
 import { useConfirm } from '../components/ConfirmDialog';
 import { accountingAreas } from '../auth/permissions';
@@ -278,22 +278,10 @@ function Tendencia({ serie }) {
   }
 
   const max = Math.max(...serie.flatMap((p) => [p.facturado, p.cobrado]), 0);
-
-  // Todo en cero no se grafica: dos lineas planas pegadas al eje parecen
-  // un fallo de carga, no "no hubo movimiento". Se dice con palabras.
-  if (max === 0) {
-    return (
-      <div className="admin-card" style={{ borderRadius: 16, padding: 16, marginTop: 14 }}>
-        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: 'var(--admin-row-text)', marginBottom: 8 }}>
-          ÚLTIMOS {serie.length} MESES
-        </div>
-        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--admin-muted)', lineHeight: 1.5 }}>
-          Sin movimientos registrados en este rango. En cuanto registres cobros aparecerá la
-          comparación entre lo facturado y lo cobrado.
-        </p>
-      </div>
-    );
-  }
+  // Todo en cero: se omite la GRAFICA —dos lineas planas pegadas al eje
+  // parecen un fallo de carga— pero NO la tabla. La tabla es el dato; la
+  // grafica solo es su forma. Quitar las dos dejaba la tarjeta muda.
+  const hayMovimiento = max > 0;
 
   const w = 100, h = 32;
   const punto = (i, v) => `${(i / (serie.length - 1)) * w},${h - (v / max) * h}`;
@@ -307,6 +295,7 @@ function Tendencia({ serie }) {
         </div>
         {/* Las dos series se distinguen por ESTILO de linea, no solo por
             color: continua lo facturado, punteada lo cobrado. */}
+        {hayMovimiento && (
         <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--admin-muted)' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <svg width="20" height="4" aria-hidden="true"><line x1="0" y1="2" x2="20" y2="2" stroke={C.brownMid} strokeWidth="2" /></svg>
@@ -317,14 +306,23 @@ function Tendencia({ serie }) {
             Cobrado
           </span>
         </div>
+        )}
       </div>
 
+      {!hayMovimiento && (
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: 'var(--admin-muted)', lineHeight: 1.5 }}>
+          Sin movimientos en estos meses. La comparación aparecerá en cuanto haya cobros.
+        </p>
+      )}
+
+      {hayMovimiento && (
       <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img"
            aria-label={`Facturado y cobrado de los últimos ${serie.length} meses`}
            style={{ width: '100%', height: 110, overflow: 'visible' }}>
         <polyline points={linea('facturado')} fill="none" stroke={C.brownMid} strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
         <polyline points={linea('cobrado')} fill="none" stroke={C.sageDark} strokeWidth="1.2" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
       </svg>
+      )}
 
       {/* La tabla no es un extra de accesibilidad: es el dato. Quien lleva
           la contabilidad quiere el numero, no la forma de la curva. */}
@@ -453,7 +451,7 @@ function Gastos({ filas, areas, onGuardar, onBorrar }) {
               <th scope="col" style={th}>Área</th>
               <th scope="col" style={th}>Concepto</th>
               <th scope="col" style={{ ...th, textAlign: 'right' }}>Monto</th>
-              <th scope="col" style={{ ...th, width: 44 }}><span className="sr-only">Acciones</span></th>
+              <th scope="col" style={{ ...th, width: 60, textAlign: 'right' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -473,9 +471,10 @@ function Gastos({ filas, areas, onGuardar, onBorrar }) {
                       if (ok) onBorrar(g.id);
                     }}
                     aria-label={`Eliminar el gasto ${g.category} de ${formatMoney(g.amount)}`}
-                    style={{ ...pill(false), minHeight: 32, padding: '4px 8px' }}
+                    title="Eliminar gasto"
+                    style={{ ...pill(false), minHeight: 32, padding: '4px 10px', color: C.rustText }}
                   >
-                    <Minus size={13} aria-hidden="true" />
+                    <Trash2 size={13} aria-hidden="true" />
                   </button>
                 </td>
               </tr>

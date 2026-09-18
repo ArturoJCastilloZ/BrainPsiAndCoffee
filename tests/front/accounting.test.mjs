@@ -1,6 +1,7 @@
 // Los numeros que ve un contador. Si estos fallan, el panel miente con
 // aplomo — que es peor que no tenerlo.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   periodRange, previousRange, billedClinic, billedCafe, collected,
   receivableClinic, receivableCafe, expensesOf, profit, variation,
@@ -149,5 +150,31 @@ assert.equal(formatMoney(-8955), '-$8,955.00', 'el signo va ANTES del simbolo');
 assert.equal(formatMoney(10300), '$10,300.00', 'separador de miles');
 assert.equal(formatMoney(1234.56), '$1,234.56', 'los centavos no se pierden');
 assert.equal(formatMoney(undefined), '$0.00', 'un dato roto no imprime NaN');
+
+// --- El puente entre la base y el motor ------------------------------
+//
+// 0027 agrego appointments.price y el motor lo lee, pero
+// mapAppointmentFromDb no lo mapeaba: llegaba undefined y TODO sumaba
+// cero. El panel mostraba "2 citas" y "$0.00" a la vez, sin error alguno
+// — un fallo mudo, que es el peor tipo.
+//
+// Lo encontro el dev mirando la pantalla, no una prueba: el motor estaba
+// impecable porque las pruebas le pasaban objetos con price a mano.
+{
+  const src = readFileSync('src/api/supabaseData.js', 'utf8');
+  const mapper = src.match(/const mapAppointmentFromDb = \(row\) => \(\{[\s\S]*?\n\}\);/)?.[0] || '';
+  assert.ok(mapper.length > 50, 'no se encontro mapAppointmentFromDb');
+  assert.ok(
+    /price\s*:/.test(mapper),
+    'mapAppointmentFromDb debe mapear price: sin el, la contabilidad suma cero sin dar error.',
+  );
+
+  // Y el motor tiene que leer esa misma llave.
+  assert.equal(
+    billedClinic([{ id: 'x', date: '2026-09-10', price: 900, status: 'confirmed' }], RANGO),
+    900,
+    'el motor lee a.price — si el mapper usara otro nombre, esto seguiria pasando y la app no',
+  );
+}
 
 console.log('accounting: facturado, cobrado y por cobrar son tres cosas distintas');
