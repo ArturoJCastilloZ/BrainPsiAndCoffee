@@ -29,6 +29,11 @@ declare
     -- Resolucion de tenant y membresia.
     'current_request_tenant',
     'is_active_member',
+    -- Pertenencia de un TERCERO a la clinica activa (0019). Definer para
+    -- que la policy de profiles no dependa de las policies de
+    -- tenant_members. Devuelve false cuando no hay tenant resuelto, asi
+    -- que un header falsificado no abre nada.
+    'user_belongs_to_current_tenant',
     -- Agenda: responden si/no sin publicar el horario de nadie.
     'fits_in_schedule',
     'within_booking_window',
