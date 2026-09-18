@@ -33,9 +33,17 @@ const delta = (option) => {
 // numeric(10,2) en la base pero aqui son floats, y 30 + 5.1 + 10.2 se
 // puede ir a 45.299999999999997 — un centavo fantasma en un total que el
 // cliente lee.
-export const optionsTotal = (basePrice, { flavor = null, addons = [] } = {}) => {
+// La LECHE tambien suma.
+//
+// La primera version no la recibia, pero el modal si mandaba su id al
+// servidor, y price_of_order_item suma el delta de TODOS los ids. Con una
+// leche de pago, el cliente veia $45 y se le cobraban $53. Latente
+// mientras las leches esten en 0, que es como las siembra 0021 — se
+// activaba la primera vez que alguien editara una desde el admin, que es
+// justo la funcion que se acababa de agregar.
+export const optionsTotal = (basePrice, { milk = null, flavor = null, addons = [] } = {}) => {
   const base = Number(basePrice) || 0;
-  const suma = delta(flavor) + (addons || []).reduce((acc, a) => acc + delta(a), 0);
+  const suma = delta(milk) + delta(flavor) + (addons || []).reduce((acc, a) => acc + delta(a), 0);
   return Math.round((base + suma) * 100) / 100;
 };
 

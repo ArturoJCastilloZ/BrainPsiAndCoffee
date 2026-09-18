@@ -160,3 +160,80 @@ begin
   end if;
   raise notice 'ok · el visitante no puede pisar el total despues del recalculo';
 end $$;
+
+-- ============================================================
+-- Defectos que introdujo 0023 y corrige 0024.
+-- ============================================================
+
+-- A · Un producto INACTIVO no puede destruir el pedido.
+--
+-- saveOrders borra y reinserta las lineas en dos peticiones sin
+-- transaccion. 0023 lanzaba excepcion si el producto estaba inactivo, asi
+-- que el delete quedaba confirmado y el insert rechazado: pedido con CERO
+-- lineas y total 0 para siempre. Bastaba un barista marcando algo listo.
+update public.products set active = false where tenant_id='t_pay' and id='h1';
+
+do $$
+declare v_precio numeric; v_n integer;
+begin
+  delete from public.order_items where tenant_id='t_pay' and order_id='ord-1';
+  insert into public.order_items (tenant_id,order_id,product_id,name,quantity,unit_price,options)
+    values ('t_pay','ord-1','h1','Espresso',1,999,'{"optionIds":["addon-shot","flavor-van"]}'::jsonb);
+
+  select count(*), max(unit_price) into v_n, v_precio
+  from public.order_items where order_id='ord-1';
+  if v_n <> 1 then
+    raise exception 'DESTRUIDO: el pedido quedo con % lineas al reinsertarlo con un producto inactivo', v_n;
+  end if;
+  if v_precio is distinct from 45 then
+    raise exception 'FALLA: la linea de un producto inactivo quedo en % y no en 45', coalesce(v_precio::text,'NULL');
+  end if;
+  raise notice 'ok · un producto inactivo no destruye el pedido, conserva su precio';
+end $$;
+update public.products set active = true where tenant_id='t_pay' and id='h1';
+
+-- B · Un pedido ENTREGADO no se reprecia.
+do $$
+declare v_precio numeric; v_total numeric;
+begin
+  update public.orders set status='delivered' where tenant_id='t_pay' and id='ord-1';
+  update public.products set price = 500 where tenant_id='t_pay' and id='h1';
+
+  delete from public.order_items where tenant_id='t_pay' and order_id='ord-1';
+  insert into public.order_items (tenant_id,order_id,product_id,name,quantity,unit_price,options)
+    values ('t_pay','ord-1','h1','Espresso',1,45,'{}'::jsonb);
+
+  select unit_price into v_precio from public.order_items where order_id='ord-1';
+  if v_precio is distinct from 45 then
+    raise exception 'HISTORIAL: un pedido entregado se reprecio a % (el catalogo subio a 500)', coalesce(v_precio::text,'NULL');
+  end if;
+  raise notice 'ok · un pedido entregado conserva el precio con que se cobro';
+  update public.products set price = 30 where tenant_id='t_pay' and id='h1';
+end $$;
+
+-- C · El personal del cafe tampoco puede pisar los importes.
+insert into auth.users (id,email) values ('bb990000-0000-0000-0000-000000000001','barista@ex.mx');
+insert into public.tenant_members (tenant_id,user_id,role) values
+  ('t_pay','bb990000-0000-0000-0000-000000000001','barista');
+grant select, update on public.orders to authenticated;
+grant select on public.tenant_members to authenticated;
+
+set role authenticated;
+do $$
+begin
+  perform set_config('request.jwt.claims',
+    '{"sub":"bb990000-0000-0000-0000-000000000001","app_metadata":{"memberships":{"t_pay":"barista"}}}', true);
+  perform set_config('request.tenant','t_pay', true);
+  update public.orders set total = 0, subtotal = 0 where id = 'ord-hack';
+end $$;
+reset role;
+
+do $$
+declare v_total numeric;
+begin
+  select total into v_total from public.orders where id='ord-hack';
+  if v_total is distinct from 270 then
+    raise exception 'ROBO: el barista dejo el total en %', coalesce(v_total::text,'NULL');
+  end if;
+  raise notice 'ok · el personal del cafe tampoco fija los importes a mano';
+end $$;

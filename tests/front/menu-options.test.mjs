@@ -72,3 +72,21 @@ assert.deepEqual(describeSelection({ milk: { name: 'Entera' } }), ['Entera']);
 assert.deepEqual(describeSelection(), []);
 
 console.log('menu-options: el precio sale del dato editable, no del codigo');
+
+// --- La leche tambien suma -------------------------------------------
+// El modal manda el id de la leche al servidor y price_of_order_item suma
+// el delta de TODOS los ids. Si el calculo del cliente la ignora, se
+// muestra un precio y se cobra otro.
+{
+  const { milks } = groupOptions([
+    { id: 'm-desl', kind: 'milk', name: 'Deslactosada', priceDelta: 8, sortOrder: 10, active: true },
+  ]);
+  const cara = milks[0];
+
+  assert.equal(optionsTotal(30, { milk: cara }), 38,
+    'DIVERGENCIA: la leche de pago no se sumo, el cliente veria 30 y se le cobrarian 38');
+  assert.equal(optionsTotal(30, { milk: cara, flavor: { priceDelta: 5 }, addons: [{ priceDelta: 10 }] }), 53);
+  assert.equal(optionsTotal(30, { milk: { priceDelta: 0 } }), 30, 'una leche sin costo no cambia el total');
+}
+
+console.log('menu-options: la leche de pago tambien entra en el total');

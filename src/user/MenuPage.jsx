@@ -115,7 +115,7 @@ function CustomizeModal({ item, options, theme, onClose, onAdd }) {
   const [addonIds, setAddonIds] = useState([]);
 
   const chosenAddons = addons.filter((a) => addonIds.includes(a.id));
-  const total = optionsTotal(item.price, { flavor, addons: chosenAddons });
+  const total = optionsTotal(item.price, { milk, flavor, addons: chosenAddons });
   const toggleAddon = (id) => setAddonIds((prev) =>
     prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   const isDark = theme === 'dark';

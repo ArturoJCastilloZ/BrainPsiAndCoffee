@@ -44,6 +44,9 @@ declare
     -- que el visitante anonimo tenga select sobre products/offers.
     -- Acotan por el tenant de la fila, no por el JWT.
     'price_of_order_item',
+    'order_is_closed',
+    'combo_savings_of_order',
+    'freeze_order_amounts',
     'enforce_order_item_price',
     'recalc_order_totals',
     -- Inmutabilidad clinica: no leen datos, solo rechazan escrituras.

@@ -201,6 +201,7 @@ if [[ "$CMD" == "baseline" ]]; then
     "0021_product_options|to_regclass('public.product_options')"
     "0022_clinical_audit|(select 1 from pg_proc where proname='log_clinical_note_access' and pg_get_functiondef(oid) like '%clinical_notes%')"
     "0023_order_pricing_server_side|(select 1 from pg_proc where proname='enforce_order_item_price')"
+    "0024_pricing_and_audit_fixes|(select 1 from pg_proc where proname='freeze_order_amounts')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.
