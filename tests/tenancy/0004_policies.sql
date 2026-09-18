@@ -59,8 +59,23 @@ end $$;
 
 -- Flujo publico (anon, sin membresia).
 do $$
-declare v_n integer; v_txt text;
+declare v_n integer; v_txt text; v_fecha date;
 begin
+  -- La fecha NO puede ser literal: el alta publica pasa por
+  -- within_booking_window(), que exige que la cita caiga despues de
+  -- now() + minimum_notice_minutes (1440 por defecto) y dentro de
+  -- booking_window_days. Un literal escrito hoy caduca solo, y cuando
+  -- caduca la prueba de FUGA de abajo pasa por la razon equivocada: una
+  -- violacion de WITH CHECK levanta insufficient_privilege, el mismo
+  -- SQLSTATE 42501 que un cruce de tenant bloqueado.
+  -- +7 dias deja holgura sobre el aviso minimo y cabe en la ventana.
+  v_fecha := current_date + 7;
+  -- El horario sembrado por defecto es martes-sabado (dow 2..6): si cae
+  -- domingo o lunes, fits_in_schedule() la rechazaria por dia, no por tenant.
+  while extract(dow from v_fecha) in (0,1) loop
+    v_fecha := v_fecha + 1;
+  end loop;
+
   set local role anon;
   perform set_config('request.jwt.claims','', true);
 
@@ -89,13 +104,15 @@ begin
   perform set_config('request.tenant','t_a', true);
   insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
     appointment_time,customer_name,customer_email,customer_phone,duration_minutes)
-  values ('t_a','pubx','sv','tt','2026-09-01','11:00','Pedro Ruiz','np@ex.mx','5533333333',50);
+  values ('t_a','pubx','sv','tt',v_fecha,'11:00','Pedro Ruiz','np@ex.mx','5533333333',50);
 
-  -- Pero no puede agendar en otra clinica.
+  -- Pero no puede agendar en otra clinica. Misma fecha y mismo terapeuta
+  -- que el insert de arriba, que acaba de pasar: lo unico que cambia es el
+  -- tenant, asi que el rechazo solo puede venir del aislamiento.
   begin
     insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
       appointment_time,customer_name,customer_email,customer_phone,duration_minutes)
-    values ('t_b','fugax','sv','tt','2026-09-01','13:00','Pedro Ruiz','x@ex.mx','5544444444',50);
+    values ('t_b','fugax','sv','tt',v_fecha,'13:00','Pedro Ruiz','x@ex.mx','5544444444',50);
     raise exception 'FUGA: un visitante agendo en una clinica que no estaba visitando';
   exception when insufficient_privilege then null;
   end;
