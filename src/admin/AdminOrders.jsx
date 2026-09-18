@@ -13,11 +13,20 @@ import { MENU } from '../data';
 import { uid } from '../utils.jsx';
 import { validateOrder } from '../validation';
 import { canCreateOrders } from '../auth/permissions';
+import PaymentDialog from '../components/PaymentDialog';
+import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
+import { formatMoney } from '../accounting.mjs';
 
 const actionText = '#1E1B18';
 
-export default function AdminOrders({ orders, setOrders, catalogs, session }) {
+export default function AdminOrders({
+  orders, setOrders, catalogs, session,
+  // Por defecto NO se puede cobrar: el barista llega a esta pantalla y
+  // ninguna policy de 0027 lo incluye. Falla cerrado.
+  payments = [], canRecordPayments = false, onRegistrarCobro = null,
+}) {
   const [filter, setFilter] = useState('active');
+  const [cobrando, setCobrando] = useState(null);
   const canCreate = canCreateOrders(session?.user?.role);
   const menu = catalogs?.menu || MENU;
   const products = Object.entries(menu).flatMap(([category, section]) => (section.items || []).filter(item => item.active !== false).map(item => ({ ...item, category, categoryTitle: section.title })));
@@ -222,6 +231,17 @@ export default function AdminOrders({ orders, setOrders, catalogs, session }) {
                 <span className="font-display" style={{ color: 'var(--admin-text)', fontWeight: 700, fontSize: 18 }}>${o.total}</span>
               </div>
 
+              {/* Fuera del bloque de abajo a proposito: ese excluye
+                  'delivered', y un pedido ENTREGADO es justo el que se
+                  cobra. */}
+              {canRecordPayments && o.status !== 'cancelled' && (
+                <CobroPedido
+                  order={o}
+                  payments={payments}
+                  onCobrar={() => setCobrando(o)}
+                />
+              )}
+
               {o.status !== 'delivered' && o.status !== 'cancelled' && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   {o.status === 'received' && (
@@ -255,7 +275,52 @@ export default function AdminOrders({ orders, setOrders, catalogs, session }) {
           ))}
         </div>
       )}
+
+      {cobrando && (
+        <PaymentDialog
+          kind="pedido"
+          doc={cobrando}
+          payments={payments}
+          canRecord={canRecordPayments}
+          descripcion={`Pedido ${String(cobrando.id).slice(0, 8)} · ${cobrando.customerName || 'Mostrador'}`}
+          onGuardar={onRegistrarCobro}
+          onCerrar={() => setCobrando(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Estado de cobro del pedido y el boton que lo cobra.
+function CobroPedido({ order, payments, onCobrar }) {
+  const e = paymentStatus(order, payments, 'pedido');
+  const pagado = e.estado === 'pagado';
+  const sinImporte = e.estado === 'sin-importe';
+
+  return (
+    <button
+      onClick={onCobrar}
+      disabled={pagado || sinImporte}
+      aria-label={`Registrar cobro del pedido ${String(order.id).slice(0, 8)}`}
+      title={
+        sinImporte ? 'Sin importe: revisa el pedido antes de cobrarlo'
+          : pagado ? `Cobrado por completo (${formatMoney(e.total)})`
+            : `${STATUS_LABEL[e.estado]} · faltan ${formatMoney(e.saldo)}`
+      }
+      style={{
+        width: '100%', marginBottom: 10,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        background: pagado ? 'var(--admin-surface-soft)' : 'transparent',
+        color: pagado ? 'var(--admin-accent-text)' : C.rustText,
+        border: `1px solid ${pagado ? 'var(--admin-border)' : C.rustAlpha40}`,
+        padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+        cursor: pagado || sinImporte ? 'default' : 'pointer', fontFamily: 'inherit',
+        opacity: sinImporte ? 0.55 : 1,
+      }}
+    >
+      <DollarSign size={13} aria-hidden="true" />
+      {pagado ? 'Cobrado' : sinImporte ? 'Sin importe' : `Cobrar ${formatMoney(e.saldo)}`}
+    </button>
   );
 }
 

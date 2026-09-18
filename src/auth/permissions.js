@@ -65,6 +65,27 @@ export const accountingAreas = (role) => {
   return [];
 };
 
+// Quien puede REGISTRAR un cobro, y de que.
+//
+// Espeja las policies de 0027 tal cual:
+//   "Clinic staff manage clinic payments" -> appointment_id + (super o
+//    admin de consultorio)
+//   "Cafe staff manage cafe payments"     -> order_id + (super o admin de
+//    cafe)
+// El doctor y el barista no aparecen en ninguna de las dos, asi que no
+// ven el boton: ofrecer uno que la base va a negar es mentirle al usuario.
+// La defensa sigue siendo RLS; esto solo decide que se dibuja.
+export const canRecordPayment = (role, kind) => {
+  if (kind === 'cita') return isSuperAdmin(role) || isClinicAdmin(role);
+  if (kind === 'pedido') return isSuperAdmin(role) || isCafeAdmin(role);
+  return false;
+};
+
+// Los tipos de cobro que puede registrar, en orden. Lo usa el formulario
+// del panel, que no cuelga de una fila concreta.
+export const recordablePaymentKinds = (role) =>
+  ['cita', 'pedido'].filter((kind) => canRecordPayment(role, kind));
+
 export const firstAllowedAdminPage = (role) => {
   if (canViewDashboard(role)) return 'general-dashboard';
   if (canManageOrders(role)) return 'cafe-orders';

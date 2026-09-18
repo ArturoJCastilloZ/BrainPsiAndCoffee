@@ -13,8 +13,17 @@ import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { addDays, todayISO, uid, weekdayLabelsFrom } from '../utils.jsx';
 import { isWorkingDay, timeSlotStates } from '../agenda.mjs';
 import { validateAppointment } from '../validation';
+import PaymentDialog from '../components/PaymentDialog';
+import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
+import { formatMoney } from '../accounting.mjs';
 
-export default function AdminAppointments({ bookings, setBookings, catalogs, lockedTherapistId = null }) {
+export default function AdminAppointments({
+  bookings, setBookings, catalogs, lockedTherapistId = null,
+  // Cobros. Por defecto NO se puede cobrar: DoctorApp renderiza esta misma
+  // pantalla y ninguna policy de 0027 incluye al doctor, asi que el valor
+  // por omision falla cerrado en vez de ofrecer un boton que la base niega.
+  payments = [], canRecordPayments = false, onRegistrarCobro = null,
+}) {
   const services = catalogs?.services || THERAPY_SERVICES;
   const therapists = catalogs?.therapists || THERAPISTS;
   const schedules = catalogs?.schedules || [];
@@ -24,6 +33,7 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
   const [reschedulingId, setReschedulingId] = useState(null);
   const [rescheduleDraft, setRescheduleDraft] = useState({ date: '', time: '' });
   const [formError, setFormError] = useState('');
+  const [cobrando, setCobrando] = useState(null);
   const [draft, setDraft] = useState({
     serviceId: services[0]?.id || '',
     therapistId: lockedTherapistId || 'any',
@@ -343,6 +353,13 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
                     background: b.status === 'cancelled' ? C.rustAlpha30 : (b.status === 'completed' ? 'var(--admin-border)' : C.sageDark),
                     color: b.status === 'cancelled' ? C.rust : (b.status === 'completed' ? 'var(--admin-accent-text)' : 'var(--admin-on-accent)')
                   }}>{b.status.toUpperCase()}</span>
+                  {canRecordPayments && b.status !== 'cancelled' && (
+                    <CobroChip
+                      booking={b}
+                      payments={payments}
+                      onCobrar={() => setCobrando(b)}
+                    />
+                  )}
                   {b.status === 'confirmed' && (
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => startReschedule(b)} title="Reagendar" style={{
@@ -385,7 +402,55 @@ export default function AdminAppointments({ bookings, setBookings, catalogs, loc
           })}
         </div>
       )}
+
+      {cobrando && (
+        <PaymentDialog
+          kind="cita"
+          doc={cobrando}
+          payments={payments}
+          canRecord={canRecordPayments}
+          descripcion={`${cobrando.name || 'Cita'} · ${cobrando.date} ${cobrando.time || ''}`.trim()}
+          onGuardar={onRegistrarCobro}
+          onCerrar={() => setCobrando(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// El estado de cobro de la cita, y el boton que la cobra.
+//
+// Va FUERA del bloque de status === 'confirmed': una cita ya completada es
+// justo la que se cobra, y dejarla sin boton ahi habria reproducido el
+// agujero que este trabajo vino a cerrar.
+function CobroChip({ booking, payments, onCobrar }) {
+  const e = paymentStatus(booking, payments, 'cita');
+  const pagado = e.estado === 'pagado';
+  const sinImporte = e.estado === 'sin-importe';
+
+  return (
+    <button
+      onClick={onCobrar}
+      disabled={pagado || sinImporte}
+      aria-label={`Registrar cobro de la cita de ${booking.name || 'paciente'}`}
+      title={
+        sinImporte ? 'Sin precio congelado: revisa el precio del servicio'
+          : pagado ? `Cobrada por completo (${formatMoney(e.total)})`
+            : `${STATUS_LABEL[e.estado]} · faltan ${formatMoney(e.saldo)}`
+      }
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+        padding: '5px 9px', borderRadius: 999, cursor: pagado || sinImporte ? 'default' : 'pointer',
+        background: pagado ? 'var(--admin-border)' : 'var(--admin-surface-soft)',
+        border: `1px solid ${pagado ? 'var(--admin-border)' : C.rust}`,
+        color: pagado ? 'var(--admin-accent-text)' : C.rustText,
+        opacity: sinImporte ? 0.55 : 1,
+      }}
+    >
+      <DollarSign size={11} aria-hidden="true" />
+      {pagado ? 'COBRADA' : sinImporte ? 'SIN IMPORTE' : `COBRAR ${formatMoney(e.saldo)}`}
+    </button>
   );
 }
 

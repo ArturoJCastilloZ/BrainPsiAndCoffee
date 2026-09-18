@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Minus, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
 import { C } from '../theme';
 import { useConfirm } from '../components/ConfirmDialog';
-import { accountingAreas } from '../auth/permissions';
-import {
-  loadAccounting, savePayment, saveExpense, deleteExpense,
-} from '../api/supabaseData';
+import { accountingAreas, recordablePaymentKinds } from '../auth/permissions';
+import PaymentDialog from '../components/PaymentDialog';
+import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
+import { saveExpense, deleteExpense } from '../api/supabaseData';
 import {
   periodRange, previousRange, billedClinic, billedCafe, collected,
   receivableClinic, receivableCafe, expensesOf, profit, variation,
@@ -23,30 +23,61 @@ const PERIODOS = [
 const ETIQUETA_AREA = { todo: 'Todo', consultorio: 'Consultorio', cafeteria: 'Cafetería' };
 const METODOS = ['efectivo', 'transferencia', 'tarjeta', 'cheque', 'otro'];
 
-export default function AdminAccounting({ bookings = [], orders = [], catalogs = {}, session }) {
+const SIN_CONTABILIDAD = { datos: { payments: [], expenses: [] }, cargando: false, error: '', recargar: () => {}, registrarCobro: async () => {} };
+
+export default function AdminAccounting({ bookings = [], orders = [], catalogs = {}, session, contabilidad = SIN_CONTABILIDAD }) {
   const role = session?.user?.role;
   const areas = accountingAreas(role);
   const [area, setArea] = useState(areas[0] || 'todo');
   const [periodo, setPeriodo] = useState('mes');
-  const [datos, setDatos] = useState({ payments: [], expenses: [] });
-  const [cargando, setCargando] = useState(true);
+  // Los cobros y los gastos los carga AdminApp (useAccountingData) para
+  // que esta pantalla, la de citas y la de pedidos vean el mismo saldo.
+  const { datos, cargando, recargar, registrarCobro } = contabilidad;
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
+  // Los tipos de cobro que el rol puede registrar. Si no puede ninguno,
+  // no se dibuja el boton: RLS lo negaria igual.
+  const tiposCobrables = recordablePaymentKinds(role);
+  const [cobrando, setCobrando] = useState(null);
 
-  const recargar = async () => {
-    setCargando(true);
-    try {
-      setDatos(await loadAccounting());
-      setError('');
-    } catch (err) {
-      setError(err.message || 'No se pudo cargar la contabilidad.');
-    } finally {
-      setCargando(false);
-    }
-  };
-  useEffect(() => { recargar(); }, []);
+  useEffect(() => { setError(contabilidad.error || ''); }, [contabilidad.error]);
 
   const rango = useMemo(() => periodRange(periodo), [periodo]);
+
+  // Lo que falta por cobrar, documento por documento. Las tarjetas dan el
+  // total; esto dice DE QUE, que es lo que hace falta para poder cobrarlo.
+  // Cancelado no se cobra: no se facturo.
+  const pendientes = useMemo(() => {
+    const pagos = datos.payments || [];
+    const filas = [];
+    // El selector de area filtra TODAS las cifras de la pantalla; esta
+    // tabla tiene que obedecerlo igual, o el total de las tarjetas y el
+    // detalle de aqui abajo dirian cosas distintas.
+    const muestraCitas = area !== CAFETERIA;
+    const muestraPedidos = area !== CONSULTORIO;
+    if (muestraCitas && tiposCobrables.includes('cita')) {
+      bookings.filter((b) => b.status !== 'cancelled').forEach((b) => {
+        const e = paymentStatus(b, pagos, 'cita');
+        if (e.estado === 'pagado') return;
+        const d = String(b.date || '').slice(0, 10);
+        if (d < rango.from || d > rango.to) return;
+        filas.push({ kind: 'cita', doc: b, estado: e, fecha: d,
+          etiqueta: `${b.name || 'Cita'} · ${d} ${b.time || ''}`.trim() });
+      });
+    }
+    if (muestraPedidos && tiposCobrables.includes('pedido')) {
+      orders.filter((o) => o.status !== 'cancelled').forEach((o) => {
+        const e = paymentStatus(o, pagos, 'pedido');
+        if (e.estado === 'pagado') return;
+        const d = String(o.createdAt || '').slice(0, 10);
+        if (d < rango.from || d > rango.to) return;
+        filas.push({ kind: 'pedido', doc: o, estado: e, fecha: d,
+          etiqueta: `Pedido ${String(o.id).slice(0, 8)} · ${d}` });
+      });
+    }
+    return filas.sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+  }, [datos.payments, bookings, orders, rango, tiposCobrables, area]);
+
   const previo = useMemo(() => previousRange(rango), [rango]);
 
   const cifras = useMemo(() => {
@@ -135,6 +166,28 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
           vacio="Sin cobros registrados en el periodo."
         />
       </div>
+
+      {tiposCobrables.length > 0 && (
+        <PorCobrar
+          filas={pendientes}
+          onCobrar={(fila) => setCobrando(fila)}
+        />
+      )}
+
+      {cobrando && (
+        <PaymentDialog
+          kind={cobrando.kind}
+          doc={cobrando.doc}
+          payments={datos.payments || []}
+          canRecord={tiposCobrables.includes(cobrando.kind)}
+          descripcion={cobrando.etiqueta}
+          onGuardar={async (fila) => {
+            await registrarCobro(fila);
+            setAviso('Cobro registrado.');
+          }}
+          onCerrar={() => setCobrando(null)}
+        />
+      )}
 
       <Gastos
         filas={cifras.gastosLista}
@@ -385,6 +438,71 @@ function Desglose({ titulo, filas, vacio }) {
 }
 
 // --- Gastos -----------------------------------------------------------
+
+// Lo que falta por cobrar, con el boton que lo cobra.
+//
+// Es la razon de ser de esta seccion: antes el panel sabia sumar cobros
+// pero nada en la aplicacion podia crear uno, asi que "Cobrado" era
+// siempre $0.00. El boton vive junto a la cifra que mueve.
+function PorCobrar({ filas, onCobrar }) {
+  return (
+    <div className="admin-card" style={{ borderRadius: 16, padding: 16, marginTop: 14 }}>
+      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: 'var(--admin-row-text)', marginBottom: 12 }}>
+        POR COBRAR EN EL PERIODO
+      </div>
+
+      {filas.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--admin-muted)' }}>
+          No queda nada por cobrar en el periodo.
+        </p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr>
+              <th scope="col" style={th}>Concepto</th>
+              <th scope="col" style={th}>Estado</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Importe</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Pendiente</th>
+              <th scope="col" style={{ ...th, width: 110, textAlign: 'right' }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((f) => (
+              <tr key={`${f.kind}-${f.doc.id}`}>
+                <td style={td}>{f.etiqueta}</td>
+                <td style={td}>{STATUS_LABEL[f.estado.estado]}</td>
+                <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  {formatMoney(f.estado.total)}
+                </td>
+                <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: C.rustText }}>
+                  {formatMoney(f.estado.saldo)}
+                </td>
+                <td style={{ ...td, textAlign: 'right' }}>
+                  <button
+                    onClick={() => onCobrar(f)}
+                    // Sin importe no se ofrece cobrar: no hay cuanto.
+                    disabled={f.estado.estado === 'sin-importe'}
+                    title={f.estado.estado === 'sin-importe'
+                      ? 'Sin importe: revisa el precio antes de cobrarlo'
+                      : 'Registrar cobro'}
+                    style={{
+                      ...pill(f.estado.estado !== 'sin-importe'),
+                      minHeight: 32, padding: '4px 10px',
+                      opacity: f.estado.estado === 'sin-importe' ? 0.45 : 1,
+                      cursor: f.estado.estado === 'sin-importe' ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <Wallet size={13} aria-hidden="true" /> Cobrar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 
 function Gastos({ filas, areas, onGuardar, onBorrar }) {
   const { confirmar, dialogo } = useConfirm();

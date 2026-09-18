@@ -17,6 +17,7 @@ import AdminCatalog from './AdminCatalog';
 import AdminAccess from './AdminAccess';
 import AdminAccounting from './AdminAccounting';
 import AdminSchedules from './AdminSchedules';
+import { useAccountingData } from './useAccountingData';
 import {
     canAccessAdminPage,
     canManageAppointments,
@@ -28,12 +29,16 @@ import {
     canManageClinicCatalog,
     canManageOrders,
     canViewDashboard,
-    firstAllowedAdminPage
+    firstAllowedAdminPage,
+    canRecordPayment
 } from '../auth/permissions';
 
 export default function AdminApp({ bookings, setBookings, orders, setOrders, switchToUser, logout, session, theme, toggleTheme, catalogs, catalogActions }) {
     const role = session?.user?.role;
     const [page, setPage] = useState(firstAllowedAdminPage(role) || 'cafe-orders');
+    // Los cobros viven aqui y no en cada pantalla: citas, pedidos y el
+    // panel tienen que ver el MISMO saldo. Ver useAccountingData.
+    const contabilidad = useAccountingData(role);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const sidebarWidth = sidebarCollapsed ? 78 : 240;
     const isDark = theme === 'dark';
@@ -196,15 +201,15 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                 <main style={{ flex: 1, minWidth: 0, height: '100vh', overflow: 'auto', padding: '24px', paddingBottom: 100, boxSizing: 'border-box' }}>
                     <div style={{ minWidth: 900 }}>
                         {page === 'general-dashboard' && canViewDashboard(role) && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} />}
-                        {page === 'general-accounting' && canViewAccounting(role) && <AdminAccounting bookings={bookings} orders={orders} catalogs={catalogs} session={session} />}
+                        {page === 'general-accounting' && canViewAccounting(role) && <AdminAccounting bookings={bookings} orders={orders} catalogs={catalogs} session={session} contabilidad={contabilidad} />}
                         {page === 'general-access' && canManageAccess(role) && <AdminAccess />}
                         {page === 'general-business' && canManageBusinessSettings(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="business" lockedTab heading="Negocio" description="Administra información general del negocio, contacto, redes, mapa y horarios." />}
-                        {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} />}
+                        {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} payments={contabilidad.datos.payments} canRecordPayments={canRecordPayment(role, 'pedido')} onRegistrarCobro={contabilidad.registrarCobro} />}
                         {page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}
                         {page === 'cafe-options' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="options" lockedTab heading="Personalización" description="Tipos de leche, sabores y extras que el cliente puede elegir al pedir un café, con lo que suma cada uno al precio." />}
                         {page === 'cafe-offers' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="offers" lockedTab heading="Promociones" description="Administra ofertas y vigencia de promociones de cafetería." />}
                         {page === 'clinic-schedules' && canManageSchedules(role) && <AdminSchedules catalogs={catalogs} reload={catalogActions?.reload} />}
-                        {page === 'clinic-appointments' && canManageAppointments(role) && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} />}
+                        {page === 'clinic-appointments' && canManageAppointments(role) && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} payments={contabilidad.datos.payments} canRecordPayments={canRecordPayment(role, 'cita')} onRegistrarCobro={contabilidad.registrarCobro} />}
                         {page === 'clinic-services' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="services" lockedTab heading="Servicios" description="Administra servicios del consultorio, duración, precio y público objetivo." />}
                         {page === 'clinic-therapists' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="therapists" lockedTab heading="Doctores" description="Administra profesionales, cédulas, especialidades y servicios habilitados." />}
                         {page === 'clinic-specialties' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="specialties" lockedTab heading="Especialidades" description="Administra especialidades disponibles para clasificar al equipo clínico." />}
