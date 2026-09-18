@@ -178,3 +178,30 @@ assert.equal(formatMoney(undefined), '$0.00', 'un dato roto no imprime NaN');
 }
 
 console.log('accounting: facturado, cobrado y por cobrar son tres cosas distintas');
+
+// La serie de la grafica respeta el AREA.
+//
+// Sin esto la grafica sumaba los dos negocios mientras las tarjetas de
+// arriba mostraban solo uno: dos cifras del mismo periodo, en la misma
+// pantalla, diciendo cosas distintas. Lo encontro la auditoria del push.
+{
+  const citas = [{ id: 'c1', price: 500, status: 'confirmed', date: '2026-09-10' }];
+  const pedidos = [{ id: 'o1', total: 300, status: 'delivered', createdAt: '2026-09-10' }];
+  const pagos = [
+    { appointmentId: 'c1', amount: 500, paidAt: '2026-09-10' },
+    { orderId: 'o1', amount: 300, paidAt: '2026-09-10' },
+  ];
+  const hoy = new Date(2026, 8, 18);
+
+  const todo = monthlySeries(citas, pedidos, pagos, 1, hoy, null)[0];
+  assert.equal(todo.facturado, 800);
+  assert.equal(todo.cobrado, 800);
+
+  const consultorio = monthlySeries(citas, pedidos, pagos, 1, hoy, CONSULTORIO)[0];
+  assert.equal(consultorio.facturado, 500, 'la serie de consultorio no incluye pedidos');
+  assert.equal(consultorio.cobrado, 500);
+
+  const cafeteria = monthlySeries(citas, pedidos, pagos, 1, hoy, CAFETERIA)[0];
+  assert.equal(cafeteria.facturado, 300, 'la serie de cafeteria no incluye citas');
+  assert.equal(cafeteria.cobrado, 300);
+}

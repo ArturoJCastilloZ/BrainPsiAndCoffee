@@ -116,11 +116,14 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
       servicios: soloCafe ? [] : byService(bookings, catalogs.services || [], rango),
       terapeutas: soloCafe ? [] : byTherapist(bookings, catalogs.therapists || [], rango),
       productos: soloClinica ? [] : byProduct(orders, rango),
+      // Mismo filtro de area que la cifra de arriba: el detalle tiene que
+      // sumar el total, o una de las dos miente.
       gastosLista: (expenses || []).filter((e) => {
         const d = String(e.spentAt).slice(0, 10);
-        return d >= rango.from && d <= rango.to;
+        if (d < rango.from || d > rango.to) return false;
+        return area === 'todo' ? true : e.area === area;
       }),
-      serie: monthlySeries(bookings, orders, payments, 6),
+      serie: monthlySeries(bookings, orders, payments, 6, new Date(), areaPago),
     };
   }, [datos, bookings, orders, catalogs, rango, previo, area]);
 
@@ -198,7 +201,8 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
             await saveExpense(gasto);
             setAviso('Gasto registrado.');
             await recargar();
-          } catch (err) { setError(err.message); }
+            return true;
+          } catch (err) { setError(err.message); return false; }
         }}
         onBorrar={async (id) => {
           try { await deleteExpense(id); await recargar(); }
@@ -527,7 +531,13 @@ function Gastos({ filas, areas, onGuardar, onBorrar }) {
 
       {draft && (
         <form
-          onSubmit={(e) => { e.preventDefault(); onGuardar(draft); setDraft(null); }}
+          onSubmit={async (e) => {
+            e.preventDefault();
+            // Se ESPERA y solo se cierra si guardo. Cerrar de inmediato
+            // borraba lo capturado cuando una policy rechazaba el insert:
+            // el usuario veia el error con el formulario ya vacio.
+            if (await onGuardar(draft)) setDraft(null);
+          }}
           style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 12, alignItems: 'end', marginBottom: 14 }}
         >
           <Campo etiqueta="ÁREA">

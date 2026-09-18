@@ -238,7 +238,12 @@ export const nonDeductibleCash = (payments = [], range) =>
 // tendencia que no existe. La pantalla muestra la tabla.
 export const MIN_PUNTOS_GRAFICA = 4;
 
-export const monthlySeries = (appointments = [], orders = [], payments = [], meses = 6, hoy = new Date()) => {
+// El AREA se respeta aqui tambien. Sin ella la grafica sumaba los dos
+// negocios mientras las tarjetas de arriba mostraban solo uno: dos cifras
+// del mismo periodo, en la misma pantalla, diciendo cosas distintas.
+export const monthlySeries = (appointments = [], orders = [], payments = [], meses = 6, hoy = new Date(), area = null) => {
+  const soloClinica = area === CONSULTORIO;
+  const soloCafe = area === CAFETERIA;
   const serie = [];
   for (let i = meses - 1; i >= 0; i -= 1) {
     const ref = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
@@ -246,8 +251,11 @@ export const monthlySeries = (appointments = [], orders = [], payments = [], mes
     serie.push({
       label: ref.toLocaleDateString('es-MX', { month: 'short' }),
       from: range.from,
-      facturado: redondea(billedClinic(appointments, range) + billedCafe(orders, range)),
-      cobrado: collected(payments, range),
+      facturado: redondea(
+        (soloCafe ? 0 : billedClinic(appointments, range))
+        + (soloClinica ? 0 : billedCafe(orders, range)),
+      ),
+      cobrado: collected(payments, range, area),
     });
   }
   return serie;
