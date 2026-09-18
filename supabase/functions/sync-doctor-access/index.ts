@@ -224,13 +224,34 @@ const grantMembership = async (
   }, { onConflict: 'tenant_id,user_id' });
   if (error) throw error;
 
+  // Las otras clinicas se preguntan a tenant_members y NO a
+  // app_metadata. El claim es su cache: si una escritura de claim falla
+  // —cosa que hasta hace poco pasaba en silencio, ver abajo— el usuario
+  // sigue siendo miembro de la otra clinica en la tabla mientras su claim
+  // ya no lo dice, y el permiso de reescribir el correo se abriria solo.
+  const { data: otherRows, error: othersError } = await adminClient
+    .from('tenant_members')
+    .select('tenant_id')
+    .eq('user_id', user.id)
+    .eq('active', true)
+    .neq('tenant_id', tenantId);
+  // Fallar cerrado: sin poder confirmar que no atiende en otro lado, no
+  // se toca su identidad.
+  if (othersError) throw othersError;
+  const otherTenants = (otherRows ?? []).map((row) => row.tenant_id);
+
   // buildIdentityUpdate decide si el correo de login entra en el payload.
   // No entra cuando el usuario tambien pertenece a otra clinica: ese
   // correo es su acceso alla tambien, y esta clinica no manda sobre el.
-  await adminClient.auth.admin.updateUserById(
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(
     user.id,
-    buildIdentityUpdate({ user, tenantId, therapist, matchedBy }),
+    buildIdentityUpdate({ user, tenantId, therapist, matchedBy, otherTenants }),
   );
+  // El cliente admin DEVUELVE el error, no lo lanza. Ignorarlo dejaba al
+  // usuario dado de alta en tenant_members con el claim sin actualizar:
+  // un desfase que no es cosmetico, porque de ese claim colgaba el
+  // permiso de reescribir correos.
+  if (updateError) throw updateError;
 };
 
 const revokeMembership = async (
@@ -251,9 +272,13 @@ const revokeMembership = async (
     .eq('user_id', user.id);
   if (error) throw error;
 
-  await adminClient.auth.admin.updateUserById(user.id, {
+  // Mismo motivo que en grantMembership: el cliente admin devuelve el
+  // error en vez de lanzarlo. Una revocacion que falla sin avisar deja el
+  // claim diciendo que la persona sigue siendo doctora de esta clinica.
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(user.id, {
     app_metadata: { ...appMeta, memberships, therapist_ids: therapistIds },
   });
+  if (updateError) throw updateError;
 };
 
 const inviteDoctor = async (

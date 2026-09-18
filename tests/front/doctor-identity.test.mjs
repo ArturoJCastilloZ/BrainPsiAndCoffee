@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import {
   matchDoctorUser,
   buildIdentityUpdate,
+  canRewriteLoginEmail,
   otherTenantsOf,
 } from '../../supabase/functions/sync-doctor-access/identity.mjs';
 
@@ -58,6 +59,7 @@ const doctoresDeA = [drX, drSolo];
 
   const update = buildIdentityUpdate({
     user, tenantId: 'clinica_a', therapist: fichaSecuestrada, matchedBy,
+    otherTenants: ['clinica_b'],   // lo que dice tenant_members
   });
 
   assert.ok(
@@ -85,6 +87,7 @@ const doctoresDeA = [drX, drSolo];
 
   const update = buildIdentityUpdate({
     user, tenantId: 'clinica_a', therapist: fichaCorregida, matchedBy,
+    otherTenants: [],
   });
 
   assert.equal(update.email, 'solo.nuevo@clinica.mx',
@@ -100,7 +103,7 @@ const doctoresDeA = [drX, drSolo];
   assert.equal(matchedBy, 'email', 'el correo normalizado debe emparejar sin importar mayusculas');
 
   const update = buildIdentityUpdate({
-    user, tenantId: 'clinica_a', therapist: ficha, matchedBy,
+    user, tenantId: 'clinica_a', therapist: ficha, matchedBy, otherTenants: [],
   });
   assert.ok(!('email' in update), 'si se emparejo por correo no hay nada que reescribir');
 }
@@ -113,3 +116,56 @@ const doctoresDeA = [drX, drSolo];
 }
 
 console.log('doctor-identity: la clinica no reescribe la identidad global de un doctor');
+
+// --- La decision no puede colgar del claim ---------------------------
+// app_metadata es la CACHE de tenant_members. Si la escritura del claim
+// falla, el usuario sigue siendo miembro de la otra clinica en la tabla
+// mientras su claim ya no lo dice. Si el permiso se decidiera con el
+// claim, el secuestro se reabriria solo, sin que nadie tocara el codigo.
+{
+  const drXconClaimRoto = {
+    ...drX,
+    app_metadata: {
+      // El claim perdio clinica_b.
+      memberships: { clinica_a: 'doctor' },
+      therapist_ids: { clinica_a: 'psq-7' },
+    },
+  };
+
+  assert.deepEqual(otherTenantsOf(drXconClaimRoto, 'clinica_a'), [],
+    'el montaje exige que el claim ya no mencione la otra clinica');
+
+  // Pero tenant_members si la tiene.
+  const update = buildIdentityUpdate({
+    user: drXconClaimRoto,
+    tenantId: 'clinica_a',
+    therapist: { id: 'psq-7', name: 'Dr X', email: 'atacante@evil.test' },
+    matchedBy: 'therapist_id',
+    otherTenants: ['clinica_b'],
+  });
+
+  assert.ok(!('email' in update),
+    'SECUESTRO: con el claim desfasado se reescribio el correo; la decision debe salir de tenant_members, no de app_metadata');
+}
+
+// Sin dato sobre otras clinicas se falla CERRADO: no saberlo no es
+// permiso.
+{
+  assert.equal(
+    canRewriteLoginEmail({ matchedBy: 'therapist_id', otherTenants: undefined }),
+    false,
+    'sin lista de clinicas no se puede reescribir la identidad',
+  );
+  assert.equal(
+    canRewriteLoginEmail({ matchedBy: 'therapist_id', otherTenants: [] }),
+    true,
+    'sin otras clinicas, corregir el correo sigue permitido',
+  );
+  assert.equal(
+    canRewriteLoginEmail({ matchedBy: 'email', otherTenants: [] }),
+    false,
+    'emparejado por correo no hay nada que reescribir',
+  );
+}
+
+console.log('doctor-identity: la decision sale de tenant_members y falla cerrado');

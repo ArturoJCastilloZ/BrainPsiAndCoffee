@@ -99,9 +99,19 @@ assert(
   syncDoctor.includes('buildIdentityUpdate'),
   'sync-doctor-access debe decidir la identidad con buildIdentityUpdate, no a mano.',
 );
+// El guard anterior era /updateUserById\([^)]*\bemail\s*:/ y era un
+// control con FALSO NEGATIVO: [^)]* no cruza un parentesis de cierre, asi
+// que bastaba poner otra clave antes —'user_metadata: { ...(x || {}) }'—
+// para que el parentesis cortara la busqueda y la forma peligrosa pasara
+// en verde. Un guard que reporta OK ante la regresion que existe para
+// frenar es peor que no tenerlo.
+//
+// index.ts hoy no asigna NINGUNA clave 'email:': la unica escritura de
+// identidad sale de buildIdentityUpdate. Eso permite una asercion sin
+// agujeros, que no depende de como se escriba la llamada.
 assert(
-  !/updateUserById\([^)]*\bemail\s*:/s.test(syncDoctor),
-  'sync-doctor-access no debe pasar email directo a updateUserById: puede secuestrar la cuenta de un doctor que atiende en otra clinica.',
+  !/\bemail\s*:/.test(syncDoctor),
+  'sync-doctor-access no debe asignar email en index.ts: la identidad se decide en identity.mjs, que si se prueba. Escribirlo aqui puede secuestrar la cuenta de un doctor que atiende en otra clinica.',
 );
 
 if (failures.length) {

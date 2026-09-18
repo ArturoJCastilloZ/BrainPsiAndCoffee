@@ -8,7 +8,16 @@
 
 export const normalizeEmail = (email) => String(email ?? '').trim().toLowerCase();
 
-// Las clinicas del usuario que NO son la que esta sincronizando.
+// Las clinicas del usuario que NO son la que esta sincronizando, SEGUN EL
+// CLAIM.
+//
+// Sirve para diagnostico, NO para decidir. app_metadata es la cache de
+// tenant_members, no la fuente de verdad, y puede quedarse corta: si la
+// escritura del claim falla, el usuario sigue siendo miembro de la otra
+// clinica en la tabla mientras su claim ya no lo dice. Decidir el permiso
+// de reescritura con esta funcion reabre el secuestro sin tocar una linea
+// de codigo. Quien decide es canRewriteLoginEmail, con la lista que sale
+// de la base.
 export const otherTenantsOf = (user, tenantId) =>
   Object.keys(user?.app_metadata?.memberships ?? {}).filter((t) => t !== tenantId);
 
@@ -32,7 +41,7 @@ export const matchDoctorUser = (doctorUsers, therapist, tenantId) => {
 };
 
 // Que se le manda a auth.admin.updateUserById.
-export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy }) => {
+export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy, otherTenants }) => {
   const appMeta = user.app_metadata ?? {};
   const memberships = { ...(appMeta.memberships ?? {}), [tenantId]: 'doctor' };
   const therapistIds = { ...(appMeta.therapist_ids ?? {}), [tenantId]: therapist.id };
@@ -42,7 +51,7 @@ export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy }) =>
     app_metadata: { ...appMeta, memberships, therapist_ids: therapistIds },
   };
 
-  if (canRewriteLoginEmail({ user, tenantId, matchedBy })) {
+  if (canRewriteLoginEmail({ matchedBy, otherTenants })) {
     update.email = normalizeEmail(therapist.email);
   }
 
@@ -69,7 +78,12 @@ export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy }) =>
 // El caso 2 no se resuelve pidiendo confirmacion: el atacante es quien
 // confirmaria. Un cambio de correo de alguien con varias clinicas tiene
 // que pasar por un flujo verificado contra el propio titular.
-export const canRewriteLoginEmail = ({ user, tenantId, matchedBy }) => {
+// otherTenants tiene que venir de tenant_members, que es la fuente de
+// verdad, y no del claim. Si no llega una lista, se falla CERRADO: no
+// saber si la persona atiende en otro consultorio no es permiso para
+// reescribir su identidad.
+export const canRewriteLoginEmail = ({ matchedBy, otherTenants }) => {
   if (matchedBy !== 'therapist_id') return false;
-  return otherTenantsOf(user, tenantId).length === 0;
+  if (!Array.isArray(otherTenants)) return false;
+  return otherTenants.length === 0;
 };
