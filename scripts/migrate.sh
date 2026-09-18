@@ -22,11 +22,18 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   echo "  remoto: la connection string de Supabase (boton Connect > Session pooler)" >&2
   echo >&2
   echo "  Para no dejarla en el historial del shell:" >&2
-  # zsh y bash difieren: en zsh el prompt va dentro de la variable con '?',
-  # y 'read -p' significa leer de un coproceso — de ahi el error
-  # 'no coprocess' si se usa la forma de bash.
+  # zsh y bash difieren: en zsh el prompt va DENTRO de las comillas y
+  # PEGADO al nombre de la variable con '?' — read -rs "VAR?texto: " —, y
+  # 'read -p' significa leer de un coproceso, de ahi el error 'no
+  # coprocess' si se usa la forma de bash.
+  #
+  # La sugerencia de zsh decia '?DATABASE_URL: ' como argumento SUELTO, que
+  # es la forma mala: zsh lo lee como patron de archivo, no encuentra nada
+  # y aborta con 'no matches found' arrastrando la cadena pegada en el
+  # mensaje. El comentario de arriba ya describia la regla correcta; era el
+  # codigo el que no la seguia.
   if [[ -n "${ZSH_VERSION:-}" ]] || [[ "${SHELL:-}" == *"zsh" ]]; then
-    echo "    read -rs '?DATABASE_URL: ' DATABASE_URL && export DATABASE_URL   # zsh" >&2
+    echo "    read -rs \"DATABASE_URL?DATABASE_URL: \" && export DATABASE_URL   # zsh" >&2
   else
     echo "    read -rs -p 'DATABASE_URL: ' DATABASE_URL && export DATABASE_URL  # bash" >&2
   fi
