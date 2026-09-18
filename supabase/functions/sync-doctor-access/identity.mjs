@@ -46,10 +46,19 @@ export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy, othe
   const memberships = { ...(appMeta.memberships ?? {}), [tenantId]: 'doctor' };
   const therapistIds = { ...(appMeta.therapist_ids ?? {}), [tenantId]: therapist.id };
 
+  // app_metadata se fusiona SIEMPRE: cada clave es de una clinica y solo
+  // se toca la propia, asi que no hay nada que acotar.
   const update = {
-    user_metadata: { ...(user.user_metadata ?? {}), name: therapist.name },
     app_metadata: { ...appMeta, memberships, therapist_ids: therapistIds },
   };
+
+  // El nombre, en cambio, es uno solo para todas. Vivia en esta misma
+  // llave de objeto que el correo y se escribia sin condicion, incluso en
+  // la rama que se toma PRECISAMENTE porque la persona atiende en otra
+  // clinica: A elegia el texto que B veia.
+  if (canRewriteProfileName({ otherTenants })) {
+    update.user_metadata = { ...(user.user_metadata ?? {}), name: therapist.name };
+  }
 
   if (canRewriteLoginEmail({ matchedBy, otherTenants })) {
     update.email = normalizeEmail(therapist.email);
@@ -82,6 +91,15 @@ export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy, othe
 // verdad, y no del claim. Si no llega una lista, se falla CERRADO: no
 // saber si la persona atiende en otro consultorio no es permiso para
 // reescribir su identidad.
+// El nombre no lleva la condicion de matchedBy que si lleva el correo:
+// cuando el emparejamiento fue por correo no hay correo que reescribir,
+// pero el nombre si puede haber cambiado legitimamente. Lo unico que lo
+// acota es que la identidad no sea compartida. Mismo fallo cerrado.
+export const canRewriteProfileName = ({ otherTenants }) => {
+  if (!Array.isArray(otherTenants)) return false;
+  return otherTenants.length === 0;
+};
+
 export const canRewriteLoginEmail = ({ matchedBy, otherTenants }) => {
   if (matchedBy !== 'therapist_id') return false;
   if (!Array.isArray(otherTenants)) return false;
@@ -110,4 +128,25 @@ export const canRecreateUnconfirmedUser = ({ user, otherTenants }) => {
   if (user?.confirmed_at) return false;
   if (!Array.isArray(otherTenants)) return false;
   return otherTenants.length === 0;
+};
+
+// Que usuario se le pasa a grantMembership despues de invitar.
+//
+// El usuario REAL que devolvio la invitacion, nunca uno fabricado.
+//
+// Antes se construia a mano `{ id, app_metadata: {}, user_metadata: {...} }`
+// dando por hecho que inviteUserByEmail siempre crea a alguien nuevo.
+// Cuando el correo ya pertenece a un usuario sin confirmar, GoTrue
+// reenvia la invitacion y devuelve al usuario EXISTENTE — y ese
+// app_metadata vacio, al pasar por buildIdentityUpdate, reemplazaba el
+// suyo: perdia las membresias de todas sus otras clinicas y quedaba fuera
+// de ellas, porque las policies leen el claim.
+//
+// La correccion no depende de resolver que hace GoTrue en cada caso, y
+// por eso es la buena: se deja de suponer y se usa lo que la respuesta
+// trae.
+export const invitedUserFrom = (created) => {
+  const user = created?.data?.user;
+  if (!user?.id) return null;
+  return user;
 };

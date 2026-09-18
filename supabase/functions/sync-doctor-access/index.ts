@@ -5,6 +5,7 @@ import {
   matchDoctorUser,
   buildIdentityUpdate,
   canRecreateUnconfirmedUser,
+  invitedUserFrom,
   normalizeEmail,
 } from './identity.mjs';
 
@@ -322,19 +323,22 @@ const inviteDoctor = async (
 
   if (created.error) throw created.error;
 
-  const userId = created.data.user?.id;
-  if (!userId) return;
+  // El usuario REAL que devolvio la invitacion. Antes se fabricaba aqui un
+  // objeto con app_metadata: {} dando por hecho que invitar siempre crea a
+  // alguien nuevo; si el correo ya pertenecia a un usuario sin confirmar,
+  // GoTrue devuelve al existente y ese objeto vacio le borraba las
+  // membresias de sus otras clinicas.
+  const invited = invitedUserFrom(created);
+  if (!invited) return;
 
-  // matchedBy va en null y otherTenants vacio: el usuario se acaba de
-  // crear con inviteUserByEmail, su correo ya es este y no pertenece a
-  // ninguna otra clinica todavia. No hay identidad previa que reescribir.
-  await grantMembership(
-    adminClient,
-    { id: userId, app_metadata: {}, user_metadata: { name: therapist.name } },
-    tenantId,
-    therapist,
-    null,
-    [],
-  );
-  await setTherapistUser(adminClient, tenantId, therapist.id, userId);
+  // Y por lo mismo, sus otras clinicas se PREGUNTAN. El comentario que
+  // habia aqui afirmaba que un recien invitado no pertenece a ninguna
+  // otra: era una suposicion escrita como hecho, y es justo la que
+  // rompia.
+  const otherTenants = await otherActiveTenantsOf(adminClient, invited.id, tenantId);
+
+  // matchedBy en null: se llego por correo, no por ficha, asi que no hay
+  // renombrado de identidad que autorizar.
+  await grantMembership(adminClient, invited, tenantId, therapist, null, otherTenants);
+  await setTherapistUser(adminClient, tenantId, therapist.id, invited.id);
 };

@@ -18,6 +18,7 @@ import {
   buildIdentityUpdate,
   canRewriteLoginEmail,
   canRecreateUnconfirmedUser,
+  invitedUserFrom,
   otherTenantsOf,
 } from '../../supabase/functions/sync-doctor-access/identity.mjs';
 
@@ -252,3 +253,108 @@ console.log('doctor-identity: la decision sale de tenant_members y falla cerrado
 }
 
 console.log('doctor-identity: no se destruye la cuenta de un doctor compartido');
+
+// --- Hallazgo 2: invitar a alguien que ya existe le borra sus clinicas ---
+// inviteDoctor pasaba a grantMembership un objeto FABRICADO con
+// app_metadata: {}. buildIdentityUpdate lo expande y updateUserById
+// REEMPLAZA el app_metadata entero. inviteUserByEmail sobre un correo que
+// ya pertenece a alguien sin confirmar devuelve al usuario existente, no
+// crea uno nuevo — y ahi se le borran las membresias de sus otras
+// clinicas. Sin memberships, current_tenant_id() le da null alla y queda
+// fuera de su propia clinica.
+{
+  const yaExistia = {
+    data: {
+      user: {
+        id: 'user-preexistente',
+        email: 'dra.b@clinica.mx',
+        app_metadata: {
+          memberships: { clinica_b: 'owner' },
+          therapist_ids: { clinica_b: 'psq-20' },
+        },
+        user_metadata: { name: 'Dra B' },
+      },
+    },
+  };
+
+  const user = invitedUserFrom(yaExistia);
+
+  assert.equal(
+    user?.app_metadata?.memberships?.clinica_b,
+    'owner',
+    'BORRADO: se fabrico un app_metadata vacio en vez de usar el usuario que devolvio la ' +
+    'invitacion; al escribirlo, la duena de la clinica B pierde su membresia alla',
+  );
+
+  // Y al construir el update, la membresia ajena sobrevive.
+  const update = buildIdentityUpdate({
+    user, tenantId: 'clinica_a',
+    therapist: { id: 'psq-21', name: 'Dra B', email: 'dra.b@clinica.mx' },
+    matchedBy: null, otherTenants: ['clinica_b'],
+  });
+  assert.equal(update.app_metadata.memberships.clinica_b, 'owner',
+    'la membresia de la clinica B debe sobrevivir a una invitacion hecha desde la A');
+  assert.equal(update.app_metadata.memberships.clinica_a, 'doctor',
+    'y la de la clinica A debe quedar concedida');
+}
+
+// Un usuario de verdad nuevo no trae nada, y eso esta bien.
+{
+  const nuevo = { data: { user: { id: 'user-nuevo', email: 'nuevo@ex.mx', app_metadata: {} } } };
+  const user = invitedUserFrom(nuevo);
+  assert.equal(user?.id, 'user-nuevo');
+  assert.deepEqual(otherTenantsOf(user, 'clinica_a'), [], 'un usuario nuevo no tiene otras clinicas');
+}
+
+// Sin usuario en la respuesta, no se inventa uno.
+{
+  assert.equal(invitedUserFrom({ data: {} }), null);
+  assert.equal(invitedUserFrom(null), null);
+}
+
+// --- Hallazgo 3: el nombre global tampoco es de una sola clinica ------
+// user_metadata.name vive en la misma llave de objeto que email, cuatro
+// lineas mas arriba. email exige otherTenants vacio; name se escribia
+// siempre, incluso en la rama que se toma PRECISAMENTE porque la persona
+// atiende en otra clinica.
+{
+  const compartido = {
+    id: 'user-comp',
+    email: 'dra.garcia@clinica.mx',
+    user_metadata: { name: 'Dra. García' },
+    app_metadata: {
+      memberships: { clinica_a: 'doctor', clinica_b: 'doctor' },
+      therapist_ids: { clinica_a: 'psq-30', clinica_b: 'psq-31' },
+    },
+  };
+
+  const update = buildIdentityUpdate({
+    user: compartido, tenantId: 'clinica_a',
+    therapist: { id: 'psq-30', name: 'LA QUE SEA', email: 'dra.garcia@clinica.mx' },
+    matchedBy: 'email', otherTenants: ['clinica_b'],
+  });
+
+  assert.ok(
+    !('user_metadata' in update),
+    'NOMBRE: la clinica A reescribio el nombre global de una doctora que tambien atiende en la ' +
+    'clinica B; B ve el texto que eligio A',
+  );
+}
+
+// Para quien solo trabaja aqui, actualizar el nombre sigue siendo lo correcto.
+{
+  const solo = {
+    id: 'user-solo2', email: 'solo2@clinica.mx',
+    user_metadata: { name: 'Viejo' },
+    app_metadata: { memberships: { clinica_a: 'doctor' }, therapist_ids: { clinica_a: 'psq-40' } },
+  };
+  const update = buildIdentityUpdate({
+    user: solo, tenantId: 'clinica_a',
+    therapist: { id: 'psq-40', name: 'Nuevo', email: 'solo2@clinica.mx' },
+    matchedBy: 'email', otherTenants: [],
+  });
+  assert.equal(update.user_metadata?.name, 'Nuevo',
+    'con una sola clinica, actualizar el nombre debe seguir funcionando');
+}
+
+console.log('doctor-identity: invitar no borra clinicas, y el nombre global tampoco se pisa');

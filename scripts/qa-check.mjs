@@ -94,7 +94,25 @@ assert(doctor.includes('Pacientes'), 'DoctorApp debe incluir vista de pacientes.
 // recuperacion va ahi. La decision de escribirlo vive en identity.mjs,
 // que si se puede probar; si vuelve a escribirse a mano dentro de la
 // funcion, ese control se evapora sin que ninguna prueba se entere.
-const syncDoctor = read('supabase/functions/sync-doctor-access/index.ts');
+// Las aserciones de abajo buscan patrones peligrosos como TEXTO. Sin
+// quitar los comentarios, la prosa que EXPLICA el peligro los dispara:
+// el comentario que documenta por que no se fabrica un app_metadata
+// vacio contiene, literalmente, 'app_metadata: {}'. Un guard que se
+// dispara con su propia documentacion es ruido, y el ruido se termina
+// silenciando.
+//
+// Se quitan solo las lineas que EMPIEZAN con // y los bloques. Un '//' a
+// media linea se conserva a proposito: 'https://esm.sh/...' lo lleva, y
+// recortar desde ahi borraria codigo real — un falso NEGATIVO, que es el
+// error caro. Queda vivo el caso de un comentario al final de una linea
+// de codigo; es aceptable y preferible al otro lado del error.
+const sinComentarios = (source) => source
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .split('\n')
+  .filter((line) => !/^\s*\/\//.test(line))
+  .join('\n');
+
+const syncDoctor = sinComentarios(read('supabase/functions/sync-doctor-access/index.ts'));
 assert(
   syncDoctor.includes('buildIdentityUpdate'),
   'sync-doctor-access debe decidir la identidad con buildIdentityUpdate, no a mano.',
@@ -129,6 +147,15 @@ assert(
 assert(
   (syncDoctor.match(/\bdeleteUser\s*\(/g) || []).length === 1,
   'sync-doctor-access debe tener exactamente una llamada a deleteUser, la que va detras del guard: borra la cuenta GLOBAL del doctor y con ella su acceso a las demas clinicas.',
+);
+
+// updateUserById REEMPLAZA app_metadata, no lo fusiona. Fabricar un
+// objeto de usuario con app_metadata vacio —en vez de usar el que
+// devuelve la API— le borra al usuario las membresias de sus otras
+// clinicas y lo deja fuera de ellas, porque las policies leen el claim.
+assert(
+  !/app_metadata\s*:\s*\{\s*\}/.test(syncDoctor),
+  'sync-doctor-access no debe fabricar un app_metadata vacio: usa el usuario que devuelve la API (invitedUserFrom), o le borras al doctor sus otras clinicas.',
 );
 
 assert(
