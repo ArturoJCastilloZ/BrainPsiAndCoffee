@@ -7,6 +7,7 @@ import {
   saveAppointments,
   saveMenu,
   saveOffers,
+  saveProductOptions,
   saveOrders,
   saveSpecialties,
   saveSettings,
@@ -56,6 +57,10 @@ export const useSupabaseCrud = (session) => {
   const [therapists, setTherapistsRaw, setTherapists, therapistsError] = useRemoteState(THERAPISTS, saveTherapists);
   const [menu, setMenuRaw, setMenu, menuError] = useRemoteState(MENU, saveMenu);
   const [offers, setOffersRaw, setOffers, offersError] = useRemoteState(OFFERS, saveOffers);
+  // Los modificadores del menu no tienen fallback de demostracion: si la
+  // clinica no configuro ninguno, no se le ofrece ninguno. Inventarlos
+  // seria ofrecerle al cliente un sabor que el negocio no tiene.
+  const [productOptions, setProductOptionsRaw, setProductOptions, productOptionsError] = useRemoteState([], saveProductOptions);
   const [settings, setSettingsRaw, setSettings, settingsError] = useRemoteState(BUSINESS, saveSettings);
   const [schedules, setSchedules] = useState([]);
   const [bookings, setBookingsRaw, setBookings, bookingsError] = useRemoteState([], saveAppointments);
@@ -98,6 +103,7 @@ export const useSupabaseCrud = (session) => {
       setTherapistsRaw(catalogs.therapists.length ? catalogs.therapists : (demo ? THERAPISTS : []));
       setMenuRaw(hasMenuItems(catalogs.menu) ? catalogs.menu : (demo ? MENU : {}));
       setOffersRaw(catalogs.offers.length ? catalogs.offers : (demo ? OFFERS : []));
+      setProductOptionsRaw(catalogs.productOptions || []);
       setSettingsRaw(catalogs.settings || BUSINESS);
       setSchedules(catalogs.schedules || []);
 
@@ -117,7 +123,7 @@ export const useSupabaseCrud = (session) => {
     } finally {
       setLoading(false);
     }
-  }, [canLoadAppointments, canLoadOrders, canSeed, hasSession, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
+  }, [canLoadAppointments, canLoadOrders, canSeed, hasSession, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setProductOptionsRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
 
   useEffect(() => {
     reload();
@@ -146,20 +152,20 @@ export const useSupabaseCrud = (session) => {
     await reload();
   }, [reload]);
 
-  const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || settingsError || bookingsError || ordersError;
+  const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || productOptionsError || settingsError || bookingsError || ordersError;
 
   return useMemo(() => ({
     bookings,
     setBookings,
     orders,
     setOrders,
-    catalogs: { services, specialties, therapists, menu, offers, settings, schedules },
-    catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setSettings, reload },
+    catalogs: { services, specialties, therapists, menu, offers, productOptions, settings, schedules },
+    catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setProductOptions, setSettings, reload },
     loading,
     error,
     reload,
     seedCatalogs,
-  }), [bookings, services, specialties, therapists, menu, offers, settings, schedules, error, loading, orders, reload, seedCatalogs, setBookings, setMenu, setOffers, setOrders, setServices, setSettings, setSpecialties, setTherapists]);
+  }), [bookings, services, specialties, therapists, menu, offers, productOptions, settings, schedules, error, loading, orders, reload, seedCatalogs, setBookings, setMenu, setOffers, setOrders, setProductOptions, setServices, setSettings, setSpecialties, setTherapists]);
 };
 
 const hasMenuItems = (menu) => Object.values(menu || {}).some((section) => section.items?.length);

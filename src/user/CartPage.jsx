@@ -118,9 +118,14 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
             <div style={{ flex: 1 }}>
               <div className="font-display" style={{ fontSize: 16, fontWeight: 600, color: C.brown }}>{item.name}</div>
               <div style={{ fontSize: 11, color: C.brownLight, marginTop: 2 }}>
+                {/* Los extras se listan por su nombre: ya no hay un unico
+                    "Shot extra" escrito a mano, cada clinica define los suyos.
+                    Se conserva la lectura de extraShot para los pedidos
+                    viejos, guardados antes de que existieran los addons. */}
                 {item.customizations?.milk && `${item.customizations.milk}`}
                 {item.customizations?.flavor && ` · ${item.customizations.flavor}`}
-                {item.customizations?.extraShot && ` · Shot extra`}
+                {(item.customizations?.addons || []).map((a) => ` · ${a}`).join('')}
+                {!item.customizations?.addons?.length && item.customizations?.extraShot && ` · Shot extra`}
                 {!item.customizations?.milk && item.sub}
               </div>
             </div>

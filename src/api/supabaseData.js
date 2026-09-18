@@ -129,6 +129,27 @@ const mapProductToDb = (category, item, index = 0) => ({
   updated_at: new Date().toISOString(),
 });
 
+// Modificadores del menu (leche, sabores, extras). Antes eran las
+// constantes MILKS y FLAVORS y dos numeros sueltos en MenuPage.
+const mapProductOptionFromDb = (row) => ({
+  id: row.id,
+  kind: row.kind,
+  name: row.name,
+  priceDelta: toNumber(row.price_delta),
+  sortOrder: row.sort_order,
+  active: row.active,
+});
+
+const mapProductOptionToDb = (item, index = 0) => ({
+  id: item.id,
+  kind: item.kind,
+  name: item.name,
+  price_delta: Number(item.priceDelta || 0),
+  sort_order: item.sortOrder ?? (index * 10 + 10),
+  active: item.active !== false,
+  updated_at: new Date().toISOString(),
+});
+
 const mapOfferFromDb = (row) => ({
   id: row.id,
   name: row.name,
@@ -280,12 +301,13 @@ export const loadCatalogs = async () => {
   const { data: sessionData } = await supabase.auth.getSession();
   const therapistsSource = sessionData?.session ? 'therapists' : 'therapists_public';
 
-  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult, settingsResult, schedulesResult] = await Promise.all([
+  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, optionsResult, offersResult, settingsResult, schedulesResult] = await Promise.all([
     supabase.from('therapy_services').select('*').order('created_at'),
     supabase.from(therapistsSource).select('*').order('created_at'),
     supabase.from('specialties').select('*').order('created_at'),
     supabase.from('therapist_services').select('*'),
     supabase.from('products').select('*').order('category').order('sort_order').order('created_at'),
+    supabase.from('product_options').select('*').order('kind').order('sort_order').order('created_at'),
     supabase.from('offers').select('*').order('created_at'),
     // Ya no es el singleton 'main': hay una fila por clinica y RLS
     // devuelve solo la del tenant activo.
@@ -299,6 +321,22 @@ export const loadCatalogs = async () => {
   ]);
 
   [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult].forEach(throwIfError);
+
+  // product_options se trata aparte, y solo para UN caso: que la tabla
+  // todavia no exista porque la migracion 0021 no se ha aplicado.
+  //
+  // Propagarlo como los demas tumbaba la carga ENTERA del catalogo — la
+  // agenda y los servicios de terapia incluidos — porque falta una tabla
+  // del cafe. El cafe es un modulo que ademas esta en salida del producto;
+  // no puede llevarse por delante la parte clinica.
+  //
+  // Solo se tolera PGRST205 ('no existe la tabla'). Cualquier otro error
+  // —permisos, red, RLS— si se propaga: la diferencia entre "todavia no
+  // desplegada" y "rota" importa, y taparla seria el fallo mudo que este
+  // codigo evita en todos lados.
+  if (optionsResult.error && optionsResult.error.code !== 'PGRST205') {
+    throwIfError(optionsResult);
+  }
   if (settingsResult.error) throw settingsResult.error;
 
   const linksByTherapist = (linksResult.data || []).reduce((acc, link) => {
@@ -326,6 +364,7 @@ export const loadCatalogs = async () => {
     // muestra todo "cerrado" sin decir por que. Se propaga.
     schedules: (throwIfError(schedulesResult) || schedulesResult.data || []).map(mapScheduleFromDb),
     specialties: (specialtiesResult.data || []).map(mapSpecialtyFromDb),
+    productOptions: (optionsResult.error ? [] : (optionsResult.data || [])).map(mapProductOptionFromDb),
     menu,
     offers: (offersResult.data || []).map(mapOfferFromDb),
     settings: mapSettingsFromDb(settingsResult.data),
@@ -494,6 +533,14 @@ export const saveSpecialties = async (items) => {
   if (items.length) throwIfError(await supabase.from('specialties').upsert(items.map(mapSpecialtyToDb)));
   await deleteMissing('specialties', items.map((item) => item.id));
   return items;
+};
+
+export const saveProductOptions = async (options) => {
+  assertSupabaseConfigured();
+  const rows = (options || []).map(mapProductOptionToDb);
+  if (rows.length) throwIfError(await supabase.from('product_options').upsert(rows));
+  await deleteMissing('product_options', rows.map((row) => row.id));
+  return options;
 };
 
 export const saveMenu = async (menu) => {

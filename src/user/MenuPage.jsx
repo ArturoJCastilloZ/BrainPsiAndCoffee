@@ -10,15 +10,19 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { FLAVORS, MENU, MILKS } from '../data';
+import { MENU } from '../data';
 import { formatMXN } from '../utils.jsx';
 import { activeOffers } from '../offerUtils';
+import { groupOptions, optionsTotal } from '../menuOptions.mjs';
 
 export default function MenuPage({ addToCart, catalogs, theme }) {
   const [activeTab, setActiveTab] = useState('hot');
   const [customizing, setCustomizing] = useState(null);
   const menu = catalogs?.menu || MENU;
   const offers = activeOffers(catalogs?.offers || []);
+  // Leches, sabores y extras salen de la base. Sin configurar, el modal
+  // simplemente no ofrece esa seccion.
+  const options = groupOptions(catalogs?.productOptions || []);
   const isDark = theme === 'dark';
 
   const tabs = [
@@ -99,17 +103,21 @@ export default function MenuPage({ addToCart, catalogs, theme }) {
       </div>}
 
       {/* Customize modal */}
-      {customizing && <CustomizeModal item={customizing} theme={theme} onClose={() => setCustomizing(null)} onAdd={(item, custom) => { addToCart(item, custom); setCustomizing(null); }} />}
+      {customizing && <CustomizeModal item={customizing} options={options} theme={theme} onClose={() => setCustomizing(null)} onAdd={(item, custom) => { addToCart(item, custom); setCustomizing(null); }} />}
     </div>
   );
 }
 
-function CustomizeModal({ item, theme, onClose, onAdd }) {
-  const [milk, setMilk] = useState(MILKS[0]);
+function CustomizeModal({ item, options, theme, onClose, onAdd }) {
+  const { milks = [], flavors = [], addons = [] } = options || {};
+  const [milk, setMilk] = useState(milks[0] || null);
   const [flavor, setFlavor] = useState(null);
-  const [extraShot, setExtraShot] = useState(false);
+  const [addonIds, setAddonIds] = useState([]);
 
-  const total = item.price + (extraShot ? 10 : 0) + (flavor ? 5 : 0);
+  const chosenAddons = addons.filter((a) => addonIds.includes(a.id));
+  const total = optionsTotal(item.price, { flavor, addons: chosenAddons });
+  const toggleAddon = (id) => setAddonIds((prev) =>
+    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   const isDark = theme === 'dark';
   const modalColors = {
     overlay: isDark ? 'rgba(30, 27, 24, 0.76)' : 'rgba(58, 40, 24, 0.5)',
@@ -147,22 +155,27 @@ function CustomizeModal({ item, theme, onClose, onAdd }) {
           <div className="font-display" style={{ fontSize: 24, fontWeight: 600, color: modalColors.text, marginBottom: 2, lineHeight: 1.1 }}>{item.name}</div>
           <div style={{ fontSize: 13, color: modalColors.muted, fontStyle: 'italic', marginBottom: 16 }}>{item.sub}</div>
 
+          {milks.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, color: modalColors.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 8, display: 'block' }}>TIPO DE LECHE</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              {MILKS.map(m => (
-                <button key={m} onClick={() => setMilk(m)} style={{
+              {milks.map(m => (
+                <button key={m.id} onClick={() => setMilk(m)} style={{
                   flex: 1, padding: '10px 12px', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                  background: milk === m ? modalColors.selected : modalColors.surface2,
-                  border: `1.5px solid ${milk === m ? modalColors.selectedBorder : modalColors.border}`,
-                  color: milk === m ? modalColors.selectedText : modalColors.text
-                }}>{m}</button>
+                  background: milk?.id === m.id ? modalColors.selected : modalColors.surface2,
+                  border: `1.5px solid ${milk?.id === m.id ? modalColors.selectedBorder : modalColors.border}`,
+                  color: milk?.id === m.id ? modalColors.selectedText : modalColors.text
+                }}>{m.name}{m.priceDelta > 0 ? ` +${formatMXN(m.priceDelta)}` : ''}</button>
               ))}
             </div>
           </div>
+          )}
 
+          {flavors.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, color: modalColors.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 8, display: 'block' }}>SABORES (+$5)</label>
+            {/* El recargo ya no va en el titulo: cada sabor lleva el suyo,
+                que puede ser distinto y lo decide el admin. */}
+            <label style={{ fontSize: 11, color: modalColors.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 8, display: 'block' }}>SABORES</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
               <button onClick={() => setFlavor(null)} style={{
                 padding: '9px 10px', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 600,
@@ -170,31 +183,41 @@ function CustomizeModal({ item, theme, onClose, onAdd }) {
                 border: `1.5px solid ${flavor === null ? modalColors.selectedBorder : modalColors.border}`,
                 color: flavor === null ? modalColors.selectedText : modalColors.text
               }}>Sin sabor</button>
-              {FLAVORS.map(f => (
-                <button key={f} onClick={() => setFlavor(f)} style={{
+              {flavors.map(f => (
+                <button key={f.id} onClick={() => setFlavor(f)} style={{
                   padding: '9px 10px', borderRadius: 11, cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                  background: flavor === f ? modalColors.selected : modalColors.surface2,
-                  border: `1.5px solid ${flavor === f ? modalColors.selectedBorder : modalColors.border}`,
-                  color: flavor === f ? modalColors.selectedText : modalColors.text, textAlign: 'left', lineHeight: 1.3
-                }}>{f}</button>
+                  background: flavor?.id === f.id ? modalColors.selected : modalColors.surface2,
+                  border: `1.5px solid ${flavor?.id === f.id ? modalColors.selectedBorder : modalColors.border}`,
+                  color: flavor?.id === f.id ? modalColors.selectedText : modalColors.text, textAlign: 'left', lineHeight: 1.3
+                }}>{f.name}{f.priceDelta > 0 ? ` +${formatMXN(f.priceDelta)}` : ''}</button>
               ))}
             </div>
           </div>
+          )}
 
-          <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: modalColors.surface2, borderRadius: 11, border: `1px solid ${modalColors.border}` }}>
-            <input type="checkbox" id="extraShot" checked={extraShot} onChange={e => setExtraShot(e.target.checked)} style={{ accentColor: modalColors.primary, width: 16, height: 16 }} />
-            <label htmlFor="extraShot" style={{ flex: 1, fontSize: 13, color: modalColors.text, fontWeight: 600, cursor: 'pointer' }}>
-              Shot extra de espresso
+          {addons.map(a => (
+          <div key={a.id} style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: modalColors.surface2, borderRadius: 11, border: `1px solid ${modalColors.border}` }}>
+            <input type="checkbox" id={`addon-${a.id}`} checked={addonIds.includes(a.id)} onChange={() => toggleAddon(a.id)} style={{ accentColor: modalColors.primary, width: 16, height: 16 }} />
+            <label htmlFor={`addon-${a.id}`} style={{ flex: 1, fontSize: 13, color: modalColors.text, fontWeight: 600, cursor: 'pointer' }}>
+              {a.name}
             </label>
-            <span style={{ fontSize: 13, fontWeight: 700, color: modalColors.accent }}>+$10</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: modalColors.accent }}>+{formatMXN(a.priceDelta)}</span>
           </div>
+          ))}
         </div>
 
         <div style={{
           padding: 20, paddingTop: 12, background: modalColors.surface,
           borderTop: `1px solid ${modalColors.border}`, boxShadow: '0 -8px 18px rgba(58,40,24,0.08)'
         }}>
-          <button onClick={() => onAdd(item, { milk, flavor, extraShot, totalPrice: total })} style={{
+          <button onClick={() => onAdd(item, {
+            milk: milk?.name || null,
+            flavor: flavor?.name || null,
+            addons: chosenAddons.map((a) => a.name),
+            // Se conserva para no romper pedidos ya guardados que lo leen.
+            extraShot: chosenAddons.length > 0,
+            totalPrice: total,
+          })} style={{
             width: '100%', background: modalColors.primary, color: modalColors.primaryText, border: 'none',
             padding: '14px 16px', borderRadius: 13, fontSize: 14, fontWeight: 600, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8

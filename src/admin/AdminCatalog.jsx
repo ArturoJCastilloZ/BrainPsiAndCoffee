@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Brain, Building2, Coffee, Gift, Heart, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { Brain, Building2, Coffee, Gift, Heart, Milk, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { C } from '../theme';
 import { uid } from '../utils.jsx';
 import { SPECIALTIES } from '../data';
@@ -19,6 +19,12 @@ const emptyTherapist = { name: '', email: '', cedula: '', specialty: '', session
 const emptySpecialty = { name: '', active: true };
 const emptyProduct = { name: '', sub: '', price: 45, active: true };
 const emptyOffer = { name: '', desc: '', price: 99, active: true };
+const emptyOption = { kind: 'flavor', name: '', priceDelta: 0, active: true };
+const OPTION_TABS = [
+  { id: 'milk', label: 'Leches', vacio: 'No hay tipos de leche. El cliente no verá esa opción.' },
+  { id: 'flavor', label: 'Sabores', vacio: 'No hay sabores. El cliente no verá esa opción.' },
+  { id: 'addon', label: 'Extras', vacio: 'No hay extras, como el shot adicional.' },
+];
 const THERAPIST_COLORS = [
   { label: 'Verde', value: C.sageDark },
   { label: 'Caramelo', value: C.caramel },
@@ -44,6 +50,7 @@ export default function AdminCatalog({ catalogs, catalogActions, session, initia
     canManageClinicCatalog(role) && { id: 'services', label: 'Servicios', icon: Brain },
     canManageClinicCatalog(role) && { id: 'therapists', label: 'Doctores', icon: Users },
     canManageClinicCatalog(role) && { id: 'specialties', label: 'Especialidades', icon: Sparkles },
+    canManageCafeCatalog(role) && { id: 'options', label: 'Personalización', icon: Milk },
     canManageCafeCatalog(role) && { id: 'offers', label: 'Ofertas', icon: Gift },
     canManageBusinessSettings(role) && { id: 'business', label: 'Negocio', icon: Building2 },
   ].filter(Boolean), [role]);
@@ -76,6 +83,7 @@ export default function AdminCatalog({ catalogs, catalogActions, session, initia
       {tab === 'services' && <ListManager title="Servicios" items={catalogs.services} setItems={catalogActions.setServices} emptyItem={emptyService} renderForm={ServiceForm} summary={(item) => `${item.duration} min · $${item.price} · ${item.for}`} />}
       {tab === 'therapists' && <ListManager title="Doctores" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || SPECIALTIES} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}`} />}
       {tab === 'specialties' && <ListManager title="Especialidades" items={catalogs.specialties || SPECIALTIES} setItems={catalogActions.setSpecialties} emptyItem={emptySpecialty} renderForm={SpecialtyForm} summary={(item) => item.active === false ? 'Inactiva' : 'Activa'} />}
+      {tab === 'options' && <OptionsManager options={catalogs.productOptions || []} setOptions={catalogActions.setProductOptions} />}
       {tab === 'offers' && <ListManager title="Ofertas" items={catalogs.offers} setItems={catalogActions.setOffers} emptyItem={emptyOffer} renderForm={OfferForm} summary={(item) => `$${item.price} · ${item.desc}${offerWindowLabel(item)}`} />}
       {tab === 'business' && <BusinessSettings settings={catalogs.settings} setSettings={catalogActions.setSettings} />}
     </div>
@@ -109,6 +117,57 @@ function ProductsManager({ menu, setMenu }) {
       />
     </div>
   );
+}
+
+// Leches, sabores y extras. Los tres son lo mismo —modificadores— y se
+// distinguen por 'kind', asi que comparten pantalla en vez de tener tres.
+function OptionsManager({ options, setOptions }) {
+  const [kind, setKind] = useState('flavor');
+  const actual = OPTION_TABS.find((t) => t.id === kind) || OPTION_TABS[0];
+  const delTipo = options.filter((o) => o.kind === kind);
+
+  // Se reemplazan solo los de ESTE tipo y se conservan los demas: el
+  // guardado manda la lista completa, y filtrar sin reponer el resto
+  // borraria los sabores al editar las leches.
+  const setItems = (items) => setOptions([
+    ...options.filter((o) => o.kind !== kind),
+    ...items.map((item) => ({ ...item, kind })),
+  ]);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {OPTION_TABS.map(item => (
+          <button key={item.id} onClick={() => setKind(item.id)} style={{
+            border: '1px solid ' + (kind === item.id ? C.caramel : 'var(--admin-border)'),
+            background: kind === item.id ? C.caramel : 'var(--admin-surface-soft)',
+            color: kind === item.id ? selectedPill.color : 'var(--admin-row-text)',
+            padding: '7px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit'
+          }}>{item.label}</button>
+        ))}
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--admin-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
+        Lo que el cliente puede elegir al pedir un café. El precio se suma al del producto;
+        déjalo en 0 si no cobra. {delTipo.length === 0 && actual.vacio}
+      </p>
+      <ListManager
+        title={`Personalización · ${actual.label}`}
+        items={delTipo}
+        setItems={setItems}
+        emptyItem={{ ...emptyOption, kind }}
+        renderForm={OptionForm}
+        summary={(item) => (Number(item.priceDelta) > 0 ? `+$${item.priceDelta}` : 'Sin costo')}
+      />
+    </div>
+  );
+}
+
+function OptionForm({ draft, setDraft }) {
+  return <FormGrid>
+    <Field label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+    <Field label="PRECIO EXTRA" type="number" value={draft.priceDelta}
+           onChange={priceDelta => setDraft({ ...draft, priceDelta })} required min={0} />
+  </FormGrid>;
 }
 
 function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summary }) {

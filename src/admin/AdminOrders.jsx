@@ -206,7 +206,7 @@ export default function AdminOrders({ orders, setOrders, catalogs, session }) {
               <div style={{ display: 'grid', gap: 6, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--admin-border)' }}>
                 {o.items.map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--admin-row-text)' }}>
-                    <span>{Number(item.qty || 1) > 1 ? `${item.qty}x ` : ''}{item.name}{item.customizations?.milk ? ` · ${item.customizations.milk}` : ''}{item.customizations?.flavor ? ` · ${item.customizations.flavor}` : ''}</span>
+                    <span>{Number(item.qty || 1) > 1 ? `${item.qty}x ` : ''}{item.name}{item.customizations?.milk ? ` · ${item.customizations.milk}` : ''}{item.customizations?.flavor ? ` · ${item.customizations.flavor}` : ''}{(item.customizations?.addons || []).map((a) => ` · ${a}`).join('')}</span>
                     <span style={{ color: 'var(--admin-text)' }}>${(item.customizations?.totalPrice || item.price) * Number(item.qty || 1)}</span>
                   </div>
                 ))}

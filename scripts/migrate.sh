@@ -198,6 +198,7 @@ if [[ "$CMD" == "baseline" ]]; then
     # Mismo caso que 0015: resolve_login_identifier ya existia, en sql. La
     # version acotada por tenant es plpgsql, y eso si la distingue.
     "0020_login_identifier_by_tenant|(select 1 from pg_proc p join pg_language l on l.oid = p.prolang where p.proname='resolve_login_identifier' and l.lanname='plpgsql')"
+    "0021_product_options|to_regclass('public.product_options')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.
