@@ -106,8 +106,22 @@ assert(doctor.includes('Pacientes'), 'DoctorApp debe incluir vista de pacientes.
 // recortar desde ahi borraria codigo real — un falso NEGATIVO, que es el
 // error caro. Queda vivo el caso de un comentario al final de una linea
 // de codigo; es aceptable y preferible al otro lado del error.
+// Solo se quitan las lineas que EMPIEZAN con //. Nada mas.
+//
+// La primera version tambien borraba bloques /* ... */ y eso producia un
+// FALSO NEGATIVO: el regex corre sobre texto plano, sin saber de strings.
+// Un literal con '/*' dentro —una regex, un 'text/*' de Content-Type— abre
+// un bloque que se cierra en el primer '*/' que aparezca mas abajo, y se
+// lleva por delante todo el codigo intermedio. Si en ese tramo estaba la
+// regresion, la asercion pasaba en VERDE sobre codigo vulnerable.
+// Comprobado: con 'text/*' antes de un updateUserById({ email }), la
+// asercion de email daba false.
+//
+// El problema real que se queria resolver —la prosa que explica el
+// peligro disparando el guard— vive en comentarios de LINEA, asi que el
+// strip de bloques nunca hizo falta. Se prefiere un guard que a veces
+// moleste de mas a uno que calle cuando importa.
 const sinComentarios = (source) => source
-  .replace(/\/\*[\s\S]*?\*\//g, '')
   .split('\n')
   .filter((line) => !/^\s*\/\//.test(line))
   .join('\n');

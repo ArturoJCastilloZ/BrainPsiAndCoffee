@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
     if (existing) {
       // Las otras clinicas se resuelven UNA vez y deciden las dos cosas:
       // si se puede destruir la cuenta, y si se puede reescribir el correo.
-      const otherTenants = await otherActiveTenantsOf(adminClient, existing.id, tenantId);
+      const otherTenants = await otherTenantsFromDb(adminClient, existing.id, tenantId);
 
       // A una invitacion que nadie acepto no se le puede corregir el
       // correo —el enlace ya salio a la direccion vieja—, asi que borrar y
@@ -191,24 +191,41 @@ const json = (body: unknown, status = 200) => (
   })
 );
 
-// Las clinicas ACTIVAS del usuario que no son esta, preguntadas a
-// tenant_members y NO a app_metadata.
+// Las clinicas del usuario que no son esta, preguntadas a tenant_members
+// y NO a app_metadata.
+//
+// El nombre dice de donde sale el dato a proposito: identity.mjs exporta
+// un otherTenantsOf que lee el CLAIM, y es justo el que no debe decidir
+// nada. Dos funciones con el mismo nombre, una segura y otra no, es como
+// se cuela el error de vuelta.
 //
 // El claim es la cache de esta tabla. Si una escritura de claim falla, el
 // usuario sigue siendo miembro de la otra clinica aqui mientras su claim
 // ya no lo dice — y los dos permisos que cuelgan de este dato (destruir la
 // cuenta, reescribir el correo) se abririan solos. Lanza en vez de
 // devolver vacio: no poder confirmar no es permiso.
-const otherActiveTenantsOf = async (
+const otherTenantsFromDb = async (
   adminClient: ReturnType<typeof createClient>,
   userId: string,
   tenantId: string,
 ): Promise<string[]> => {
+  // SIN filtrar por active.
+  //
+  // Una membresia inactiva sigue siendo una relacion con otra clinica. La
+  // pregunta que decide si se puede destruir o renombrar una identidad
+  // compartida es "¿existe algun vinculo con otra clinica?", no "¿esta
+  // activo?". Filtrando por active, una baja logica devolvia [] y abria
+  // sola las dos operaciones destructivas — sin tocar una linea del guard.
+  //
+  // Hoy nadie escribe active=false (las dos revocaciones hacen delete),
+  // asi que no era explotable; pero la columna existe desde 0001 y el dia
+  // que alguien implemente baja logica el permiso se abriria solo. Fallar
+  // cerrado aqui no cuesta nada: el peor caso es que un admin no pueda
+  // corregir un correo y tenga que usar el flujo verificado.
   const { data, error } = await adminClient
     .from('tenant_members')
     .select('tenant_id')
     .eq('user_id', userId)
-    .eq('active', true)
     .neq('tenant_id', tenantId);
   if (error) throw error;
   return (data ?? []).map((row) => row.tenant_id);
@@ -335,7 +352,7 @@ const inviteDoctor = async (
   // habia aqui afirmaba que un recien invitado no pertenece a ninguna
   // otra: era una suposicion escrita como hecho, y es justo la que
   // rompia.
-  const otherTenants = await otherActiveTenantsOf(adminClient, invited.id, tenantId);
+  const otherTenants = await otherTenantsFromDb(adminClient, invited.id, tenantId);
 
   // matchedBy en null: se llego por correo, no por ficha, asi que no hay
   // renombrado de identidad que autorizar.

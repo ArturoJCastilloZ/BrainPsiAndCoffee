@@ -358,3 +358,38 @@ console.log('doctor-identity: no se destruye la cuenta de un doctor compartido')
 }
 
 console.log('doctor-identity: invitar no borra clinicas, y el nombre global tampoco se pisa');
+
+// --- Una membresia inactiva sigue siendo otra clinica ----------------
+// El guard preguntaba a tenant_members filtrando active=true. Una baja
+// logica devolvia [] y abria solas las dos operaciones destructivas.
+// Hoy nadie escribe active=false, asi que no era explotable; pero la
+// columna existe y el dia que alguien implemente baja logica el permiso
+// se abriria sin tocar el guard. La consulta ya no filtra por active, y
+// estas dos aserciones fijan que la lista que llega se respeta tal cual.
+{
+  const compartido = {
+    id: 'user-baja',
+    email: 'dr.baja@clinica.mx',
+    confirmed_at: null,
+    user_metadata: { name: 'Dr Baja' },
+    app_metadata: { memberships: { clinica_a: 'doctor' }, therapist_ids: { clinica_a: 'psq-50' } },
+  };
+
+  // tenant_members dice que sigue vinculado a B, aunque esa membresia
+  // este dada de baja.
+  assert.equal(
+    canRecreateUnconfirmedUser({ user: compartido, otherTenants: ['clinica_b'] }),
+    false,
+    'una membresia inactiva en otra clinica no autoriza destruir la cuenta',
+  );
+
+  const update = buildIdentityUpdate({
+    user: compartido, tenantId: 'clinica_a',
+    therapist: { id: 'psq-50', name: 'Otro nombre', email: 'atacante@evil.test' },
+    matchedBy: 'therapist_id', otherTenants: ['clinica_b'],
+  });
+  assert.ok(!('email' in update), 'ni a reescribir su correo');
+  assert.ok(!('user_metadata' in update), 'ni su nombre');
+}
+
+console.log('doctor-identity: una membresia inactiva sigue contando como otra clinica');
