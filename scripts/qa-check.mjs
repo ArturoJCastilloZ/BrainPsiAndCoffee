@@ -109,6 +109,28 @@ assert(
 // index.ts hoy no asigna NINGUNA clave 'email:': la unica escritura de
 // identidad sale de buildIdentityUpdate. Eso permite una asercion sin
 // agujeros, que no depende de como se escriba la llamada.
+// deleteUser borra la fila entera de auth.users y profiles.user_id es
+// on delete cascade: no esta acotado por tenant. Solo puede correr detras
+// de canRecreateUnconfirmedUser, que exige que la persona no pertenezca a
+// ninguna otra clinica.
+//
+// Limite declarado: estas dos aserciones no prueban que la llamada este
+// DENTRO del if — eso lo prueba tests/front/doctor-identity.test.mjs sobre
+// el predicado. Lo que si detectan es que aparezca una SEGUNDA llamada, o
+// que el guard desaparezca. Se prefieren dos comprobaciones simples y
+// explicables a un regex de estructura que de falsos negativos.
+// En POSICION DE LLAMADA, no un includes() del nombre: el import lo
+// menciona igual, asi que un includes() seguia dando verde despues de
+// quitar el guard del if. Comprobado quitandolo.
+assert(
+  /canRecreateUnconfirmedUser\s*\(/.test(syncDoctor),
+  'sync-doctor-access debe decidir el borrado LLAMANDO a canRecreateUnconfirmedUser, no solo importarlo.',
+);
+assert(
+  (syncDoctor.match(/\bdeleteUser\s*\(/g) || []).length === 1,
+  'sync-doctor-access debe tener exactamente una llamada a deleteUser, la que va detras del guard: borra la cuenta GLOBAL del doctor y con ella su acceso a las demas clinicas.',
+);
+
 assert(
   !/\bemail\s*:/.test(syncDoctor),
   'sync-doctor-access no debe asignar email en index.ts: la identidad se decide en identity.mjs, que si se prueba. Escribirlo aqui puede secuestrar la cuenta de un doctor que atiende en otra clinica.',

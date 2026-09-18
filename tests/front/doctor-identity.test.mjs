@@ -17,6 +17,7 @@ import {
   matchDoctorUser,
   buildIdentityUpdate,
   canRewriteLoginEmail,
+  canRecreateUnconfirmedUser,
   otherTenantsOf,
 } from '../../supabase/functions/sync-doctor-access/identity.mjs';
 
@@ -169,3 +170,85 @@ console.log('doctor-identity: la clinica no reescribe la identidad global de un 
 }
 
 console.log('doctor-identity: la decision sale de tenant_members y falla cerrado');
+
+// --- Hallazgo A: borrar y recrear tambien escribe la identidad -------
+// El mismo patron que 8.3, expresado como borrar-y-recrear en vez de
+// actualizar. deleteUser NO esta acotado por tenant: borra la fila entera
+// de auth.users, y profiles.user_id es on delete cascade. Si el doctor
+// nunca confirmo su cuenta, la rama disparaba ANTES de cualquier chequeo
+// de clinica.
+{
+  // Dr Z fue invitado a las dos clinicas y nunca confirmo.
+  const drZsinConfirmar = {
+    id: 'user-z',
+    email: 'dr.z@clinica.mx',
+    confirmed_at: null,
+    app_metadata: {
+      memberships: { clinica_a: 'doctor', clinica_b: 'doctor' },
+      therapist_ids: { clinica_a: 'psq-11', clinica_b: 'psq-12' },
+    },
+  };
+
+  assert.equal(
+    canRecreateUnconfirmedUser({ user: drZsinConfirmar, otherTenants: ['clinica_b'] }),
+    false,
+    'DESTRUCCION: la clinica A borro la cuenta global de un doctor que tambien atiende en la ' +
+    'clinica B — con ella su fila de profiles (on delete cascade) y su membresia de B — y la ' +
+    'recreo bajo el correo que A eligio',
+  );
+}
+
+// Lo que SI debe seguir funcionando: una invitacion sin confirmar de
+// alguien que solo pertenece a esta clinica. No se le puede corregir el
+// correo —el enlace ya salio a la direccion vieja— asi que borrar y
+// reinvitar es lo unico que funciona, y no afecta a nadie mas.
+{
+  const invitadoSoloAqui = {
+    id: 'user-inv',
+    email: 'typo@clinica.mx',
+    confirmed_at: null,
+    app_metadata: {
+      memberships: { clinica_a: 'doctor' },
+      therapist_ids: { clinica_a: 'psq-13' },
+    },
+  };
+
+  assert.equal(
+    canRecreateUnconfirmedUser({ user: invitadoSoloAqui, otherTenants: [] }),
+    true,
+    'reinvitar a alguien que solo pertenece a esta clinica debe seguir funcionando',
+  );
+}
+
+// Una cuenta YA CONFIRMADA nunca se borra por esta via, ni siquiera si
+// solo pertenece a esta clinica: ahi si se puede actualizar.
+{
+  const confirmadoSoloAqui = {
+    id: 'user-conf',
+    email: 'conf@clinica.mx',
+    confirmed_at: '2026-01-01T00:00:00Z',
+    app_metadata: { memberships: { clinica_a: 'doctor' }, therapist_ids: { clinica_a: 'psq-14' } },
+  };
+
+  assert.equal(
+    canRecreateUnconfirmedUser({ user: confirmadoSoloAqui, otherTenants: [] }),
+    false,
+    'una cuenta confirmada no se borra: se actualiza',
+  );
+}
+
+// Sin dato sobre otras clinicas se falla CERRADO, igual que en la
+// reescritura de correo.
+{
+  const sinConfirmar = {
+    id: 'user-x2', confirmed_at: null,
+    app_metadata: { memberships: { clinica_a: 'doctor' } },
+  };
+  assert.equal(
+    canRecreateUnconfirmedUser({ user: sinConfirmar, otherTenants: undefined }),
+    false,
+    'sin poder confirmar que no atiende en otro lado, no se destruye su cuenta',
+  );
+}
+
+console.log('doctor-identity: no se destruye la cuenta de un doctor compartido');

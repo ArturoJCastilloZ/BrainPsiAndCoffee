@@ -1,7 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // Las decisiones de identidad viven fuera para poder probarlas: a quien se
 // considera el mismo usuario, y que se le escribe encima. Ver identity.mjs.
-import { matchDoctorUser, buildIdentityUpdate, normalizeEmail } from './identity.mjs';
+import {
+  matchDoctorUser,
+  buildIdentityUpdate,
+  canRecreateUnconfirmedUser,
+  normalizeEmail,
+} from './identity.mjs';
 
 type TherapistPayload = {
   id: string;
@@ -131,13 +136,27 @@ Deno.serve(async (req) => {
     const { user: existing, matchedBy } = matchDoctorUser(doctorUsers, therapist, tenantId);
 
     if (existing) {
-      if (!existing.confirmed_at) {
-        await adminClient.auth.admin.deleteUser(existing.id);
+      // Las otras clinicas se resuelven UNA vez y deciden las dos cosas:
+      // si se puede destruir la cuenta, y si se puede reescribir el correo.
+      const otherTenants = await otherActiveTenantsOf(adminClient, existing.id, tenantId);
+
+      // A una invitacion que nadie acepto no se le puede corregir el
+      // correo —el enlace ya salio a la direccion vieja—, asi que borrar y
+      // reinvitar es lo unico que funciona. Pero deleteUser NO esta
+      // acotado por tenant y profiles.user_id es on delete cascade: con un
+      // doctor de dos consultorios, esto destruia su cuenta y su membresia
+      // en el otro. Solo procede si no pertenece a ninguna otra clinica.
+      if (canRecreateUnconfirmedUser({ user: existing, otherTenants })) {
+        const { error: deleteError } = await adminClient.auth.admin.deleteUser(existing.id);
+        if (deleteError) throw deleteError;
         await inviteDoctor(adminClient, tenantId, therapist, normalizedEmail, redirectTo);
         continue;
       }
 
-      await grantMembership(adminClient, existing, tenantId, therapist, matchedBy);
+      // Si se nego, no se queda sin hacer nada: se concede la membresia
+      // por la via normal, que ya sabe no tocar la identidad. La cuenta
+      // sigue sin confirmar —un estado legitimo— y nadie pierde su acceso.
+      await grantMembership(adminClient, existing, tenantId, therapist, matchedBy, otherTenants);
       await setTherapistUser(adminClient, tenantId, therapist.id, existing.id);
       continue;
     }
@@ -170,6 +189,29 @@ const json = (body: unknown, status = 200) => (
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 );
+
+// Las clinicas ACTIVAS del usuario que no son esta, preguntadas a
+// tenant_members y NO a app_metadata.
+//
+// El claim es la cache de esta tabla. Si una escritura de claim falla, el
+// usuario sigue siendo miembro de la otra clinica aqui mientras su claim
+// ya no lo dice — y los dos permisos que cuelgan de este dato (destruir la
+// cuenta, reescribir el correo) se abririan solos. Lanza en vez de
+// devolver vacio: no poder confirmar no es permiso.
+const otherActiveTenantsOf = async (
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+  tenantId: string,
+): Promise<string[]> => {
+  const { data, error } = await adminClient
+    .from('tenant_members')
+    .select('tenant_id')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .neq('tenant_id', tenantId);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.tenant_id);
+};
 
 const listAllUsers = async (adminClient: ReturnType<typeof createClient>) => {
   const users = [];
@@ -213,6 +255,7 @@ const grantMembership = async (
   tenantId: string,
   therapist: TherapistPayload,
   matchedBy: string | null,
+  otherTenants: string[],
 ) => {
   const { error } = await adminClient.from('tenant_members').upsert({
     tenant_id: tenantId,
@@ -223,22 +266,6 @@ const grantMembership = async (
     updated_at: new Date().toISOString(),
   }, { onConflict: 'tenant_id,user_id' });
   if (error) throw error;
-
-  // Las otras clinicas se preguntan a tenant_members y NO a
-  // app_metadata. El claim es su cache: si una escritura de claim falla
-  // —cosa que hasta hace poco pasaba en silencio, ver abajo— el usuario
-  // sigue siendo miembro de la otra clinica en la tabla mientras su claim
-  // ya no lo dice, y el permiso de reescribir el correo se abriria solo.
-  const { data: otherRows, error: othersError } = await adminClient
-    .from('tenant_members')
-    .select('tenant_id')
-    .eq('user_id', user.id)
-    .eq('active', true)
-    .neq('tenant_id', tenantId);
-  // Fallar cerrado: sin poder confirmar que no atiende en otro lado, no
-  // se toca su identidad.
-  if (othersError) throw othersError;
-  const otherTenants = (otherRows ?? []).map((row) => row.tenant_id);
 
   // buildIdentityUpdate decide si el correo de login entra en el payload.
   // No entra cuando el usuario tambien pertenece a otra clinica: ese
@@ -298,14 +325,16 @@ const inviteDoctor = async (
   const userId = created.data.user?.id;
   if (!userId) return;
 
-  // matchedBy va en null: el usuario se acaba de crear con inviteUserByEmail
-  // y su correo ya es este. No hay identidad previa que reescribir.
+  // matchedBy va en null y otherTenants vacio: el usuario se acaba de
+  // crear con inviteUserByEmail, su correo ya es este y no pertenece a
+  // ninguna otra clinica todavia. No hay identidad previa que reescribir.
   await grantMembership(
     adminClient,
     { id: userId, app_metadata: {}, user_metadata: { name: therapist.name } },
     tenantId,
     therapist,
     null,
+    [],
   );
   await setTherapistUser(adminClient, tenantId, therapist.id, userId);
 };

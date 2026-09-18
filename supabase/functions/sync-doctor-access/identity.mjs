@@ -87,3 +87,27 @@ export const canRewriteLoginEmail = ({ matchedBy, otherTenants }) => {
   if (!Array.isArray(otherTenants)) return false;
   return otherTenants.length === 0;
 };
+
+// Si esta clinica puede BORRAR Y RECREAR una cuenta sin confirmar.
+//
+// La rama existe por una razon legitima: a una invitacion que nadie acepto
+// no se le puede "corregir" el correo, porque el enlace ya salio a la
+// direccion vieja. Borrar y volver a invitar es lo unico que funciona.
+// Pero deleteUser NO esta acotado por tenant: borra la fila entera de
+// auth.users, y profiles.user_id es on delete cascade. Con un doctor que
+// atiende en dos consultorios, la sincronizacion de uno destruia la
+// cuenta, su ficha global y su membresia en el otro — y la recreaba bajo
+// el correo que eligio quien sincronizo. Es el mismo "una clinica escribe
+// una identidad compartida" que canRewriteLoginEmail cierra, expresado
+// como borrar-y-recrear en vez de actualizar.
+//
+// Misma regla y mismo fallo cerrado: solo si la persona no pertenece a
+// ninguna otra clinica. Cuando se niega, quien llama NO se queda sin
+// hacer nada: concede la membresia por la via normal, que ya sabe no
+// tocar la identidad. La cuenta sigue sin confirmar, que es un estado
+// legitimo, y nadie pierde su acceso.
+export const canRecreateUnconfirmedUser = ({ user, otherTenants }) => {
+  if (user?.confirmed_at) return false;
+  if (!Array.isArray(otherTenants)) return false;
+  return otherTenants.length === 0;
+};
