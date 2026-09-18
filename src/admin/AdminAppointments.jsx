@@ -11,7 +11,7 @@ import {
 import { C } from '../theme';
 import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { addDays, todayISO, uid, weekdayLabelsFrom, localDate } from '../utils.jsx';
-import { isWorkingDay, timeSlotStates } from '../agenda.mjs';
+import { isWorkingDay, poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
 import { validateAppointment } from '../validation';
 import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
@@ -75,7 +75,10 @@ export default function AdminAppointments({
     return Array.from({ length: 35 }, (_, index) => {
       const date = addDays(inicio, index);
       const iso = localISO(date);
-      const slots = getAvailableSlots(iso, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services, schedules);
+      const slots = poolAvailableSlots({
+        date: iso, therapistId: draft.therapistId, serviceId: draft.serviceId,
+        bookings, eligibleTherapists, services, schedules,
+      });
       // Navegar hacia atras es util para consultar, pero no se agenda en
       // el pasado.
       const pasado = iso < hoy;
@@ -103,7 +106,10 @@ export default function AdminAppointments({
     setCalendarStart(localISO(d));
   };
   const availableDates = useMemo(() => calendarDays.filter(day => !day.disabled).map(day => day.iso), [calendarDays]);
-  const availableSlots = useMemo(() => getTimeSlotStates(draft.date, draft.therapistId, draft.serviceId, bookings, eligibleTherapists, services, schedules), [bookings, draft.date, draft.serviceId, draft.therapistId, eligibleTherapists, schedules, services]);
+  const availableSlots = useMemo(() => poolSlotStates({
+    date: draft.date, therapistId: draft.therapistId, serviceId: draft.serviceId,
+    bookings, eligibleTherapists, services, schedules,
+  }), [bookings, draft.date, draft.serviceId, draft.therapistId, eligibleTherapists, schedules, services]);
   const selectedSlot = availableSlots.find(slot => slot.time === draft.time);
   const canCreateBooking = Boolean(
     Object.keys(validateAppointment(draft)).length === 0 &&
@@ -176,8 +182,15 @@ export default function AdminAppointments({
   };
   const saveExistingReschedule = (booking) => {
     const serviceTherapists = therapists.filter(therapist => therapist.id === booking.therapistId && therapist.services?.includes(booking.serviceId));
-    const slot = getTimeSlotStates(rescheduleDraft.date, booking.therapistId, booking.serviceId, bookings.filter(item => item.id !== booking.id), serviceTherapists, services)
-      .find(item => item.time === rescheduleDraft.time);
+    // schedules va SIEMPRE. Sin el, blocksForDate no encuentra bloques,
+    // no hay candidatos, y este find devuelve undefined: reagendar
+    // rechazaba TODOS los horarios que la propia pantalla acababa de
+    // ofrecer.
+    const slot = poolSlotStates({
+      date: rescheduleDraft.date, therapistId: booking.therapistId, serviceId: booking.serviceId,
+      bookings: bookings.filter(item => item.id !== booking.id),
+      eligibleTherapists: serviceTherapists, services, schedules,
+    }).find(item => item.time === rescheduleDraft.time);
     if (!slot?.available) {
       setFormError('Ese horario ya no está disponible. Selecciona otro horario.');
       return;
@@ -613,8 +626,11 @@ function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, 
   const days = Array.from({ length: 28 }, (_, index) => addDays(new Date(), index))
     .map(localISO)
     .filter((iso) => isWorkingDay(schedules, booking.therapistId, iso));
-  const slots = getTimeSlotStates(draft.date, booking.therapistId, booking.serviceId, bookings.filter(item => item.id !== booking.id), therapistPool, services, schedules)
-    .filter(slot => slot.available);
+  const slots = poolSlotStates({
+    date: draft.date, therapistId: booking.therapistId, serviceId: booking.serviceId,
+    bookings: bookings.filter(item => item.id !== booking.id),
+    eligibleTherapists: therapistPool, services, schedules,
+  }).filter(slot => slot.available);
 
   return (
     <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid var(--admin-border)', background: 'var(--admin-surface-soft)' }}>
@@ -783,40 +799,6 @@ function TimeSlotGrid({ slots, selectedTime, onSelect }) {
 // Estas dos delegan en src/agenda.mjs, que es donde vive la aritmetica y
 // donde se puede probar. Aqui solo se resuelve QUE terapeutas entran:
 // con "cualquiera", un horario esta disponible si al menos uno puede.
-function getAvailableSlots(date, therapistId, serviceId, bookings, eligibleTherapists, services, schedules) {
-  return getTimeSlotStates(date, therapistId, serviceId, bookings, eligibleTherapists, services, schedules)
-    .filter((slot) => slot.available)
-    .map((slot) => slot.time);
-}
-
-function getTimeSlotStates(date, therapistId, serviceId, bookings, eligibleTherapists, services, schedules) {
-  if (!date || !serviceId) return [];
-
-  const pool = therapistId === 'any'
-    ? eligibleTherapists
-    : eligibleTherapists.filter((t) => t.id === therapistId);
-  if (!pool.length) return [];
-
-  const service = services.find((x) => x.id === serviceId);
-
-  // Se unen los horarios de todos los terapeutas del pool: un horario
-  // aparece si alguno lo ofrece, y queda disponible si alguno lo tiene
-  // libre. Asi "cualquiera" no esconde la disponibilidad del que si puede.
-  const porHora = new Map();
-  for (const therapist of pool) {
-    for (const slot of timeSlotStates({
-      schedules, therapist, service, date, bookings, services,
-    })) {
-      const previo = porHora.get(slot.time);
-      if (!previo || (!previo.available && slot.available)) porHora.set(slot.time, slot);
-    }
-  }
-
-  return [...porHora.values()].sort((a, b) => a.time.localeCompare(b.time));
-}
-
-
-
 function localISO(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

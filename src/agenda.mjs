@@ -118,3 +118,46 @@ export const timeSlotStates = ({
 
 export const availableSlots = (args) =>
   timeSlotStates(args).filter((s) => s.available).map((s) => s.time);
+
+// --- Disponibilidad de un POOL de terapeutas --------------------------
+//
+// Vivia dentro de AdminAppointments como una funcion de SIETE parametros
+// POSICIONALES, y eso costo un bug en produccion: una de las cuatro
+// llamadas pasaba seis y se comia `schedules` en silencio. La pantalla
+// pintaba horarios con el horario real y el guardado los validaba SIN el,
+// asi que rechazaba todos con "Ese horario ya no esta disponible".
+//
+// Con argumentos NOMBRADOS un olvido sigue siendo posible, pero ya no es
+// invisible: la clave falta a la vista en el sitio de llamada, en vez de
+// esconderse en la septima posicion de una lista.
+//
+// Un horario aparece si ALGUNO del pool lo ofrece, y queda disponible si
+// alguno lo tiene libre: "cualquier terapeuta" no debe esconder la
+// disponibilidad del que si puede atender.
+export const poolSlotStates = ({
+  date, therapistId, serviceId, bookings, eligibleTherapists, services, schedules, now,
+}) => {
+  if (!date || !serviceId) return [];
+
+  const pool = therapistId === 'any'
+    ? eligibleTherapists
+    : (eligibleTherapists || []).filter((t) => t.id === therapistId);
+  if (!pool.length) return [];
+
+  const service = (services || []).find((x) => x.id === serviceId);
+
+  const porHora = new Map();
+  for (const therapist of pool) {
+    for (const slot of timeSlotStates({
+      schedules, therapist, service, date, bookings, services, ...(now ? { now } : {}),
+    })) {
+      const previo = porHora.get(slot.time);
+      if (!previo || (!previo.available && slot.available)) porHora.set(slot.time, slot);
+    }
+  }
+
+  return [...porHora.values()].sort((a, b) => a.time.localeCompare(b.time));
+};
+
+export const poolAvailableSlots = (args) =>
+  poolSlotStates(args).filter((s) => s.available).map((s) => s.time);
