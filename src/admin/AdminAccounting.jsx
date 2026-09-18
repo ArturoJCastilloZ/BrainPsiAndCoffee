@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Minus, Plus, RefreshCw, Wallet } from 'lucide-react';
 import { C } from '../theme';
-import { uid } from '../utils.jsx';
 import { useConfirm } from '../components/ConfirmDialog';
 import { accountingAreas } from '../auth/permissions';
 import {
@@ -142,7 +141,9 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
         areas={areas}
         onGuardar={async (gasto) => {
           try {
-            await saveExpense({ ...gasto, id: gasto.id || uid() });
+            // Sin id: lo pone la base. uid() da 7 caracteres base36 y la
+            // columna es uuid — por eso reventaba al guardar.
+            await saveExpense(gasto);
             setAviso('Gasto registrado.');
             await recargar();
           } catch (err) { setError(err.message); }
@@ -275,7 +276,25 @@ function Tendencia({ serie }) {
   if (!serie || serie.length < MIN_PUNTOS_GRAFICA) {
     return null;
   }
-  const max = Math.max(...serie.flatMap((p) => [p.facturado, p.cobrado]), 1);
+
+  const max = Math.max(...serie.flatMap((p) => [p.facturado, p.cobrado]), 0);
+
+  // Todo en cero no se grafica: dos lineas planas pegadas al eje parecen
+  // un fallo de carga, no "no hubo movimiento". Se dice con palabras.
+  if (max === 0) {
+    return (
+      <div className="admin-card" style={{ borderRadius: 16, padding: 16, marginTop: 14 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: 'var(--admin-row-text)', marginBottom: 8 }}>
+          ÚLTIMOS {serie.length} MESES
+        </div>
+        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--admin-muted)', lineHeight: 1.5 }}>
+          Sin movimientos registrados en este rango. En cuanto registres cobros aparecerá la
+          comparación entre lo facturado y lo cobrado.
+        </p>
+      </div>
+    );
+  }
+
   const w = 100, h = 32;
   const punto = (i, v) => `${(i / (serie.length - 1)) * w},${h - (v / max) * h}`;
   const linea = (llave) => serie.map((p, i) => punto(i, p[llave])).join(' ');

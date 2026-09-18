@@ -453,8 +453,16 @@ const mapPaymentFromDb = (row) => ({
   notes: row.notes || '',
 });
 
+// El id lo genera la BASE (gen_random_uuid), no el cliente: uid() produce
+// 7 caracteres base36 y la columna es uuid — mandarlo reventaba con
+// 'invalid input syntax for type uuid'.
+//
+// Y se OMITE la clave cuando no hay id, no se manda en undefined: una
+// clave con undefined sigue apareciendo en Object.keys(), supabase-js la
+// mete en ?columns=... y PostgREST escribe NULL en vez de aplicar el
+// DEFAULT. Es la trampa que tests/front/insert-payload vigila.
 const mapPaymentToDb = (item) => ({
-  id: item.id,
+  ...(item.id ? { id: item.id } : {}),
   appointment_id: item.appointmentId || null,
   order_id: item.orderId || null,
   amount: Number(item.amount || 0),
@@ -477,7 +485,7 @@ const mapExpenseFromDb = (row) => ({
 });
 
 const mapExpenseToDb = (item) => ({
-  id: item.id,
+  ...(item.id ? { id: item.id } : {}),
   area: item.area,
   category: item.category,
   description: item.description || null,

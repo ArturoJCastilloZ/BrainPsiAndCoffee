@@ -28,4 +28,39 @@ assert.ok(Object.keys(conUndefined).includes('id'),
 assert.ok(!Object.keys(JSON.parse(JSON.stringify(conUndefined))).includes('id'),
   'y desaparece del cuerpo JSON: de ahi el desajuste entre columns y body');
 
-console.log('insert-payload: sin claves undefined en los mappers');
+// Y el reverso del mismo problema: un id generado en el CLIENTE para una
+// columna uuid.
+//
+// Paso de verdad: el panel de contabilidad llamaba a uid() —7 caracteres
+// base36— para expenses.id, que es uuid con default gen_random_uuid().
+// Guardar un gasto reventaba con 'invalid input syntax for type uuid'.
+//
+// La solucion NO es mandar id: undefined (eso escribe NULL, ver arriba):
+// es OMITIR la clave para que el DEFAULT de la base aplique.
+const mappersUuid = [...src.matchAll(/const (map(?:Payment|Expense)ToDb)\s*=[\s\S]*?\n\};?/g)];
+assert.ok(mappersUuid.length === 2, 'se esperaban los dos mappers de contabilidad');
+for (const [bloque, nombre] of mappersUuid) {
+  assert.ok(
+    /\.\.\.\(item\.id \? \{ id: item\.id \} : \{\}\)/.test(bloque),
+    `${nombre} debe OMITIR la clave id cuando no hay id, para que gen_random_uuid() aplique`,
+  );
+}
+
+// Y nadie debe generar ids de cliente para esas tablas.
+//
+// Se quitan los comentarios de linea antes de buscar: el comentario que
+// EXPLICA por que no se usa uid() contiene, literalmente, 'uid()'. Un
+// guard que se dispara con su propia documentacion es ruido, y el ruido
+// se acaba silenciando. Mismo tratamiento que en scripts/qa-check.mjs.
+const sinComentarios = (source) => source
+  .split('\n')
+  .filter((line) => !/^\s*\/\//.test(line))
+  .join('\n');
+
+const panel = sinComentarios(readFileSync('src/admin/AdminAccounting.jsx', 'utf8'));
+assert.ok(
+  !/\buid\s*\(\)/.test(panel),
+  'AdminAccounting no debe generar ids con uid(): las columnas son uuid y la base los pone.',
+);
+
+console.log('insert-payload: sin claves undefined, y los uuid los pone la base');
