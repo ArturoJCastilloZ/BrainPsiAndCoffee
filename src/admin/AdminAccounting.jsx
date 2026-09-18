@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, Minus, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Minus, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
 import { C } from '../theme';
 import { useConfirm } from '../components/ConfirmDialog';
 import { accountingAreas, recordablePaymentKinds } from '../auth/permissions';
@@ -144,10 +144,6 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
 
       <Tarjetas c={cifras} />
 
-      {cifras.efectivoNoDeducible > 0 && (
-        <AvisoFiscal monto={cifras.efectivoNoDeducible} />
-      )}
-
       <Tendencia serie={cifras.serie} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 14, marginTop: 14 }}>
@@ -164,6 +160,9 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
           titulo="Cómo se cobró"
           filas={cifras.metodos}
           vacio="Sin cobros registrados en el periodo."
+          nota={cifras.efectivoNoDeducible > 0
+            ? <NotaEfectivo monto={cifras.efectivoNoDeducible} />
+            : null}
         />
       </div>
 
@@ -305,21 +304,23 @@ function Tarjeta({ label, valor, prev, ayuda, invertir = false }) {
 
 // --- Aviso fiscal -----------------------------------------------------
 
-function AvisoFiscal({ monto }) {
+// Nota al pie de "Como se cobro", no una banda roja bajo las tarjetas.
+//
+// Lo que dice es util —conviene saberlo antes de que el paciente pida
+// factura— pero no es un error ni algo que el dueño tenga que corregir:
+// cobrar en efectivo es legal y normal. Pintarlo como alarma en cada
+// carga enseña a ignorarlo, que es lo contrario de lo que se busca.
+function NotaEfectivo({ monto }) {
   return (
-    <div role="note" style={{
-      marginTop: 14, padding: '12px 14px', borderRadius: 12,
-      background: C.rustAlpha20, border: `1px solid ${C.rustAlpha40}`,
-      display: 'flex', gap: 10, alignItems: 'flex-start',
+    <p role="note" style={{
+      margin: '10px 0 0', paddingTop: 10,
+      borderTop: '1px solid var(--admin-border)',
+      fontSize: 11.5, lineHeight: 1.55, color: 'var(--admin-muted)',
     }}>
-      <AlertTriangle size={16} color={C.rustText} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
-      <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--admin-text)' }}>
-        <strong>{formatMoney(monto)} cobrados en efectivo por consultas.</strong>{' '}
-        El Art. 151 de la LISR solo permite deducir honorarios médicos pagados por transferencia,
-        tarjeta o cheque nominativo. Tus pacientes <strong>no podrán deducir</strong> ese monto
-        aunque les expidas CFDI.
-      </p>
-    </div>
+      De las consultas, {formatMoney(monto)} se cobraron en efectivo. Si algún
+      paciente va a deducir su terapia, conviene cobrarle por transferencia,
+      tarjeta o cheque: en efectivo no se puede deducir, ni con factura.
+    </p>
   );
 }
 
@@ -403,7 +404,7 @@ function Tendencia({ serie }) {
 
 // --- Desglose ---------------------------------------------------------
 
-function Desglose({ titulo, filas, vacio }) {
+function Desglose({ titulo, filas, vacio, nota = null }) {
   return (
     <div className="admin-card" style={{ borderRadius: 16, padding: 16 }}>
       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: 'var(--admin-row-text)', marginBottom: 10 }}>
@@ -500,6 +501,7 @@ function PorCobrar({ filas, onCobrar }) {
           </tbody>
         </table>
       )}
+      {nota}
     </div>
   );
 }

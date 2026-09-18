@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
 import { C } from '../theme';
 import { formatMoney } from '../accounting.mjs';
 import {
-  PAYMENT_METHODS, METHOD_LABEL, CASH_WARNING, needsCashWarning,
+  PAYMENT_METHODS, METHOD_LABEL,
   paymentStatus, validatePayment, toPaymentRow,
 } from '../payments.mjs';
 
@@ -15,9 +14,10 @@ import {
 // tres pantallas que pueden hacerlo (citas, pedidos y el panel) para que
 // la regla no se escriba tres veces y se separe en dos.
 //
-// El METODO es obligatorio: 0027 lo declara not null. Y en efectivo se
-// avisa —no se impide— porque el Art. 151 LISR invalida la deduccion del
-// paciente aunque haya CFDI.
+// El METODO es obligatorio: 0027 lo declara not null. Lo que el efectivo
+// implica para la deduccion del paciente se dice en el panel de
+// Contabilidad, sobre el total del periodo, y no aqui: al registrar cobro
+// por cobro el aviso se vuelve un sobresalto en cada captura.
 export default function PaymentDialog({
   kind,            // 'cita' | 'pedido'
   doc,             // la cita o el pedido que se cobra
@@ -37,10 +37,9 @@ export default function PaymentDialog({
     // validacion, porque cobrar de mas descuadra el libro sin dejar dicho
     // por que.
     amount: estado.saldo > 0 ? String(estado.saldo) : '',
-    // Sin preseleccionar. Si el formulario trae "efectivo" puesto, el
-    // aviso fiscal aparece antes de que nadie haya decidido nada y se
-    // vuelve ruido; y preseleccionar transferencia haria que el metodo
-    // —dato fiscal— se registre por inercia.
+    // Sin preseleccionar, a proposito: el metodo es dato fiscal y con un
+    // valor puesto se registraria por inercia el que trajera el formulario
+    // en vez del que de verdad se cobro.
     method: '',
     paidAt: new Date().toISOString().slice(0, 10),
     reference: '',
@@ -56,8 +55,6 @@ export default function PaymentDialog({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onCerrar, guardando]);
-
-  const avisaEfectivo = needsCashWarning(draft.method, kind);
 
   const enviar = async (e) => {
     e.preventDefault();
@@ -166,21 +163,6 @@ export default function PaymentDialog({
                 />
               </Campo>
             </div>
-
-            {avisaEfectivo && (
-              <div
-                role="status"
-                style={{
-                  display: 'flex', gap: 8, alignItems: 'flex-start',
-                  marginTop: 14, padding: '10px 12px', borderRadius: 10,
-                  background: C.rustAlpha30, border: `1px solid ${C.rust}`,
-                  color: C.rustText, fontSize: 12.5, lineHeight: 1.5,
-                }}
-              >
-                <AlertTriangle size={15} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>{CASH_WARNING}</span>
-              </div>
-            )}
           </>
         )}
 

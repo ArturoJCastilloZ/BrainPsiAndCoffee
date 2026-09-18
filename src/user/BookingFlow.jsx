@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { MENU, THERAPISTS, THERAPY_SERVICES } from '../data';
-import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, todayISO, uid } from '../utils.jsx';
+import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, todayISO, uid, localDate } from '../utils.jsx';
 import { validateAppointment } from '../validation';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
 import { trackEvent } from '../monitoring';
@@ -256,7 +256,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
                 <div className="font-display" style={{ fontSize: 22, fontWeight: 600, color: C.brown, marginBottom: 14, lineHeight: 1.2 }}>{service?.name}</div>
                 <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
                   <Row icon={User} label="Profesional" value={therapist?.name || 'Asignación automática'} />
-                  <Row icon={CalendarIcon} label="Fecha" value={fullDayLabel(new Date(data.date))} />
+                  <Row icon={CalendarIcon} label="Fecha" value={fullDayLabel(localDate(data.date))} />
                   <Row icon={Clock} label="Hora" value={`${data.time} (${service?.duration} min)`} />
                   <Row icon={Mail} label="Contacto" value={data.email} />
                   <Row icon={Phone} label="WhatsApp" value={data.phone} />
@@ -302,7 +302,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <span className="font-display" style={{ fontSize: 16, fontWeight: 600, color: C.brown }}>{service?.name}</span>
             </div>
-            <div style={{ fontSize: 13, color: C.brownMid }}>{fullDayLabel(new Date(data.date))} · {data.time}</div>
+            <div style={{ fontSize: 13, color: C.brownMid }}>{fullDayLabel(localDate(data.date))} · {data.time}</div>
           </div>
 
           {data.wantsCoffee ? (
@@ -437,7 +437,7 @@ function DateTimePicker({ data, update, onContinue, bookings, therapists, servic
       {/* Time slots */}
       {data.date ? (
         <div>
-          <div style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 12, letterSpacing: 0.5 }}>HORARIOS DISPONIBLES — {fullDayLabel(new Date(data.date))}</div>
+          <div style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 12, letterSpacing: 0.5 }}>HORARIOS DISPONIBLES — {fullDayLabel(localDate(data.date))}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(82px, 1fr))', gap: 8 }}>
             {slots.map(time => {
               const available = isAvailable(data.date, time);

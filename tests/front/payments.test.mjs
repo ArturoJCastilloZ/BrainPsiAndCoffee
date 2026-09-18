@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  PAYMENT_METHODS, CASH_WARNING, needsCashWarning,
+  PAYMENT_METHODS,
   paidFor, amountOf, balanceOf, paymentStatus,
   validatePayment, toPaymentRow, KINDS,
 } from '../../src/payments.mjs';
@@ -110,16 +110,6 @@ assert.match(
   validatePayment({ ...ok, docId: 'cita-0' }, { ...ctx, doc: { id: 'cita-0', price: null } }),
   /no tiene precio congelado/,
 );
-
-// --- Aviso de efectivo ------------------------------------------------
-//
-// Art. 151 LISR: en efectivo el paciente no deduce. Es del CONSULTORIO;
-// un cafe en efectivo no tiene nada que ver y avisarlo ahi enseña a
-// ignorar el aviso cuando si importa.
-assert.equal(needsCashWarning('efectivo', 'cita'), true);
-assert.equal(needsCashWarning('efectivo', 'pedido'), false);
-assert.equal(needsCashWarning('transferencia', 'cita'), false);
-assert.match(CASH_WARNING, /151/);
 
 // --- La fila que sale a la base ---------------------------------------
 {

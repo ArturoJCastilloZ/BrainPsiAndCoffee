@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { THERAPY_SERVICES } from '../data';
-import { formatMXN, fullDayLabel, uid } from '../utils.jsx';
+import { formatMXN, fullDayLabel, uid, localDate } from '../utils.jsx';
 import { validateOrder } from '../validation';
 import { activeOffers } from '../offerUtils';
 import { trackEvent } from '../monitoring';
@@ -120,7 +120,7 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
         <div style={{ background: C.sagePale, borderRadius: 12, padding: 14, marginBottom: 16, fontSize: 12, color: C.sageDeep, display: 'flex', gap: 10 }}>
           <CalendarIcon size={16} style={{ flexShrink: 0 }} />
           <div>
-            <strong>Vinculado a tu cita:</strong> {fullDayLabel(new Date(linkedBooking.date))} a las {linkedBooking.time}. Lo prepararemos cerca de tu horario.
+            <strong>Vinculado a tu cita:</strong> {fullDayLabel(localDate(linkedBooking.date))} a las {linkedBooking.time}. Lo prepararemos cerca de tu horario.
           </div>
         </div>
       )}

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { THERAPISTS, THERAPY_SERVICES } from '../data';
-import { addDays, dayLabel } from '../utils.jsx';
+import { addDays, dayLabel, localDate } from '../utils.jsx';
 
 export default function MyBookings({ bookings, setBookings, setPage, showToast, catalogs }) {
   const services = catalogs?.services || THERAPY_SERVICES;
@@ -112,7 +112,7 @@ function BookingCard({ booking, onCancel, onStartReschedule, onSaveReschedule, o
       </div>
 
       <div style={{ display: 'flex', gap: 14, fontSize: 13, color: C.brownMid, paddingTop: 10, borderTop: `1px solid ${C.sagePale}` }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CalendarIcon size={13} /> {dayLabel(new Date(booking.date))}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CalendarIcon size={13} /> {dayLabel(localDate(booking.date))}</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {booking.time}</span>
       </div>
 
@@ -219,10 +219,6 @@ function localISO(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function localDate(iso) {
-  const [year, month, day] = String(iso).split('-').map(Number);
-  return new Date(year, month - 1, day, 12);
-}
 
 function toMinutes(time) {
   const [hours, minutes] = String(time || '00:00').split(':').map(Number);

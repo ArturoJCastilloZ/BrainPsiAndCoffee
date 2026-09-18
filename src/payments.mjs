@@ -23,18 +23,6 @@ export const METHOD_LABEL = {
   otro: 'Otro',
 };
 
-// Art. 151 LISR: el paciente solo deduce honorarios medicos pagados por
-// transferencia, tarjeta o cheque nominativo. El EFECTIVO invalida la
-// deduccion aunque exista CFDI. No se impide —cobrar en efectivo es legal
-// y ocurre— pero no puede pasar en silencio.
-export const CASH_WARNING =
-  'En efectivo el paciente NO puede deducir esta consulta (Art. 151 LISR), aunque se le expida CFDI.';
-
-// El aviso es del CONSULTORIO. Un cafe cobrado en efectivo no tiene nada
-// que ver con la deduccion de honorarios medicos, y avisarlo ahi seria
-// ruido que enseña a ignorar el aviso cuando si importa.
-export const needsCashWarning = (method, kind) => method === 'efectivo' && kind === 'cita';
-
 // --- A que se aplica un cobro ----------------------------------------
 //
 // Quien puede cobrar QUE se decide en auth/permissions.js

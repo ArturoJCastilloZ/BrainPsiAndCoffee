@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { THERAPISTS, THERAPY_SERVICES } from '../data';
-import { addDays, todayISO, uid, weekdayLabelsFrom } from '../utils.jsx';
+import { addDays, todayISO, uid, weekdayLabelsFrom, localDate } from '../utils.jsx';
 import { isWorkingDay, timeSlotStates } from '../agenda.mjs';
 import { validateAppointment } from '../validation';
 import PaymentDialog from '../components/PaymentDialog';
@@ -337,8 +337,8 @@ export default function AdminAppointments({
               <div key={b.id} className="admin-card" style={{ borderRadius: 12, padding: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                   <div style={{ background: 'var(--admin-surface-soft)', padding: '10px 14px', borderRadius: 10, textAlign: 'center', minWidth: 56 }}>
-                    <div className="font-display" style={{ fontSize: 18, color: 'var(--admin-text)', fontWeight: 600, lineHeight: 1 }}>{new Date(b.date).getDate()}</div>
-                    <div style={{ fontSize: 9, color: 'var(--admin-accent-text)', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{new Date(b.date).toLocaleDateString('es-MX', { month: 'short' })}</div>
+                    <div className="font-display" style={{ fontSize: 18, color: 'var(--admin-text)', fontWeight: 600, lineHeight: 1 }}>{localDate(b.date).getDate()}</div>
+                    <div style={{ fontSize: 9, color: 'var(--admin-accent-text)', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{localDate(b.date).toLocaleDateString('es-MX', { month: 'short' })}</div>
                   </div>
                   <div style={{ flex: 1, minWidth: 200 }}>
                     <div style={{ fontSize: 14, color: 'var(--admin-text)', fontWeight: 600 }}>{b.name}</div>
@@ -667,11 +667,6 @@ function getTimeSlotStates(date, therapistId, serviceId, bookings, eligibleThera
 
 function localISO(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function localDate(iso) {
-  const [year, month, day] = String(iso).split('-').map(Number);
-  return new Date(year, month - 1, day, 12, 0, 0);
 }
 
 function toMinutes(time) {
