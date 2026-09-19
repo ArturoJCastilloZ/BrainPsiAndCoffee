@@ -230,6 +230,20 @@ assert(
 // hallazgo D -revocar al doctor la membresia recien concedida- sin que
 // ninguna prueba se entere, porque la prueba cubre el predicado y no el
 // cableado. En POSICION DE LLAMADA: el import menciona el nombre igual.
+// 0032: esta pantalla es la SEGUNDA puerta por la que se ataba a un
+// usuario registrado a la clinica sin pedirle nada. El consentimiento
+// depende de que grantMembership reciba si la persona ya es miembro
+// ACTIVO, y eso sale de una consulta a tenant_members. Sin la consulta,
+// no hay forma de distinguir un cambio de rol de una adhesion.
+assert(
+  /\.eq\('active',\s*true\)/.test(syncDoctor),
+  'sync-doctor-access debe consultar quien es miembro ACTIVO antes de conceder: sin eso vuelve a atar usuarios registrados a la clinica sin su consentimiento (0032).',
+);
+assert(
+  /pending/.test(syncDoctor),
+  'sync-doctor-access debe pasar el estado pendiente a grantMembership: una invitacion no toca la cuenta de quien no ha aceptado.',
+);
+
 assert(
   /doctorsToRevoke\s*\(/.test(syncDoctor),
   'sync-doctor-access debe decidir la revocacion LLAMANDO a doctorsToRevoke, no a mano ni solo importandola.',

@@ -41,7 +41,20 @@ export const matchDoctorUser = (doctorUsers, therapist, tenantId) => {
 };
 
 // Que se le manda a auth.admin.updateUserById.
-export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy, otherTenants }) => {
+//
+// Con pending=true devuelve un objeto VACIO, y quien llama omite la
+// llamada. Es el consentimiento de 0032 aplicado a esta puerta: esta
+// pantalla ataba a un usuario ya registrado a la clinica igual que la de
+// Accesos, escribiendole memberships en su cuenta de autenticacion. Y lo
+// que otorga acceso en este sistema es el CLAIM, no la fila.
+//
+// Vacio y no "solo memberships fuera": una invitacion no debe tocar NADA
+// de la cuenta de alguien que todavia no dijo que si, ni su nombre de
+// perfil. La ficha tampoco se liga hasta que acepta; eso lo hace
+// accept_tenant_invitation.
+export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy, otherTenants, pending = false }) => {
+  if (pending) return {};
+
   const appMeta = user.app_metadata ?? {};
   const memberships = { ...(appMeta.memberships ?? {}), [tenantId]: 'doctor' };
   const therapistIds = { ...(appMeta.therapist_ids ?? {}), [tenantId]: therapist.id };

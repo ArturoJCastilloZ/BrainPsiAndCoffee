@@ -260,6 +260,7 @@ if [[ "$CMD" == "baseline" ]]; then
     # su cuerpo se pisaria con el de 0030. Se ancla a lo unico que 0031
     # crea y no existia antes: el trigger sobre tenant_members.
     "0031_access_audit_and_oracle|(select 1 from pg_trigger where tgname='audit_tenant_members')"
+    "0032_membership_consent|(select 1 from pg_proc where proname='accept_tenant_invitation')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.

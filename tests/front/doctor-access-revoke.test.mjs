@@ -76,3 +76,48 @@ test('un miembro sin ficha se reporta en vez de saltarse en silencio', () => {
 });
 
 console.log('doctor-access-revoke: la revocacion decide sobre lo que paso, no sobre la foto');
+
+// --- Consentimiento (0032) en la SEGUNDA puerta -----------------------
+//
+// La pantalla de doctores ataba a un usuario ya registrado a la clinica
+// igual que la de Accesos: grantMembership escribia active:true y
+// buildIdentityUpdate le metia memberships en su cuenta. Arreglar solo
+// set_tenant_member_role habria dejado el agujero abierto por aqui.
+import { buildIdentityUpdate } from '../../supabase/functions/sync-doctor-access/identity.mjs';
+
+const usuario = {
+  id: 'u-1',
+  email: 'doc@ex.mx',
+  app_metadata: { memberships: { 'otra-clinica': 'doctor' } },
+  user_metadata: { name: 'Nombre Propio' },
+};
+const ficha = { id: 'psq-1', name: 'Dra Nueva', email: 'doc@ex.mx' };
+
+test('invitar a un usuario registrado no le toca la cuenta', () => {
+  const update = buildIdentityUpdate({
+    user: usuario, tenantId: 't-nueva', therapist: ficha,
+    matchedBy: 'email', otherTenants: [], pending: true,
+  });
+
+  assert.deepEqual(update, {},
+    'una invitacion escribio en la cuenta de alguien que no ha aceptado nada');
+});
+
+test('a quien ya esta dentro si se le escribe la membresia', () => {
+  const update = buildIdentityUpdate({
+    user: usuario, tenantId: 't-nueva', therapist: ficha,
+    matchedBy: 'email', otherTenants: [], pending: false,
+  });
+
+  assert.equal(update.app_metadata.memberships['t-nueva'], 'doctor');
+  // Y sin perder la otra clinica: el claim se fusiona.
+  assert.equal(update.app_metadata.memberships['otra-clinica'], 'doctor');
+});
+
+test('por omision NO es pendiente, para no romper a quien ya llamaba', () => {
+  const update = buildIdentityUpdate({
+    user: usuario, tenantId: 't-nueva', therapist: ficha,
+    matchedBy: 'email', otherTenants: [],
+  });
+  assert.ok(update.app_metadata, 'el valor por omision cambio el comportamiento existente');
+});

@@ -174,6 +174,22 @@ begin
 
   perform public.set_tenant_member_role('acc.otro@ex.mx','owner');
 
+  -- Desde 0032 nombrar a alguien de fuera lo INVITA: la membresia nace
+  -- con active=false y sin claim, asi que todavia no es dueño y
+  -- assert_tenant_owner lo rechaza. Tiene que aceptar EL, que es el
+  -- mecanismo entero del consentimiento.
+  --
+  -- Consecuencia de flujo que esto hace visible: un dueño unico no puede
+  -- traspasar la clinica y bajarse el mismo hasta que el sucesor acepte.
+  -- El guard del "unico dueño" cuenta owners ACTIVOS, y una invitacion
+  -- pendiente no lo es. Es lo correcto -si no, bastaria invitar a
+  -- cualquiera para poder irse- pero conviene tenerlo escrito.
+  set local role postgres;
+  perform set_config('request.jwt.claims',
+    '{"sub":"acc00000-0000-0000-0000-00000000000c"}', true);
+  set local role authenticated;
+  perform public.accept_tenant_invitation('t_acc_a');
+
   set local role postgres;
   perform set_config('request.jwt.claims',
     '{"sub":"acc00000-0000-0000-0000-00000000000c","app_metadata":{"memberships":{"t_acc_a":"owner"}}}', true);

@@ -131,6 +131,19 @@ Deno.serve(async (req) => {
     (user) => (user.app_metadata?.memberships || {})[tenantId] === 'doctor'
   );
 
+  // Quien ya es miembro ACTIVO de esta clinica, con cualquier rol: a esa
+  // persona se le cambia el rol al instante; a las demas se las INVITA.
+  // Falla CERRADO: sin esta lista no se puede distinguir un cambio de rol
+  // de una adhesion sin permiso, y equivocarse hacia el lado facil es
+  // justo el defecto que 0032 cierra.
+  const { data: activeMemberRows, error: activeMembersError } = await adminClient
+    .from('tenant_members')
+    .select('user_id')
+    .eq('tenant_id', tenantId)
+    .eq('active', true);
+  if (activeMembersError) throw activeMembersError;
+  const activeMemberIds = new Set((activeMemberRows ?? []).map((row) => row.user_id));
+
   // Lo que ESTA corrida concedio. El bucle de revocacion decide con esto
   // y no con la foto de doctorUsers, que se tomo antes de sincronizar y
   // por tanto no sabe nada de lo que acaba de pasar.
@@ -163,8 +176,13 @@ Deno.serve(async (req) => {
       // Si se nego, no se queda sin hacer nada: se concede la membresia
       // por la via normal, que ya sabe no tocar la identidad. La cuenta
       // sigue sin confirmar —un estado legitimo— y nadie pierde su acceso.
-      await grantMembership(adminClient, existing, tenantId, therapist, matchedBy, otherTenants);
-      await setTherapistUser(adminClient, tenantId, therapist.id, existing.id);
+      const pending = !activeMemberIds.has(existing.id);
+      await grantMembership(adminClient, existing, tenantId, therapist, matchedBy, otherTenants, pending);
+      // La ficha se liga solo si la persona ya esta dentro. Ligarla a un
+      // invitado deja el catalogo diciendo que esa doctora es de la casa
+      // mientras su claim -lo unico que da acceso- sigue vacio. Al
+      // aceptar, accept_tenant_invitation la liga.
+      if (!pending) await setTherapistUser(adminClient, tenantId, therapist.id, existing.id);
       syncedUserIds.add(existing.id);
       continue;
     }
@@ -318,13 +336,18 @@ const grantMembership = async (
   therapist: TherapistPayload,
   matchedBy: string | null,
   otherTenants: string[],
+  pending: boolean,
 ) => {
+  // pending = la persona no es miembro activo de esta clinica todavia.
+  // Entonces esto es una INVITACION: la fila nace inactiva y su cuenta no
+  // se toca. Ver 0032 y buildIdentityUpdate.
   const { error } = await adminClient.from('tenant_members').upsert({
     tenant_id: tenantId,
     user_id: user.id,
     role: 'doctor',
     therapist_id: therapist.id,
-    active: true,
+    active: !pending,
+    invited_at: pending ? new Date().toISOString() : null,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'tenant_id,user_id' });
   if (error) throw error;
@@ -332,9 +355,15 @@ const grantMembership = async (
   // buildIdentityUpdate decide si el correo de login entra en el payload.
   // No entra cuando el usuario tambien pertenece a otra clinica: ese
   // correo es su acceso alla tambien, y esta clinica no manda sobre el.
+  const update = buildIdentityUpdate({ user, tenantId, therapist, matchedBy, otherTenants, pending });
+  // Una invitacion devuelve {} y no hay nada que escribir. Llamar igual
+  // con un objeto vacio seria una peticion inutil contra auth por cada
+  // doctor pendiente en cada guardado.
+  if (Object.keys(update).length === 0) return;
+
   const { error: updateError } = await adminClient.auth.admin.updateUserById(
     user.id,
-    buildIdentityUpdate({ user, tenantId, therapist, matchedBy, otherTenants }),
+    update,
   );
   // El cliente admin DEVUELVE el error, no lo lanza. Ignorarlo dejaba al
   // usuario dado de alta en tenant_members con el claim sin actualizar:
@@ -400,6 +429,10 @@ const inviteDoctor = async (
 
   // matchedBy en null: se llego por correo, no por ficha, asi que no hay
   // renombrado de identidad que autorizar.
-  await grantMembership(adminClient, invited, tenantId, therapist, null, otherTenants);
+  // pending=false a proposito: la cuenta acaba de crearse por invitacion
+  // por correo, y abrir ese correo para poner contraseña ya es el
+  // consentimiento. Pedirle ademas que acepte una invitacion dentro de la
+  // app seria pedirselo dos veces, y no podria verla sin entrar.
+  await grantMembership(adminClient, invited, tenantId, therapist, null, otherTenants, false);
   await setTherapistUser(adminClient, tenantId, therapist.id, invited.id);
 };

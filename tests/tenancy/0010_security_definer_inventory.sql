@@ -82,7 +82,21 @@ declare
     'assert_tenant_owner',
     'list_tenant_members',
     'set_tenant_member_role',
-    'revoke_tenant_member'
+    'revoke_tenant_member',
+    -- Consentimiento de membresia (0032). Estas tres NO acotan por
+    -- tenant, y es deliberado: quien tiene una invitacion pendiente
+    -- puede no tener ninguna clinica activa -puede no tener ninguna
+    -- clinica-, asi que no hay tenant del que colgarse y
+    -- current_tenant_id() devolveria null. Acotan por auth.uid(), que
+    -- para este caso es mas estricto: el tenant que reciben solo sirve
+    -- para elegir CUAL de TUS invitaciones, y si no hay fila tuya
+    -- pendiente para ese tenant la llamada rebota. Son definer porque
+    -- con active=false el invitado no pasa is_active_member y no puede
+    -- leer ni el nombre de la clinica que lo invita. search_path fijo y
+    -- execute revocado de public y anon en las tres.
+    'my_pending_invitations',
+    'accept_tenant_invitation',
+    'decline_tenant_invitation'
   ];
   v_reales text[];
   v_nuevas text[];

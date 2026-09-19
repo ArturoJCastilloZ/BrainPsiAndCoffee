@@ -905,6 +905,10 @@ export const listTenantMembers = async () => {
     active: row.active,
     isSelf: row.is_self,
     createdAt: row.created_at,
+    // Desde 0032 una membresia puede estar PENDIENTE: la persona fue
+    // invitada y todavia no acepta, asi que no tiene acceso a nada.
+    invitedAt: row.invited_at,
+    expiraEl: row.expira_el,
   }));
 };
 
@@ -919,6 +923,43 @@ export const setTenantMemberRole = async (email, role, therapistId = null) => {
     p_role: role,
     p_therapist_id: therapistId,
   });
+  if (error) throw error;
+};
+
+// Invitaciones pendientes (0032).
+//
+// A una clinica se entra ACEPTANDO. Nombrar a alguien que no es miembro
+// crea una fila inactiva y no le toca la cuenta; lo que otorga acceso en
+// este sistema es el claim del JWT, y ese solo lo escribe la persona al
+// aceptar.
+//
+// Las tres RPC cuelgan de auth.uid() y NO de la clinica activa: quien
+// tiene una invitacion puede no tener ninguna clinica todavia, asi que no
+// hay tenant del que colgarse.
+export const myPendingInvitations = async () => {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc('my_pending_invitations');
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    tenantId: row.tenant_id,
+    tenantName: row.tenant_name,
+    role: row.role,
+    invitedAt: row.invited_at,
+    expiraEl: row.expira_el,
+    caducada: row.caducada,
+  }));
+};
+
+export const acceptTenantInvitation = async (tenantId) => {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.rpc('accept_tenant_invitation', { p_tenant_id: tenantId });
+  if (error) throw error;
+  return data;
+};
+
+export const declineTenantInvitation = async (tenantId) => {
+  assertSupabaseConfigured();
+  const { error } = await supabase.rpc('decline_tenant_invitation', { p_tenant_id: tenantId });
   if (error) throw error;
 };
 

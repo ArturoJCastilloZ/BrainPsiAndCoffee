@@ -10,6 +10,8 @@ import SessionExpiryModal from './components/SessionExpiryModal';
 import { trackPageView } from './monitoring';
 import { canAccessAdmin, canAccessDoctor, isDoctor } from './auth/permissions';
 import TenantPicker from './components/TenantPicker';
+import PendingInvitations from './components/PendingInvitations';
+import { myPendingInvitations, acceptTenantInvitation, declineTenantInvitation } from './api/supabaseData';
 import GlobalStyle, { themeVars } from './GlobalStyle';
 
 const UserApp = lazy(() => import('./user/UserApp'));
@@ -50,9 +52,58 @@ export default function App() {
   // mandarlo al login como si no tuviera permisos.
   const mustPickTenant =
     Boolean(session) && !session.user.tenantId && Object.keys(session.user.memberships || {}).length > 1;
+
+  // Invitaciones pendientes (0032). A una clinica se entra aceptando, asi
+  // que hace falta un sitio donde aceptar; sin esta pantalla las
+  // invitaciones se crearian y nadie podria entrar.
+  //
+  // Se consulta una sola vez por sesion. Un fallo NO bloquea la entrada:
+  // quien viene a trabajar tiene que poder trabajar, y una invitacion que
+  // no se pudo leer se vuelve a ver la proxima vez.
+  const [invitaciones, setInvitaciones] = React.useState([]);
+  const [invitacionesVistas, setInvitacionesVistas] = React.useState(false);
+  const cargarInvitaciones = React.useCallback(async () => {
+    try {
+      setInvitaciones(await myPendingInvitations());
+    } catch {
+      setInvitaciones([]);
+    }
+  }, []);
+  React.useEffect(() => {
+    if (!session) { setInvitaciones([]); setInvitacionesVistas(false); return; }
+    cargarInvitaciones();
+  }, [session, cargarInvitaciones]);
+
+  const tieneClinica = Object.keys(session?.user?.memberships || {}).length > 0;
+  const mostrarInvitaciones = Boolean(session) && invitaciones.length > 0 && !invitacionesVistas;
   React.useEffect(() => {
     trackPageView(location.pathname);
   }, [location.pathname]);
+
+  // Va ANTES del selector de clinica: quien no tiene ninguna no llega al
+  // selector, y es precisamente quien mas necesita ver la invitacion.
+  if (mostrarInvitaciones) {
+    return (
+      <PendingInvitations
+        invitations={invitaciones}
+        puedeSaltar={tieneClinica}
+        theme={theme}
+        onAccept={async (tenantId) => {
+          await acceptTenantInvitation(tenantId);
+          // El claim nuevo vive en auth.users, no en el JWT que el
+          // navegador ya tiene: sin pedir un token nuevo, la clinica
+          // recien aceptada no aparece hasta el proximo login.
+          await authService.refreshClaims();
+          await cargarInvitaciones();
+        }}
+        onDecline={async (tenantId) => {
+          await declineTenantInvitation(tenantId);
+          await cargarInvitaciones();
+        }}
+        onSkip={() => setInvitacionesVistas(true)}
+      />
+    );
+  }
 
   if (mustPickTenant) {
     return (

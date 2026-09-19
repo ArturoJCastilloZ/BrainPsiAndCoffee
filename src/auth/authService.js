@@ -122,6 +122,20 @@ class AuthService {
     return this.setSession(data.session);
   }
 
+  // Tras ACEPTAR una invitacion (0032) no basta reloadSession: getSession()
+  // devuelve el JWT que ya estaba en el navegador, y el claim nuevo vive
+  // en auth.users, no en ese token. Hay que pedir uno nuevo, que el
+  // servidor acuña leyendo raw_app_meta_data en ese momento.
+  //
+  // Es el equivalente programatico de "cierra sesion y vuelve a entrar",
+  // que es lo que habia que hacer antes para que un rol nuevo apareciera.
+  async refreshClaims() {
+    if (!supabase) return this.session$.value;
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    return this.setSession(data.session);
+  }
+
   refreshActivity() {
     const current = this.session$.value;
     if (!current) return null;

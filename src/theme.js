@@ -7,6 +7,15 @@ export const C = {
   cream: 'var(--bp-cream)',
   creamLight: 'var(--bp-cream-light)',
   ivory: 'var(--bp-ivory)',
+  // Ranuras SEMANTICAS: themeVars ya las voltea segun el tema, asi que se
+  // usan SIN 'isDark ? A : B'. Ramificar encima las invierte por segunda
+  // vez, que es como PendingInvitations quedo con el nombre de la clinica
+  // en claro sobre claro -invisible- en modo oscuro.
+  surface: 'var(--bp-surface)',
+  surface2: 'var(--bp-surface-2)',
+  primary: 'var(--bp-primary)',
+  primaryHover: 'var(--bp-primary-hover)',
+  primaryContrast: 'var(--bp-primary-contrast)',
   brown: 'var(--bp-brown)',
   brownMid: 'var(--bp-brown-mid)',
   brownLight: 'var(--bp-brown-light)',

@@ -163,6 +163,16 @@ export default function AdminAccess() {
               <div style={{ fontSize: 12, color: 'var(--admin-muted)' }}>
                 {roleLabel(m.role)}{m.therapistId ? ` · ficha ${m.therapistId}` : ''}
               </div>
+              {/* Desde 0032 a una clinica se entra ACEPTANDO. Sin decirlo
+                  aqui, el dueño invita, ve a la persona en la lista igual
+                  que a las demas, y no entiende por que no puede entrar. */}
+              {m.invitedAt && (
+                <div style={etiquetaPendiente}>
+                  {diasParaCaducar(m.expiraEl) === 0
+                    ? 'Invitacion caducada · vuelve a invitar'
+                    : `Invitacion pendiente · caduca en ${diasParaCaducar(m.expiraEl)} d`}
+                </div>
+              )}
             </div>
 
             {/* Sobre uno mismo no se ofrecen controles: la base los rechaza
@@ -266,6 +276,30 @@ const campo = {
 };
 
 const vacio = { fontSize: 13, color: 'var(--admin-muted)', margin: '6px 0 0' };
+
+// Dias que le quedan a una invitacion. 0 = caducada.
+const diasParaCaducar = (expiraEl) => {
+  if (!expiraEl) return 0;
+  const ms = new Date(expiraEl).getTime() - Date.now();
+  if (Number.isNaN(ms)) return 0;
+  return Math.max(0, Math.ceil(ms / 86400000));
+};
+
+// Va en --admin-text y no en --admin-muted: es el dato que explica por
+// que esa persona no puede entrar, asi que no es texto secundario.
+const etiquetaPendiente = {
+  marginTop: 4,
+  fontSize: 11,
+  fontWeight: 700,
+  color: 'var(--admin-text)',
+  // --admin-surface-soft, no --admin-surface-2: el segundo NO EXISTE y
+  // el fallback habria dejado la insignia sin fondo, en silencio.
+  background: 'var(--admin-surface-soft)',
+  border: '1px solid var(--admin-border)',
+  borderRadius: 6,
+  padding: '2px 6px',
+  display: 'inline-block',
+};
 
 const etiquetaTu = {
   marginLeft: 6,

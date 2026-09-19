@@ -27,6 +27,7 @@ import AdminSchedules from './admin/AdminSchedules';
 import AdminApp from './admin/AdminApp';
 import DoctorApp from './doctor/DoctorApp';
 import ContactPage from './user/ContactPage';
+import PendingInvitations from './components/PendingInvitations';
 import TherapyPage from './user/TherapyPage';
 import MenuPage from './user/MenuPage';
 // Datos del BANCO DE PRUEBAS, definidos aqui mismo. Antes se importaban
@@ -66,7 +67,22 @@ const CITAS = [
   { id: 'c5', serviceId: 'pareja',        therapistId: 't4', date: dia(3), time: '18:00', name: 'Lucía y Andrés',                   email: 'lucia.andres@ejemplo.com',               phone: '8111223344', notes: '', wantsCoffee: false, durationMinutes: 75, status: 'cancelled', price: 900, createdAt: hoy, reminderSent: false },
 ];
 
-const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto', 'Publico vacio', 'DoctorApp'];
+const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto', 'Publico vacio', 'DoctorApp', 'Invitaciones'];
+
+// Invitaciones pendientes (0032). Tres casos en una sola pantalla porque
+// los tres se ven distinto y los tres pueden romperse por separado: una
+// viva, una que caduca hoy, y una ya caducada -que va deshabilitada-.
+const INVITACIONES = [
+  { tenantId: 't_norte', tenantName: 'Consultorio Norte', role: 'doctor',
+    invitedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+    expiraEl: new Date(Date.now() + 5 * 86400000).toISOString(), caducada: false },
+  { tenantId: 't_sur', tenantName: 'Consultorio Sur y Cafeteria del Parque', role: 'admin_cafe',
+    invitedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+    expiraEl: new Date(Date.now() + 3600000).toISOString(), caducada: false },
+  { tenantId: 't_vieja', tenantName: 'Clinica Olvidada', role: 'barista',
+    invitedAt: new Date(Date.now() - 20 * 86400000).toISOString(),
+    expiraEl: new Date(Date.now() - 13 * 86400000).toISOString(), caducada: true },
+];
 
 // Ajustes ENVENENADOS, como los dejaria un admin malicioso en "GOOGLE MAPS
 // URL" e "INSTAGRAM URL". El esquema se arma en piezas para que el string
@@ -154,6 +170,17 @@ function Especimen() {
           catalogActions={{ reload: () => {} }}
         />
       )}
+      {pantalla === 'Invitaciones' && (
+        <PendingInvitations
+          invitations={INVITACIONES}
+          puedeSaltar
+          theme={theme}
+          onAccept={async (t) => { await new Promise(r => setTimeout(r, 400)); alert('aceptada ' + t); }}
+          onDecline={async (t) => { throw new Error('No tienes una invitacion pendiente de esa clinica.'); }}
+          onSkip={() => alert('mas tarde')}
+        />
+      )}
+
       {pantalla === 'AdminApp' && (
         <AdminApp
           bookings={citas} setBookings={setCitas}
