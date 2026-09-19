@@ -293,15 +293,77 @@ honesta contra el periodo anterior) está **enterrada** bajo "Administración ge
 - Continuar **sin** el plugin `design`; la auditoría WCAG se hizo calculando los ratios a mano.
 
 # Decisiones pendientes
-- Dirección visual (Fase 1).
+- **Propuesta A u B.**
+- **Si el acento por contexto entra** o el contexto se queda solo en la navegación.
 - Si se adopta escala de tokens de tipografía/espaciado o se mantiene inline.
 - Si el Dashboard se reescribe o se sustituye por Contabilidad como landing del dueño.
 - Cuáles oportunidades de negocio entran y en qué orden.
 
 ---
 
-# Propuestas de diseño · Design Direction · Design System
-**Pendiente — Fase 1.** No se generan hasta que la Fase 0 esté aprobada.
+# Propuestas de diseño · Design Direction
+
+**Artifact interactivo:** https://claude.ai/artifact/APwnzmCf7uQNrzwe3Hnt53
+(actual vs propuesta · claro vs oscuro · cafetería / consultorio / dueño)
+
+## Conclusión de la Fase 1
+
+**La identidad no está rota; lo que falta es el sistema.** La paleta da 12–17:1 en el texto
+principal y la decisión de usar texto oscuro sobre el acento está medida y es correcta. Cambiarla
+sería resolver el problema equivocado. Lo que no existe es una escala, y hay cuatro colores que
+fallan AA.
+
+## Los cuatro arreglos de color (medidos, verificados dos veces)
+
+Cada reemplazo es el **desplazamiento mínimo** desde el color de marca que cumple el umbral.
+
+| Token | Modo | Hoy | Propuesto | Ratios |
+|---|---|---|---|---|
+| `accent-text` | claro | `#7A9E7E` 2.99 ❌ | `#59735C` | 5.21 / 5.12 / 4.56 |
+| `subtle` | oscuro | `#5A6B57` 2.88 ❌ | `#7D8A7A` | 4.54 / 5.03 |
+| `border` interactivo | claro | `#E8D9C5` 1.38 ❌ | `#9B9184` | 3.10 |
+| `border` interactivo | oscuro | `#2A332A` 1.26 ❌ | `#666C66` | 3.06 |
+| `focus-ring` | ambos | no existe | `#5F8A66` | ≥3 en las 4 superficies |
+
+**Dos bordes, no uno.** El 3:1 de WCAG 1.4.11 aplica cuando el borde es el único medio de
+identificar un componente. Se mantiene el filete suave para separar y el accesible solo para
+controles: subirlos todos dejaría la interfaz como un wireframe.
+
+## Escala: de 141 valores a 17
+
+- **Tipografía, 6 pasos** (hoy 26): 11 / 12.5 / 14 / 16 / 20 / 28
+- **Radio, 4 pasos** (hoy 15): 6 / 10 / 14 / 999
+- **Espaciado, base 4** (hoy 100 combinaciones): 4 / 8 / 12 / 16 / 24 / 32 / 48
+
+## Propuesta A · «Oficio» — RECOMENDADA
+
+Conserva la calidez y le pone debajo el sistema que falta. El contexto se lee por el acento usando
+las **dos familias que la paleta ya tiene**: caramelo (cafetería), sage (consultorio), tostado
+neutro (consolidado del dueño).
+
+**El caramelo marca, no escribe.** Da 3.01:1 sobre blanco, así que se usa como barra, punto o chip
+— nunca como texto. Señalar el contexto no puede costar la accesibilidad.
+
+El estado normal deja de llevar color: «Cancelada» ya no es roja (fatiga de alarma como riesgo de
+seguridad del paciente).
+
+## Propuesta B · «Estación»
+
+Misma paleta y mismas correcciones, pero densidad de estación de trabajo y sin serif. Gana filas
+por pantalla; pierde lo que distingue al producto y choca con el uso desde teléfono.
+
+**No hay una tercera.** Sería cambiar la paleta (contradice el diagnóstico) o separar los negocios
+en dos temas (dejaría de sentirse como un solo producto). Inventarla para llegar a tres sería
+relleno.
+
+## Lo que la Fase 1 NO arregla
+
+El `minWidth: 900`, el Dashboard del dueño, las paletas paralelas de MenuPage y Login. Son cambios
+de layout y de arquitectura: Fase 2. El anillo de foco **sí** exige un cambio estructural — añadir
+reglas al `<style>` global, porque con estilos inline `:focus-visible` no se puede declarar.
+
+# Design System
+**Pendiente — se formaliza al aprobar A o B.**
 
 # Arquitectura propuesta
 **Pendiente — Fase 2.**
@@ -313,7 +375,8 @@ honesta contra el periodo anterior) está **enterrada** bajo "Administración ge
 | Fase | Estado |
 |---|---|
 | Selección de skills | ✅ Completa |
-| **Fase 0 — Auditoría** | ✅ **Completa — esperando aprobación** |
-| Fase 1 — Propuestas visuales + artifact | ⬜ Bloqueada |
-| Fase 2 — Arquitectura | ⬜ |
+| **Fase 0 — Auditoría** | ✅ Completa y aprobada |
+| **Fase 0.5 — Bugs de producción** | ✅ Reagendar (`a89529b`) y reserva pública (`9af996e`) |
+| **Fase 1 — Propuestas visuales + artifact** | ✅ **Completa — esperando elección A/B** |
+| Fase 2 — Arquitectura y layout | ⬜ Bloqueada |
 | Fase 3 — Implementación | ⬜ |
