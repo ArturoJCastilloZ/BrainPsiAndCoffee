@@ -846,6 +846,36 @@ la mitad.
 antes de afirmar nada, que el mensaje desmienta la lectura fácil, que haya reintento, y que el
 estado de carga arranque en `true`. Verificado reintroduciendo el defecto.
 
+## A2.6h · `react-router` actualizado — y una corrección al conteo
+
+**El informe decía «4 vulnerabilidades high de `react-router-dom`». Medido: no era así.**
+`npm audit` reporta **5 avisos, 4 de ellos high**, repartidos en cuatro paquetes distintos, y
+sólo dos son de `react-router`. Los otros tres —`vite`, `postcss`, `nanoid`— son **herramienta de
+build**: no viajan al bundle que recibe el visitante, así que son otra clase de riesgo.
+
+**Dónde estaba el problema de verdad:** `react-router-dom` era 7.18.4 en `node_modules` pero el
+paquete interno `react-router` seguía en **7.15.0**, que es el vulnerable (rango 6.0.0 – 7.18.1).
+Y lo que importa no es `node_modules`, sino el **lockfile**, porque el CI instala con `npm ci`:
+ahí ambos estaban en **7.15.0**. Producción sí estaba expuesta.
+
+Lo que cerraban esos dos avisos, entre otros: **open redirect** vía backslash en `<Link>` y
+`useNavigate`, CSRF potencial en peticiones de documento, y denegación de servicio por
+emparejamiento de rutas ineficiente.
+
+Ahora `7.18.4` en los dos, en `package.json` **y** en el lockfile. Es un salto de parche dentro de
+v7: sin cambio de API.
+
+**Verificado donde las pruebas no llegan.** Una actualización de router no la cubre `npm test`:
+se recorrieron **las nueve rutas** en el navegador —las cinco públicas, `/login`, `/admin`,
+`/doctor` y una inexistente— comprobando que cada una resuelve donde debe, que `/admin` y
+`/doctor` **redirigen a `/login`** sin sesión, y que la ruta desconocida cae a `/`. Más una carga
+completa (no `pushState`) para ejercitar el arranque real.
+
+**Queda abierto, y es decisión del dev:** `vite`, `postcss` y `nanoid` siguen con avisos high. Al
+converger `node_modules` con el lockfile, vite quedó en **8.0.10**, que está dentro del rango
+vulnerable (8.0.0 – 8.0.15); el lockfile ya lo decía, no lo introdujo este cambio. Son
+dev-only, pero actualizarlos es barato y toca la cadena de build, así que no se hizo sin pedirlo.
+
 ## A2.7 · Lo que esta fase deliberadamente NO toca
 
 Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería esconderlo:
@@ -854,7 +884,7 @@ Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería es
 - ~~Los **catálogos DEMO** de `useSupabaseCrud.js:55-64`~~ → **HECHO** (ver A2.6f).
 - ~~El **estado vacío antes del banner de error** de `DoctorApp.jsx:321`~~ → **HECHO** (ver A2.6g).
 - ~~El **XSS almacenado** `AdminCatalog.jsx:498` → `ContactPage.jsx:29`~~ → **HECHO** (ver A2.6e).
-  Siguen abiertas las 4 vulnerabilidades high de `react-router-dom`.
+  Y **`react-router` actualizado** (ver A2.6h).
 
 Merecen su propia fase, con una prueba que reproduzca cada uno antes del arreglo.
 
