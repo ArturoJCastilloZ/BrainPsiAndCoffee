@@ -99,12 +99,27 @@ begin
   end;
 
   -- ATAQUE: dar acceso a un correo inexistente.
+  --
+  -- El rol es 'barista' y no 'doctor', y importa: desde 0031 las
+  -- validaciones van ordenadas para que el "no existe" se levante AL
+  -- FINAL, cuando ya es lo unico que puede fallar. Con 'doctor' y sin
+  -- ficha la llamada se rechaza ANTES de llegar a la identidad, asi que
+  -- esta prueba pasaria sin haber probado lo que dice probar.
+  --
+  -- Se afirma sobre el EFECTO ademas del mensaje: lo que no debe ocurrir
+  -- es que entre la fila, y eso no se deduce de un texto.
   begin
-    perform public.set_tenant_member_role('acc.fantasma@ex.mx','doctor');
+    perform public.set_tenant_member_role('acc.fantasma@ex.mx','barista');
     raise exception 'FUGA: dio acceso a un correo que no existe';
   exception when others then
     if position('No existe ningun usuario' in sqlerrm) = 0 then raise; end if;
   end;
+  if exists (select 1 from public.tenant_members
+              where tenant_id = 't_acc_a'
+                and user_id not in ('acc00000-0000-0000-0000-00000000000a',
+                                    'acc00000-0000-0000-0000-00000000000b')) then
+    raise exception 'FUGA: entro un miembro que no deberia existir';
+  end if;
 
   raise notice 'ok · el dueño administra su clinica y no puede abusar';
 end $$;

@@ -256,6 +256,10 @@ if [[ "$CMD" == "baseline" ]]; then
     # y no a un comentario: 0022 ya menciona 'clinical_notes' dentro de
     # una lista IN, asi que buscar el nombre suelto daria falso positivo.
     "0030_audit_patient_link|(select 1 from pg_proc where proname='record_audit_entry' and pg_get_functiondef(oid) like '%from public.clinical_notes%')"
+    # 0031 tambien REDEFINE record_audit_entry, asi que un centinela sobre
+    # su cuerpo se pisaria con el de 0030. Se ancla a lo unico que 0031
+    # crea y no existia antes: el trigger sobre tenant_members.
+    "0031_access_audit_and_oracle|(select 1 from pg_trigger where tgname='audit_tenant_members')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.
