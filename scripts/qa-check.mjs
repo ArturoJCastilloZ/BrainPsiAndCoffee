@@ -224,6 +224,37 @@ assert(
   'sync-doctor-access no debe asignar email en index.ts: la identidad se decide en identity.mjs, que si se prueba. Escribirlo aqui puede secuestrar la cuenta de un doctor que atiende en otra clinica.',
 );
 
+// La REVOCACION tambien decide en identity.mjs, por las mismas dos
+// razones que la identidad: estaba embebida entre llamadas de red y
+// fallaba en silencio hacia los dos lados. Quitarla de ahi reabre el
+// hallazgo D -revocar al doctor la membresia recien concedida- sin que
+// ninguna prueba se entere, porque la prueba cubre el predicado y no el
+// cableado. En POSICION DE LLAMADA: el import menciona el nombre igual.
+assert(
+  /doctorsToRevoke\s*\(/.test(syncDoctor),
+  'sync-doctor-access debe decidir la revocacion LLAMANDO a doctorsToRevoke, no a mano ni solo importandola.',
+);
+
+// Y esa decision sale de tenant_members, no del claim. app_metadata es
+// su cache y puede quedarse corta: un doctor presente en la tabla y
+// ausente del claim era invisible para el bucle, asi que darle de baja
+// la ficha no le revocaba el acceso a pacientes ni a notas.
+//
+// therapist_ids se sigue leyendo en identity.mjs para EMPAREJAR, que es
+// legitimo; lo que no puede volver es leerlo aqui, que es donde se
+// decidia a quien se le quita el acceso.
+//
+// El regex se ancla a la LECTURA INDEXADA POR TENANT -therapist_ids[...]
+// [tenantId]-, que es la forma que tenia la decision. Un
+// !/app_metadata[^\n]*therapist_ids/ mas ancho parecia mas seguro y era
+// un falso positivo: pegaba en el 'therapist_ids: therapistIds' con el
+// que revokeMembership REESCRIBE el claim, que es justo lo que si debe
+// hacer. Un guard que se dispara con codigo legitimo se acaba quitando.
+assert(
+  !/therapist_ids[^\n]*\[\s*tenantId\s*\]/.test(syncDoctor),
+  'sync-doctor-access no debe leer therapist_ids del claim en index.ts: la revocacion se decide sobre tenant_members. El claim es su cache y deja fuera a quien no refleje, que conserva el acceso en silencio.',
+);
+
 if (failures.length) {
   console.error('QA check failed:');
   failures.forEach((failure) => console.error(`- ${failure}`));

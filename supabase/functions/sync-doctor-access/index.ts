@@ -7,6 +7,7 @@ import {
   canRecreateUnconfirmedUser,
   invitedUserFrom,
   normalizeEmail,
+  doctorsToRevoke,
 } from './identity.mjs';
 
 type TherapistPayload = {
@@ -130,6 +131,11 @@ Deno.serve(async (req) => {
     (user) => (user.app_metadata?.memberships || {})[tenantId] === 'doctor'
   );
 
+  // Lo que ESTA corrida concedio. El bucle de revocacion decide con esto
+  // y no con la foto de doctorUsers, que se tomo antes de sincronizar y
+  // por tanto no sabe nada de lo que acaba de pasar.
+  const syncedUserIds = new Set<string>();
+
   for (const therapist of therapists) {
     if (therapist.active === false || !therapist.email) continue;
 
@@ -159,21 +165,57 @@ Deno.serve(async (req) => {
       // sigue sin confirmar —un estado legitimo— y nadie pierde su acceso.
       await grantMembership(adminClient, existing, tenantId, therapist, matchedBy, otherTenants);
       await setTherapistUser(adminClient, tenantId, therapist.id, existing.id);
+      syncedUserIds.add(existing.id);
       continue;
     }
 
     await inviteDoctor(adminClient, tenantId, therapist, normalizedEmail, redirectTo);
   }
 
-  for (const user of doctorUsers) {
-    const therapistId = (user.app_metadata?.therapist_ids || {})[tenantId];
-    if (!therapistId || activeDoctorIds.has(therapistId)) continue;
+  // Quien es doctor de esta clinica sale de tenant_members, NO del claim.
+  // El claim es su cache y puede quedarse corta; decidir con el hacia que
+  // un doctor presente en la tabla pero ausente del claim fuera invisible
+  // para este bucle, asi que darle de baja la ficha no le revocaba nada.
+  //
+  // Falla CERRADO: si no se puede leer la tabla no se revoca a ciegas ni
+  // se responde ok, se aborta. Una lista incompleta aqui significa dejar
+  // accesos vivos sin que nadie se entere.
+  const { data: memberRows, error: membersError } = await adminClient
+    .from('tenant_members')
+    .select('user_id, therapist_id')
+    .eq('tenant_id', tenantId)
+    .eq('role', 'doctor')
+    .eq('active', true);
+  if (membersError) throw membersError;
 
-    // Antes esto borraba al usuario entero. Con varias clinicas seria
-    // destructivo: dar de baja a un psiquiatra en un consultorio le
-    // quitaria tambien el acceso a los otros, e incluso su cuenta. Se
-    // revoca solo la membresia de ESTA clinica.
-    await revokeMembership(adminClient, user, tenantId);
+  const { revoke, unresolved } = doctorsToRevoke({
+    members: memberRows ?? [],
+    activeTherapistIds: [...activeDoctorIds],
+    syncedUserIds: [...syncedUserIds],
+  });
+
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
+  for (const { userId, therapistId } of revoke) {
+    const user = usersById.get(userId);
+    // revokeMembership reconstruye el claim a partir del usuario, asi que
+    // sin el objeto no hay nada que reescribir. Si la cuenta ya no existe
+    // la membresia se borra igual, por la tabla.
+    if (user) {
+      // Antes esto borraba al usuario entero. Con varias clinicas seria
+      // destructivo: dar de baja a un psiquiatra en un consultorio le
+      // quitaria tambien el acceso a los otros, e incluso su cuenta. Se
+      // revoca solo la membresia de ESTA clinica.
+      await revokeMembership(adminClient, user, tenantId);
+    } else {
+      const { error } = await adminClient
+        .from('tenant_members')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('user_id', userId);
+      if (error) throw error;
+    }
+
     await adminClient
       .from('therapists')
       .update({ user_id: null })
@@ -181,7 +223,9 @@ Deno.serve(async (req) => {
       .eq('id', therapistId);
   }
 
-  return json({ ok: true });
+  // Los miembros sin ficha no se revocan -seria adivinar- pero tampoco se
+  // callan: el codigo viejo los saltaba en silencio.
+  return json({ ok: true, revoked: revoke.length, unresolved });
 });
 
 const json = (body: unknown, status = 200) => (

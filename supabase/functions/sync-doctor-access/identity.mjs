@@ -150,3 +150,60 @@ export const invitedUserFrom = (created) => {
   if (!user?.id) return null;
   return user;
 };
+
+// A QUIEN se le revoca la membresia de doctor de esta clinica.
+//
+// Vive aqui por la misma razon que las de arriba: era una decision
+// embebida entre llamadas de red, y estaba mal de dos formas distintas.
+//
+// 1 · DECIDIA SOBRE UNA FOTO VIEJA. index.ts capturaba la lista de
+//     doctores ANTES del bucle de sincronizacion, y grantMembership
+//     escribe en la base y en auth pero NO muta el objeto local. Rehacer
+//     la ficha de un doctor -sacar t_old, poner t_new con el mismo
+//     correo- terminaba asi:
+//
+//       sincronizacion: empareja por correo, concede con t_new
+//       revocacion:     la foto todavia dice t_old, que ya no esta
+//                       activa -> le quita la membresia recien dada
+//       respuesta:      {ok: true}
+//
+//     Por eso entra syncedUserIds: a quien esta corrida acaba de
+//     conceder membresia no se le revoca. No es una lista de exclusion
+//     defensiva, es LO QUE PASO, que es justo lo que la foto no sabe.
+//
+// 2 · DECIDIA SOBRE LA CACHE. Las dos entradas -quien es doctor aqui, y
+//     con que ficha- salian de app_metadata. El comentario de
+//     otherTenantsOf, arriba en este mismo archivo, ya dice que eso no
+//     se hace: es la cache de tenant_members, no la fuente de verdad, y
+//     puede quedarse corta. Ahi fallaba ABIERTO: un doctor presente en
+//     tenant_members cuyo claim no lo reflejara era invisible para el
+//     bucle, asi que darle de baja la ficha no le revocaba el acceso a
+//     pacientes ni a notas. En silencio. Ahora 'members' sale de la
+//     tabla.
+//
+// Un miembro sin ficha NO se revoca: se devuelve en 'unresolved' para
+// que la respuesta lo diga. Revocarlo seria adivinar -puede ser un alta
+// a medias- y callarlo es lo que hacia el codigo viejo.
+export const doctorsToRevoke = ({ members, activeTherapistIds, syncedUserIds }) => {
+  const activas = new Set(activeTherapistIds ?? []);
+  const sincronizados = new Set(syncedUserIds ?? []);
+  const revoke = [];
+  const unresolved = [];
+
+  for (const member of members ?? []) {
+    const userId = member?.user_id;
+    if (!userId) continue;
+    if (sincronizados.has(userId)) continue;
+
+    const therapistId = member?.therapist_id ?? null;
+    if (!therapistId) {
+      unresolved.push(userId);
+      continue;
+    }
+    if (activas.has(therapistId)) continue;
+
+    revoke.push({ userId, therapistId });
+  }
+
+  return { revoke, unresolved };
+};
