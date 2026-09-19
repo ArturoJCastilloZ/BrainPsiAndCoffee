@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar as CalendarIcon, Clock, FileText, Lock, LogOut, Plus, Save, Settings, User, X } from 'lucide-react';
+import { AlertTriangle, Calendar as CalendarIcon, Clock, FileText, Lock, LogOut, Plus, Save, Settings, User, X } from 'lucide-react';
 import { C } from '../theme';
 import { localDate } from '../utils.jsx';
 import BrandMark from '../components/BrandMark';
@@ -19,7 +19,10 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
   const [clinicalNotes, setClinicalNotes] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [notesError, setNotesError] = useState('');
-  const [notesLoading, setNotesLoading] = useState(false);
+  // Arranca en TRUE: al montar siempre se dispara una carga, asi que con
+  // false habia un render donde se afirmaba "no hay pacientes" sin haber
+  // preguntado todavia. Es la misma clase de mentira, mas corta.
+  const [notesLoading, setNotesLoading] = useState(true);
   const doctorBookings = useMemo(
     () => bookings.filter((booking) => booking.therapistId === therapistId),
     [bookings, therapistId]
@@ -302,13 +305,48 @@ function DoctorPatients({
       .catch((err) => setError(`Se mostró el expediente, pero no se pudo registrar el acceso en la bitácora. ${err.message || ''}`));
   }, [selectedPatientId, notasVistas, setError]);
 
+  // Sin pacientes hay TRES situaciones distintas, y antes las tres se
+  // veian igual: este bloque devolvia "Aun no hay pacientes vinculados"
+  // ANTES de que se pintara el banner de error, que vive mas abajo y no
+  // se alcanzaba nunca.
+  //
+  // "No hay pacientes" es una afirmacion sobre el EXPEDIENTE, no un
+  // estado de pantalla. Si la carga fallo, el doctor leia que su lista
+  // esta vacia cuando lo que pasa es que no se pudo consultar — y en un
+  // contexto clinico confundir "no se pudo leer" con "no existe" es
+  // exactamente el error que no se puede permitir.
   if (!patients.length) {
     return (
       <div className="admin-card" style={{ borderRadius: 16, padding: 34, textAlign: 'center' }}>
-        <User size={32} color="var(--admin-subtle)" style={{ marginBottom: 10 }} />
-        <p style={{ color: 'var(--admin-muted)', margin: 0, fontSize: 13 }}>
-          Aún no hay pacientes vinculados a tus citas. El paciente se crea al guardar la primera cita a su nombre.
-        </p>
+        {loading ? (
+          <p style={{ color: 'var(--admin-muted)', margin: 0, fontSize: 13 }}>
+            Cargando tus pacientes…
+          </p>
+        ) : error ? (
+          <>
+            <AlertTriangle size={32} color={C.rustText} style={{ marginBottom: 10 }} aria-hidden="true" />
+            <p style={{ color: C.rustText, margin: '0 0 4px', fontSize: 13, fontWeight: 700 }}>
+              No se pudo cargar tu lista de pacientes.
+            </p>
+            <p style={{ color: 'var(--admin-muted)', margin: '0 0 14px', fontSize: 12.5, lineHeight: 1.5 }}>
+              Esto NO quiere decir que no tengas pacientes: quiere decir que no se pudo consultar. {error}
+            </p>
+            <button onClick={reload} style={{
+              background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border-interactive)',
+              color: 'var(--admin-text)', borderRadius: 999, padding: '8px 16px', minHeight: 40,
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700,
+            }}>
+              Reintentar
+            </button>
+          </>
+        ) : (
+          <>
+            <User size={32} color="var(--admin-subtle)" style={{ marginBottom: 10 }} aria-hidden="true" />
+            <p style={{ color: 'var(--admin-muted)', margin: 0, fontSize: 13 }}>
+              Aún no hay pacientes vinculados a tus citas. El paciente se crea al guardar la primera cita a su nombre.
+            </p>
+          </>
+        )}
       </div>
     );
   }

@@ -818,13 +818,41 @@ página pública seguía mostrando el catálogo de demo. No era eso — el check
 catálogo de demo fuera de la siembra, ninguno cae a él en sus tres formas, y el hook arranca
 vacío. Verificado reintroduciendo el defecto.
 
+## A2.6g · El panel del doctor ya no confunde «falló» con «no hay»
+
+`if (!patients.length)` devolvía el estado vacío **antes** de que se pintara el banner de error,
+que vive más abajo en el mismo componente y por tanto **no se alcanzaba nunca**. Si `loadPatients`
+fallaba, al doctor se le afirmaba que su lista está vacía cuando lo que pasaba es que no se pudo
+consultar.
+
+En un panel clínico eso no es un detalle de presentación: **confundir «no se pudo leer» con «no
+existe»** es la clase de error que lleva a decidir sobre un paciente creyendo que no hay
+expediente. «No hay pacientes» es una afirmación sobre el expediente, no un estado de pantalla.
+
+Tres situaciones, tres mensajes: **cargando**, **falló** (con el motivo, una aclaración explícita
+de que *no* equivale a no tener pacientes, y un botón de **Reintentar**) y **vacío de verdad**.
+
+`loading` y `error` **ya llegaban al componente** — simplemente no se consultaban. Y `notesLoading`
+arrancaba en `false`, así que había un render que afirmaba «no hay pacientes» **antes de preguntar**;
+ahora arranca en `true`, porque al montar siempre se dispara una consulta.
+
+**Verificado en la pantalla, forzando el fallo sin tocar el código**: se interceptó `fetch` para
+que toda petición a `patients` fallara, se comprobó que **la inyección entró** (4 peticiones
+fallidas) y salió el estado de error con su botón. Restaurada la red y pulsando **Reintentar**:
+**cero fallos nuevos**, el error desaparece y queda el vacío legítimo. El ciclo completo, no solo
+la mitad.
+
+`tests/front/doctor-empty-vs-error.test.mjs` exige que el bloque consulte `loading` y `error`
+antes de afirmar nada, que el mensaje desmienta la lectura fácil, que haya reintento, y que el
+estado de carga arranque en `true`. Verificado reintroduciendo el defecto.
+
 ## A2.7 · Lo que esta fase deliberadamente NO toca
 
 Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería esconderlo:
 
 - ~~El **Dashboard del dueño** y sus dos números inventados~~ → **HECHO** (ver A2.6d).
 - ~~Los **catálogos DEMO** de `useSupabaseCrud.js:55-64`~~ → **HECHO** (ver A2.6f).
-- El **estado vacío antes del banner de error** de `DoctorApp.jsx:321`.
+- ~~El **estado vacío antes del banner de error** de `DoctorApp.jsx:321`~~ → **HECHO** (ver A2.6g).
 - ~~El **XSS almacenado** `AdminCatalog.jsx:498` → `ContactPage.jsx:29`~~ → **HECHO** (ver A2.6e).
   Siguen abiertas las 4 vulnerabilidades high de `react-router-dom`.
 

@@ -25,6 +25,7 @@ import AdminAccounting from './admin/AdminAccounting';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminSchedules from './admin/AdminSchedules';
 import AdminApp from './admin/AdminApp';
+import DoctorApp from './doctor/DoctorApp';
 import ContactPage from './user/ContactPage';
 import TherapyPage from './user/TherapyPage';
 import MenuPage from './user/MenuPage';
@@ -49,7 +50,7 @@ const CITAS = [
   { id: 'c5', serviceId: 'pareja',        therapistId: 't4', date: dia(3), time: '18:00', name: 'Lucía y Andrés',                   email: 'lucia.andres@ejemplo.com',               phone: '8111223344', notes: '', wantsCoffee: false, durationMinutes: 75, status: 'cancelled', price: 900, createdAt: hoy, reminderSent: false },
 ];
 
-const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto', 'Publico vacio'];
+const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto', 'Publico vacio', 'DoctorApp'];
 
 // Ajustes ENVENENADOS, como los dejaria un admin malicioso en "GOOGLE MAPS
 // URL" e "INSTAGRAM URL". El esquema se arma en piezas para que el string
@@ -128,6 +129,15 @@ function Especimen() {
                      border: '1px solid var(--admin-border-interactive)' }}>{p}</button>
         ))}
       </div>
+      {pantalla === 'DoctorApp' && (
+        <DoctorApp
+          bookings={citas} setBookings={setCitas}
+          catalogs={{ ...CATALOGOS, therapists: CATALOGOS.therapists }}
+          session={{ user: { role: 'doctor', name: 'Dra. Espécimen', therapistId: 't1' } }}
+          logout={() => {}} theme={theme} toggleTheme={() => setTheme(isDark ? 'light' : 'dark')}
+          catalogActions={{ reload: () => {} }}
+        />
+      )}
       {pantalla === 'AdminApp' && (
         <AdminApp
           bookings={citas} setBookings={setCitas}
