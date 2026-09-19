@@ -9,7 +9,6 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { fullDayLabel, todayISO } from '../utils.jsx';
 import {
   CAFETERIA, CONSULTORIO, collected, formatMoney,
@@ -19,8 +18,8 @@ import {
 const SIN_CONTABILIDAD = { datos: { payments: [], expenses: [] } };
 
 export default function AdminDashboard({ bookings, orders, setPage, catalogs, contabilidad = SIN_CONTABILIDAD }) {
-  const services = catalogs?.services || THERAPY_SERVICES;
-  const therapists = catalogs?.therapists || THERAPISTS;
+  const services = catalogs?.services || [];
+  const therapists = catalogs?.therapists || [];
   const today = todayISO();
   const todayBookings = bookings.filter(b => b.date === today && b.status !== 'cancelled');
   const todayOrders = orders.filter(o => o.createdAt.startsWith(today));

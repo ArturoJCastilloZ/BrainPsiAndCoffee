@@ -3,7 +3,6 @@ import { Brain, Building2, Coffee, Gift, Heart, Milk, Plus, Sparkles, Trash2, Us
 import { C } from '../theme';
 import { safeUrl } from '../safeUrl.mjs';
 import { uid } from '../utils.jsx';
-import { SPECIALTIES } from '../data';
 import { isValidEmail, isValidMoney, isValidPositiveInteger } from '../validation';
 import { canManageBusinessSettings, canManageCafeCatalog, canManageClinicCatalog } from '../auth/permissions';
 import { useConfirm } from '../components/ConfirmDialog';
@@ -82,8 +81,8 @@ export default function AdminCatalog({ catalogs, catalogActions, session, initia
 
       {tab === 'products' && <ProductsManager menu={catalogs.menu} setMenu={catalogActions.setMenu} />}
       {tab === 'services' && <ListManager title="Servicios" items={catalogs.services} setItems={catalogActions.setServices} emptyItem={emptyService} renderForm={ServiceForm} summary={(item) => `${item.duration} min · $${item.price} · ${item.for}`} />}
-      {tab === 'therapists' && <ListManager title="Doctores" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || SPECIALTIES} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}`} />}
-      {tab === 'specialties' && <ListManager title="Especialidades" items={catalogs.specialties || SPECIALTIES} setItems={catalogActions.setSpecialties} emptyItem={emptySpecialty} renderForm={SpecialtyForm} summary={(item) => item.active === false ? 'Inactiva' : 'Activa'} />}
+      {tab === 'therapists' && <ListManager title="Doctores" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || []} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}`} />}
+      {tab === 'specialties' && <ListManager title="Especialidades" items={catalogs.specialties || []} setItems={catalogActions.setSpecialties} emptyItem={emptySpecialty} renderForm={SpecialtyForm} summary={(item) => item.active === false ? 'Inactiva' : 'Activa'} />}
       {tab === 'options' && <OptionsManager options={catalogs.productOptions || []} setOptions={catalogActions.setProductOptions} />}
       {tab === 'offers' && <ListManager title="Ofertas" items={catalogs.offers} setItems={catalogActions.setOffers} emptyItem={emptyOffer} renderForm={OfferForm} summary={(item) => `$${item.price} · ${item.desc}${offerWindowLabel(item)}`} />}
       {tab === 'business' && <BusinessSettings settings={catalogs.settings} setSettings={catalogActions.setSettings} />}
@@ -335,7 +334,7 @@ function SelectField({ label, value, onChange, children, required = false, class
 }
 
 function TherapistForm({ draft, setDraft, services, specialties }) {
-  const activeSpecialties = (specialties || SPECIALTIES).filter(item => item.active !== false);
+  const activeSpecialties = (specialties || []).filter(item => item.active !== false);
 
   return <>
     <style>{`

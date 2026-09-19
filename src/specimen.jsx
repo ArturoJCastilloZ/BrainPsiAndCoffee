@@ -26,6 +26,8 @@ import AdminDashboard from './admin/AdminDashboard';
 import AdminSchedules from './admin/AdminSchedules';
 import AdminApp from './admin/AdminApp';
 import ContactPage from './user/ContactPage';
+import TherapyPage from './user/TherapyPage';
+import MenuPage from './user/MenuPage';
 import { THERAPISTS, THERAPY_SERVICES } from './data';
 import { todayISO, addDays } from './utils.jsx';
 
@@ -47,7 +49,7 @@ const CITAS = [
   { id: 'c5', serviceId: 'pareja',        therapistId: 't4', date: dia(3), time: '18:00', name: 'Lucía y Andrés',                   email: 'lucia.andres@ejemplo.com',               phone: '8111223344', notes: '', wantsCoffee: false, durationMinutes: 75, status: 'cancelled', price: 900, createdAt: hoy, reminderSent: false },
 ];
 
-const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto'];
+const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto', 'Publico vacio'];
 
 // Ajustes ENVENENADOS, como los dejaria un admin malicioso en "GOOGLE MAPS
 // URL" e "INSTAGRAM URL". El esquema se arma en piezas para que el string
@@ -92,6 +94,11 @@ const COBROS = [
   { id: 'g4', orderId: 'p1', amount: 70,  method: 'efectivo', paidAt: esteMes(5) },
   { id: 'g5', orderId: 'px', amount: 140, method: 'tarjeta',  paidAt: mesPasado },
 ];
+// Catalogo VACIO de verdad: es el caso que el arreglo de los datos demo
+// tiene que cubrir. Antes estas pantallas sustituian servicios, doctores y
+// menu inventados —con sus precios— cuando la base no devolvia nada.
+const CATALOGO_VACIO = { services: [], therapists: [], specialties: [], menu: {}, offers: [], productOptions: [], schedules: [], settings: undefined };
+
 const CONTABILIDAD = { datos: { payments: COBROS, expenses: [] }, cargando: false, error: '', recargar: () => {}, registrarCobro: async () => {} };
 
 function Especimen() {
@@ -143,6 +150,12 @@ function Especimen() {
           {pantalla === 'Dashboard'    && <AdminDashboard bookings={citas} orders={pedidos} setPage={() => {}} catalogs={CATALOGOS} contabilidad={CONTABILIDAD} />}
           {pantalla === 'Horarios'     && <AdminSchedules catalogs={CATALOGOS} reload={() => {}} />}
           {pantalla === 'Contacto'     && <ContactPage settings={AJUSTES_ENVENENADOS} />}
+          {pantalla === 'Publico vacio' && (
+            <div style={{ display: 'grid', gap: 24 }}>
+              <TherapyPage setPage={() => {}} catalogs={CATALOGO_VACIO} />
+              <MenuPage addToCart={() => {}} catalogs={CATALOGO_VACIO} theme={theme} />
+            </div>
+          )}
         </div>
       </main>
       )}

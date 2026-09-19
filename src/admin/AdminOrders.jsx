@@ -9,7 +9,6 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { MENU } from '../data';
 import { uid } from '../utils.jsx';
 import { validateOrder } from '../validation';
 import { canCreateOrders } from '../auth/permissions';
@@ -28,7 +27,7 @@ export default function AdminOrders({
   const [filter, setFilter] = useState('active');
   const [cobrando, setCobrando] = useState(null);
   const canCreate = canCreateOrders(session?.user?.role);
-  const menu = catalogs?.menu || MENU;
+  const menu = catalogs?.menu || {};
   const products = Object.entries(menu).flatMap(([category, section]) => (section.items || []).filter(item => item.active !== false).map(item => ({ ...item, category, categoryTitle: section.title })));
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState('');

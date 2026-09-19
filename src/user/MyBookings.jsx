@@ -10,12 +10,11 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { isWorkingDay, poolAvailableSlots } from '../agenda.mjs';
-import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { addDays, dayLabel, localDate, localISO } from '../utils.jsx';
 
 export default function MyBookings({ bookings, setBookings, setPage, showToast, catalogs }) {
-  const services = catalogs?.services || THERAPY_SERVICES;
-  const therapists = catalogs?.therapists || THERAPISTS;
+  const services = catalogs?.services || [];
+  const therapists = catalogs?.therapists || [];
   // El horario REAL. Esta pantalla tambien tenia 9:00-19:00 y
   // martes-sabado escritos a mano. Requiere la policy de 0029.
   const schedules = catalogs?.schedules || [];
@@ -90,7 +89,7 @@ export default function MyBookings({ bookings, setBookings, setPage, showToast, 
   );
 }
 
-function BookingCard({ booking, onCancel, onStartReschedule, onSaveReschedule, onCancelReschedule, rescheduling, rescheduleDraft, setRescheduleDraft, bookings = [], active, services = THERAPY_SERVICES, therapists = THERAPISTS, schedules = [] }) {
+function BookingCard({ booking, onCancel, onStartReschedule, onSaveReschedule, onCancelReschedule, rescheduling, rescheduleDraft, setRescheduleDraft, bookings = [], active, services = [], therapists = [], schedules = [] }) {
   const service = services.find(s => s.id === booking.serviceId);
   const therapist = therapists.find(t => t.id === booking.therapistId);
   const isPast = new Date(booking.date + 'T' + booking.time) < new Date();

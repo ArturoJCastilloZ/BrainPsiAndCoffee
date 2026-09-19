@@ -9,7 +9,6 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { THERAPY_SERVICES } from '../data';
 import { formatMXN, fullDayLabel, uid, localDate } from '../utils.jsx';
 import { validateOrder } from '../validation';
 import { activeOffers } from '../offerUtils';

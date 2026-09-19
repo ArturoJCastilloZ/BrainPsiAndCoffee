@@ -9,7 +9,6 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { MENU, THERAPISTS, THERAPY_SERVICES } from '../data';
 import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, todayISO, uid, localDate, localISO } from '../utils.jsx';
 import { validateAppointment } from '../validation';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
@@ -17,8 +16,8 @@ import { trackEvent } from '../monitoring';
 import { poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
 
 export default function BookingFlow({ setPage, bookings, setBookings, addToCart, setLinkedBookingId, showToast, catalogs }) {
-  const services = (catalogs?.services || THERAPY_SERVICES).filter(item => item.active !== false);
-  const therapists = (catalogs?.therapists || THERAPISTS).filter(item => item.active !== false);
+  const services = (catalogs?.services || []).filter(item => item.active !== false);
+  const therapists = (catalogs?.therapists || []).filter(item => item.active !== false);
   // El horario REAL del consultorio. Antes esta pantalla no lo miraba
   // siquiera: tenia 9:00-19:00 y martes-sabado escritos a mano, asi que
   // aceptaba reservas fuera del horario configurado. Requiere la policy

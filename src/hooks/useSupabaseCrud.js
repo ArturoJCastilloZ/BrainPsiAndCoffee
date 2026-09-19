@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { MENU, OFFERS, SPECIALTIES, THERAPISTS, THERAPY_SERVICES } from '../data';
+// Solo SPECIALTIES, y solo para SEMBRAR. Los demas catalogos de data.js
+// ya no se importan aqui: lo que se retiro fue mostrarlos como si fueran
+// el catalogo real. seedDefaultCatalogs() sigue usando data.js entero.
+import { SPECIALTIES } from '../data';
 import {
   loadAppointments,
   loadCatalogs,
@@ -40,8 +43,7 @@ const useRemoteState = (initialValue, saveRemote) => {
 };
 
 export const useSupabaseCrud = (session) => {
-  const canSeed = isSuperAdmin(session?.user?.role);
-  // Un BOOLEANO y no el objeto de sesion.
+  // De la sesion solo salen PRIMITIVOS, nunca el objeto.
   //
   // refreshActivity() emite una sesion NUEVA cada 30 segundos de
   // actividad —click, tecla, movimiento del raton— para reponer el
@@ -49,17 +51,26 @@ export const useSupabaseCrud = (session) => {
   // de reload, cada pulsacion recrea el callback, el efecto vuelve a
   // pedir todos los catalogos, y las pantallas que derivan su borrador de
   // catalogs pierden lo que el usuario estaba escribiendo.
-  const hasSession = Boolean(session);
+  const canSeed = isSuperAdmin(session?.user?.role);
   const canLoadAppointments = canManageAppointments(session?.user?.role) || session?.user?.role === 'doctor';
   const canLoadOrders = canManageOrders(session?.user?.role);
-  const [services, setServicesRaw, setServices, servicesError] = useRemoteState(THERAPY_SERVICES, saveServices);
-  const [specialties, setSpecialtiesRaw, setSpecialties, specialtiesError] = useRemoteState(SPECIALTIES, saveSpecialties);
-  const [therapists, setTherapistsRaw, setTherapists, therapistsError] = useRemoteState(THERAPISTS, saveTherapists);
-  const [menu, setMenuRaw, setMenu, menuError] = useRemoteState(MENU, saveMenu);
-  const [offers, setOffersRaw, setOffers, offersError] = useRemoteState(OFFERS, saveOffers);
-  // Los modificadores del menu no tienen fallback de demostracion: si la
-  // clinica no configuro ninguno, no se le ofrece ninguno. Inventarlos
-  // seria ofrecerle al cliente un sabor que el negocio no tiene.
+  // TODOS arrancan VACIOS. Antes arrancaban con los datos de data.js, que
+  // se pintaban antes de que la consulta volviera: el catalogo de demo era
+  // el placeholder de carga, y un placeholder con PRECIOS es un
+  // placeholder que miente.
+  //
+  // Es la misma regla que ya se habia aplicado a los modificadores del
+  // menu —"inventarlos seria ofrecerle al cliente un sabor que el negocio
+  // no tiene"— y que no se habia extendido a los demas catalogos.
+  //
+  // data.js NO se borra: sigue siendo la fuente de la SIEMBRA
+  // (seedDefaultCatalogs), que es su uso legitimo. Lo que se retira es
+  // mostrarlo como si fuera el catalogo real.
+  const [services, setServicesRaw, setServices, servicesError] = useRemoteState([], saveServices);
+  const [specialties, setSpecialtiesRaw, setSpecialties, specialtiesError] = useRemoteState([], saveSpecialties);
+  const [therapists, setTherapistsRaw, setTherapists, therapistsError] = useRemoteState([], saveTherapists);
+  const [menu, setMenuRaw, setMenu, menuError] = useRemoteState({}, saveMenu);
+  const [offers, setOffersRaw, setOffers, offersError] = useRemoteState([], saveOffers);
   const [productOptions, setProductOptionsRaw, setProductOptions, productOptionsError] = useRemoteState([], saveProductOptions);
   const [settings, setSettingsRaw, setSettings, settingsError] = useRemoteState(BUSINESS, saveSettings);
   const [schedules, setSchedules] = useState([]);
@@ -85,24 +96,24 @@ export const useSupabaseCrud = (session) => {
         catalogs = await loadCatalogs();
       }
 
-      // Los datos de demostracion solo se muestran al VISITANTE, para que
-      // la pagina publica no se vea vacia antes de que el consultorio
-      // cargue su catalogo.
+      // VACIO ES VACIO, tambien para el visitante.
       //
-      // Para alguien con sesion son un peligro: si la consulta devuelve
-      // cero filas —porque RLS acota, porque falta una membresia o porque
-      // el catalogo esta vacio de verdad— la aplicacion mostraba doctores
-      // y servicios FANTASMA con ids que no existen en la base ('t1',
-      // 'psi-adultos'). Todo se veia bien y cada guardado fallaba con un
-      // error que no apuntaba a la causa. Vacio es vacio: las pantallas ya
-      // tienen su estado vacio y dicen que crear.
-      const demo = !hasSession;
-
-      setServicesRaw(catalogs.services.length ? catalogs.services : (demo ? THERAPY_SERVICES : []));
-      setSpecialtiesRaw(catalogs.specialties.length ? catalogs.specialties : (demo ? SPECIALTIES : []));
-      setTherapistsRaw(catalogs.therapists.length ? catalogs.therapists : (demo ? THERAPISTS : []));
-      setMenuRaw(hasMenuItems(catalogs.menu) ? catalogs.menu : (demo ? MENU : {}));
-      setOffersRaw(catalogs.offers.length ? catalogs.offers : (demo ? OFFERS : []));
+      // Antes, si el catalogo venia sin filas y no habia sesion, se le
+      // sustituian los datos de demostracion para que la pagina publica no
+      // se viera vacia. Con la 0028 el precio de la cita lo fija el
+      // SERVIDOR desde el catalogo real, asi que ese adorno le enseñaba al
+      // paciente un precio que no se le iba a cobrar — y los ids de demo
+      // ('psi-adultos', 't1') no existen en la base, de modo que la
+      // reserva tampoco podia completarse.
+      //
+      // Una pagina vacia que lo dice es honesta; uno con precios de
+      // mentira, no. Para que no se vea vacia esta la SIEMBRA, que el
+      // dueño dispara desde el admin y escribe datos REALES en la base.
+      setServicesRaw(catalogs.services);
+      setSpecialtiesRaw(catalogs.specialties);
+      setTherapistsRaw(catalogs.therapists);
+      setMenuRaw(catalogs.menu || {});
+      setOffersRaw(catalogs.offers);
       setProductOptionsRaw(catalogs.productOptions || []);
       setSettingsRaw(catalogs.settings || BUSINESS);
       setSchedules(catalogs.schedules || []);
@@ -123,7 +134,7 @@ export const useSupabaseCrud = (session) => {
     } finally {
       setLoading(false);
     }
-  }, [canLoadAppointments, canLoadOrders, canSeed, hasSession, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setProductOptionsRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
+  }, [canLoadAppointments, canLoadOrders, canSeed, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setProductOptionsRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
 
   useEffect(() => {
     reload();

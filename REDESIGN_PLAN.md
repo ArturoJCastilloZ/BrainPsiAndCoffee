@@ -776,13 +776,54 @@ navegan igual), byte nulo, `data:`, `vbscript:`, protocolo-relativa— más 4 UR
 deben pasar, y comprueba que **el sumidero llama al saneador**: que exista y esté probado no sirve
 de nada si la pantalla no lo usa.
 
+## A2.6f · Los catálogos de demostración salen del render
+
+`data.js` trae un catálogo de ejemplo —servicios, doctores y menú **con precios**— y la app lo
+sustituía cuando la base no devolvía nada. Dos consecuencias distintas:
+
+- **Al paciente** le enseñaba precios que **no se le iban a cobrar**: con `0028` el importe de la
+  cita lo fija el servidor desde el catálogo real. Y los ids de demo (`psi-adultos`, `t1`) no
+  existen en la base, así que la reserva tampoco podía completarse.
+- **Con sesión** mostraba doctores fantasma: todo se veía bien y cada guardado fallaba con un
+  error que no apuntaba a la causa.
+
+**La decisión se tomaba en dos capas** —el hook y **nueve** sitios de componente— así que arreglar
+una no bastaba. Ahora la regla es una: a la pantalla sólo llega lo que la base devolvió.
+
+El **estado inicial** también era demo. Ése es el que se pinta antes de que vuelva la consulta:
+el catálogo de ejemplo era el placeholder de carga, y **un placeholder con precios es un
+placeholder que miente**. Ahora arranca vacío.
+
+`data.js` **no desaparece**: sigue siendo la fuente de la siembra (`seedDefaultCatalogs`), que es
+su uso legítimo. Hoy sólo lo importan los dos caminos de siembra.
+
+**Mi propio barrido se quedó corto dos veces**, y las dos las atrapó volver a mirar:
+`MenuPage` caía a `MENU[activeTab]` (no usaba `||`, usaba índice) y `MyBookings` tenía
+`services = THERAPY_SERVICES` en un **parámetro por defecto**. El guard cubre las tres formas.
+
+**Un fallo que introduje y encontré renderizando:** al dejar `section = null`, `MenuPage` reventaba
+leyendo `section.title`. Pantalla en blanco. Las pruebas seguían en verde — sólo se vio abriendo la
+página.
+
+**Estados vacíos**, porque la alternativa a mentir no es un hueco: tres mensajes que dicen que
+todavía no hay nada publicado, en servicios, profesionales y menú.
+
+**Corrección a mi propio diagnóstico:** llegué a creer que el arreglo no funcionaba porque la
+página pública seguía mostrando el catálogo de demo. No era eso — el checkout principal **sí tiene
+`.env`**, así que el servidor de desarrollo habla con la Supabase real, y lo que se veía eran
+**filas reales** de la base, que contiene el contenido sembrado. Eso es el pendiente aparte de
+«limpiar los datos de demostración», no un fallo de este cambio.
+
+`tests/front/demo-catalogs.test.mjs` barre los **54 archivos** de `src/`: ninguno importa el
+catálogo de demo fuera de la siembra, ninguno cae a él en sus tres formas, y el hook arranca
+vacío. Verificado reintroduciendo el defecto.
+
 ## A2.7 · Lo que esta fase deliberadamente NO toca
 
 Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería esconderlo:
 
 - ~~El **Dashboard del dueño** y sus dos números inventados~~ → **HECHO** (ver A2.6d).
-- Los **catálogos DEMO** de `useSupabaseCrud.js:55-64` y el `[] || X === []` roto en ambos
-  sentidos.
+- ~~Los **catálogos DEMO** de `useSupabaseCrud.js:55-64`~~ → **HECHO** (ver A2.6f).
 - El **estado vacío antes del banner de error** de `DoctorApp.jsx:321`.
 - ~~El **XSS almacenado** `AdminCatalog.jsx:498` → `ContactPage.jsx:29`~~ → **HECHO** (ver A2.6e).
   Siguen abiertas las 4 vulnerabilidades high de `react-router-dom`.

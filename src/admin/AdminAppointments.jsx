@@ -9,7 +9,6 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { addDays, todayISO, uid, weekdayLabelsFrom, localDate } from '../utils.jsx';
 import { isWorkingDay, poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
 import { validateAppointment } from '../validation';
@@ -28,8 +27,8 @@ export default function AdminAppointments({
   // "Mis citas" y debajo "Citas / Gestiona reservaciones...".
   embedded = false,
 }) {
-  const services = catalogs?.services || THERAPY_SERVICES;
-  const therapists = catalogs?.therapists || THERAPISTS;
+  const services = catalogs?.services || [];
+  const therapists = catalogs?.therapists || [];
   const schedules = catalogs?.schedules || [];
   const [filter, setFilter] = useState('upcoming');
   const [search, setSearch] = useState('');

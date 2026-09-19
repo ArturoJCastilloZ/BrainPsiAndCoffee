@@ -10,7 +10,6 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { MENU } from '../data';
 import { formatMXN } from '../utils.jsx';
 import { activeOffers } from '../offerUtils';
 import { groupOptions, optionsTotal } from '../menuOptions.mjs';
@@ -18,7 +17,7 @@ import { groupOptions, optionsTotal } from '../menuOptions.mjs';
 export default function MenuPage({ addToCart, catalogs, theme }) {
   const [activeTab, setActiveTab] = useState('hot');
   const [customizing, setCustomizing] = useState(null);
-  const menu = catalogs?.menu || MENU;
+  const menu = catalogs?.menu || {};
   const offers = activeOffers(catalogs?.offers || []);
   // Leches, sabores y extras salen de la base. Sin configurar, el modal
   // simplemente no ofrece esa seccion.
@@ -32,7 +31,9 @@ export default function MenuPage({ addToCart, catalogs, theme }) {
     { id: 'desserts', label: 'Postres', icon: Cake },
   ];
 
-  const section = menu[activeTab] || MENU[activeTab];
+  // Sin seccion en la base no hay seccion. Antes caia a MENU[activeTab],
+  // o sea al menu de demostracion CON SUS PRECIOS.
+  const section = menu[activeTab] || null;
   const isCoffee = activeTab === 'hot' || activeTab === 'cold';
 
   return (
@@ -56,15 +57,26 @@ export default function MenuPage({ addToCart, catalogs, theme }) {
         ))}
       </div>
 
+      {/* Sin seccion en la base no hay nada que enseñar, y se DICE. Antes
+          esto caia al menu de demostracion con sus precios; el hueco lo
+          tapaba un catalogo inventado en vez de un mensaje honesto. */}
+      {!section && (
+        <p style={{ fontSize: 14, color: C.brownMid, lineHeight: 1.5, padding: '24px 0', margin: 0 }}>
+          Todavía no hay nada publicado en esta sección del menú.
+        </p>
+      )}
+
       {/* Section header */}
+      {section && (
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
         <h2 className="font-display" style={{ fontSize: 21, fontWeight: 500, color: C.brown, margin: 0 }}>{section.title}</h2>
         {section.size && <span style={{ fontSize: 11, padding: '4px 10px', background: C.caramelLight, color: isDark ? '#1E1B18' : C.brown, borderRadius: 999, fontWeight: 600 }}>{section.size}</span>}
       </div>
+      )}
 
       {/* Items */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 10 }}>
-        {(section.items || []).filter(item => item.active !== false).map((item, i) => (
+        {((section && section.items) || []).filter(item => item.active !== false).map((item, i) => (
           <div key={item.id} className="animate-fade-up" style={{
             background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 14, padding: 14,
             display: 'flex', alignItems: 'center', gap: 14,

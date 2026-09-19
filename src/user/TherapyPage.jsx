@@ -1,13 +1,12 @@
 import React from 'react';
 import { Calendar as CalendarIcon, HeartHandshake, Laptop, MapPin, MessageCircle, ShieldCheck } from 'lucide-react';
 import { C } from '../theme';
-import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
 import { formatMXN } from '../utils.jsx';
 
 export default function TherapyPage({ catalogs, setPage }) {
-  const services = (catalogs?.services || THERAPY_SERVICES).filter((item) => item.active !== false);
-  const therapists = (catalogs?.therapists || THERAPISTS).filter((item) => item.active !== false);
+  const services = (catalogs?.services || []).filter((item) => item.active !== false);
+  const therapists = (catalogs?.therapists || []).filter((item) => item.active !== false);
   const business = businessFromSettings(catalogs?.settings);
 
   return (
@@ -42,6 +41,7 @@ export default function TherapyPage({ catalogs, setPage }) {
 
       <section style={{ maxWidth: 980, margin: '0 auto', padding: '8px 20px 28px' }}>
         <SectionHeading eyebrow="Servicios" title="Opciones de atencion" />
+        {services.length === 0 && <SinPublicar que="servicios" />}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
           {services.map((service) => (
             <div key={service.id} style={card}>
@@ -58,6 +58,7 @@ export default function TherapyPage({ catalogs, setPage }) {
 
       <section style={{ maxWidth: 980, margin: '0 auto', padding: '8px 20px 34px' }}>
         <SectionHeading eyebrow="Profesionales" title="Equipo" />
+        {therapists.length === 0 && <SinPublicar que="profesionales" />}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
           {therapists.map((therapist) => (
             <div key={therapist.id} style={card}>
@@ -131,3 +132,14 @@ const secondaryButton = {
   color: C.brown,
   border: `1.5px solid ${C.brown}`,
 };
+
+// Un encabezado sobre la nada no dice si el consultorio no ha publicado
+// todavia o si la pagina se rompio. Antes ese hueco lo tapaba el catalogo
+// de demostracion; ahora lo ocupa una frase que es verdad.
+function SinPublicar({ que }) {
+  return (
+    <p style={{ color: C.brownMid, fontSize: 14, lineHeight: 1.5, margin: '4px 0 0' }}>
+      Todavía no hay {que} publicados. Escríbenos por WhatsApp y te contamos qué hay disponible.
+    </p>
+  );
+}

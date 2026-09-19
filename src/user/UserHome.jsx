@@ -9,14 +9,13 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { MENU, THERAPY_SERVICES } from '../data';
 import { formatMXN } from '../utils.jsx';
 import { SectionTitle, ServiceCard } from '../components/Cards';
 import { activeOffers } from '../offerUtils';
 
 export default function UserHome({ setPage, bookings, catalogs, theme }) {
-  const services = (catalogs?.services || THERAPY_SERVICES).filter(item => item.active !== false);
-  const menu = catalogs?.menu || MENU;
+  const services = (catalogs?.services || []).filter(item => item.active !== false);
+  const menu = catalogs?.menu || {};
   const offers = activeOffers(catalogs?.offers || []);
   const isDark = theme === 'dark';
   const onLightAccent = '#1E1B18';
