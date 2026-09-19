@@ -131,6 +131,106 @@ export default function App() {
         .brand-loader-spin { animation: brandLoaderSpin 1.1s ease-in-out infinite; transform-origin: center; }
         [data-theme="dark"] { color-scheme: dark; }
         [data-theme="dark"] button { color-scheme: dark; }
+
+        /* ==================================================================
+           ESCALA — Fase 2 / M1. Una sola definicion para toda la app.
+           Antes habia 141 valores sueltos repartidos en los componentes.
+           ================================================================== */
+        :root {
+          --bp-text-xs: 11px;
+          --bp-text-sm: 12.5px;
+          --bp-text-md: 14px;
+          --bp-text-lg: 16px;
+          --bp-text-xl: 20px;
+          --bp-text-2xl: 28px;
+
+          --bp-radius-sm: 6px;
+          --bp-radius-md: 10px;
+          --bp-radius-lg: 14px;
+          --bp-radius-pill: 999px;
+
+          /* Base 4. */
+          --bp-space-1: 4px;
+          --bp-space-2: 8px;
+          --bp-space-3: 12px;
+          --bp-space-4: 16px;
+          --bp-space-6: 24px;
+          --bp-space-8: 32px;
+          --bp-space-12: 48px;
+
+          /* Anillo de foco unico: >=3:1 sobre las cuatro superficies. */
+          --bp-focus-ring: #5F8A66;
+
+          /* Pisos medidos sobre el CONTENIDO, no sobre modelos de telefono.
+             520 = fila de cita (512) y horario (490) · 720 = maestro-detalle
+             (704) · 900 = sidebar + contenido (888) · 1280.
+             OJO: CSS no admite variables dentro de @media. Estan aqui como
+             fuente unica para que M2 y M3 usen EXACTAMENTE estos numeros. */
+          --bp-bp-row: 520px;
+          --bp-bp-split: 720px;
+          --bp-bp-sidebar: 900px;
+          --bp-bp-wide: 1280px;
+        }
+
+        /* ==================================================================
+           TOKENS DEL ADMIN — Fase 2 / M4. Estaban duplicados BYTE A BYTE en
+           AdminApp.jsx y DoctorApp.jsx. Ninguno de los dos era la fuente, asi
+           que cada arreglo de contraste habia que hacerlo dos veces y bastaba
+           olvidar uno para que las dos pantallas divergieran.
+           ================================================================== */
+        [data-theme] {
+          --admin-bg: #F5EFE6;
+          --admin-sidebar: #FFFDF8;
+          --admin-surface: #FFFFFF;
+          --admin-surface-soft: #F8F1E7;
+          --admin-border: var(--bp-cream-light);
+          --admin-border-soft: #EFE2D1;
+          --admin-text: var(--bp-brown);
+          --admin-muted: var(--bp-brown-mid);
+          --admin-subtle: var(--bp-brown-light);
+          --admin-row-text: var(--bp-brown-mid);
+          /* ARREGLO Fase 1: era var(--bp-sage-dark) = #7A9E7E, 2.99:1 sobre
+             blanco. No se toca --bp-sage-dark porque ese tambien pinta bordes
+             y fondos, donde el contraste de texto no aplica — mismo criterio
+             que --bp-rust-text. Un token por ROL, no por color. */
+          --admin-accent-text: #59735C;
+          --admin-on-accent: #1E1B18;
+          /* Borde INTERACTIVO: el 3:1 de WCAG 1.4.11 aplica cuando el borde
+             es el unico identificador del control. El filete decorativo
+             (--admin-border) no lo necesita y NO se toca. */
+          --admin-border-interactive: #9B9184;
+        }
+        [data-theme="dark"] {
+          --admin-bg: #0F1410;
+          --admin-sidebar: #0A0F09;
+          --admin-surface: #1A2118;
+          --admin-surface-soft: #10170F;
+          --admin-border: #2A332A;
+          --admin-border-soft: #1A2118;
+          --admin-text: var(--bp-cream);
+          --admin-muted: #7A8C77;
+          /* ARREGLO Fase 1: era #5A6B57, 2.88:1. */
+          --admin-subtle: #7D8A7A;
+          --admin-row-text: #9AAA97;
+          --admin-accent-text: var(--bp-sage-light);
+          --admin-on-accent: #1E1B18;
+          --admin-border-interactive: #666C66;
+        }
+
+        .admin-card { background: var(--admin-surface); border: 1px solid var(--admin-border); }
+        .admin-input { background: var(--admin-surface); border: 1px solid var(--admin-border); color: var(--admin-text); }
+        .admin-input::placeholder { color: var(--admin-subtle); }
+
+        /* ==================================================================
+           FOCO — Fase 2 / M1. Antes de esto la app tenia CERO indicacion de
+           foco: ni :focus ni :focus-visible aparecian una sola vez en src/.
+           Quien navega con teclado no sabia donde estaba parado.
+           :focus-visible y no :focus para no pintar el anillo al hacer clic.
+           ================================================================== */
+        :focus-visible {
+          outline: 2px solid var(--bp-focus-ring);
+          outline-offset: 2px;
+        }
       `}</style>
 
       {dataError && (

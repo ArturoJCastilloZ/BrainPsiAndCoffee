@@ -447,6 +447,12 @@ ellas cambia el costo de todo el rediseño.
 | «`minWidth: 900` está en `AdminApp.jsx:193`» | Está en **`AdminApp.jsx:202`**. La 193 es un `<div>` del header móvil | Apuntar al lugar correcto |
 | «No hay `:focus-visible` posible» | El *posible* es falso (ver arriba); el **hecho** se confirma: **cero ocurrencias** de `:focus` o `:focus-visible` en todo `src/` | El anillo de foco es trabajo nuevo, pero barato |
 
+> **Corrección propia, 18 sep (noche).** En la primera versión de este análisis afirmé que los dos
+> bloques de tokens `--admin-*` **habían divergido**. Era falso: `diff` de los dos bloques sale
+> **vacío**, son idénticos byte a byte. Lo presenté como medición cuando era inferencia — el
+> defecto exacto que el canon nombra en `verdict-gate`. La recomendación de unificarlos no cambia
+> (un valor declarado en dos archivos sigue exigiendo arreglarlo dos veces), pero el hecho sí.
+
 **Por qué importa:** la Fase 2 se había presupuestado como «hay que introducir CSS real antes de
 poder tocar nada». No es cierto. El patrón de `<style>` por componente ya está en producción y
 funcionando — lo que falta es **una hoja global**, no una capacidad nueva.
@@ -516,18 +522,27 @@ Lo que sí es seguro: el `65px` está escrito a mano y no corresponde a ninguna 
 header móvil (`padding: '16px 20px'` más contenido). Es un número mágico que se desincroniza al
 primer cambio de header.
 
-## A2.4 · Los tokens están duplicados, y divergen
+## A2.4 · Los tokens están duplicados — idénticos, y por eso peligrosos
 
 Dos bloques de variables `--admin-*` definidos por separado: `AdminApp.jsx:89-100` y
-`DoctorApp.jsx:105-116`. El handoff los daba por «duplicados literalmente»; **hoy ya no lo son** —
-el rediseño del panel doctor tocó uno y no el otro.
+`DoctorApp.jsx:105-116`. El handoff los daba por «duplicados literalmente» y **lo verifiqué**:
 
-Aquí vive además el arreglo de color ya aprobado: `AdminApp.jsx:97` tiene
-`'--admin-subtle': isDark ? '#5A6B57' : …`, que es exactamente el token de 2.88:1 que la Fase 1
-mandó subir a `#7D8A7A`. Está en **dos** archivos: arreglarlo en uno deja el otro roto.
+```
+$ diff <(sed -n '89,100p' admin/AdminApp.jsx | sort) \
+       <(sed -n '106,117p' doctor/DoctorApp.jsx | sort)
+IDENTICOS (diff vacio)
+```
+
+Idénticos byte a byte — y los bloques `<style>` con `.admin-card` / `.admin-input` también.
+
+**Que sean idénticos no los hace inofensivos: los hace una trampa.** Ninguno de los dos es la
+fuente. Aquí vive el arreglo de color ya aprobado — `AdminApp.jsx:97` tiene
+`'--admin-subtle': isDark ? '#5A6B57' : …`, exactamente el token de 2.88:1 que la Fase 1 mandó
+subir a `#7D8A7A`— y está en **dos** archivos. Arreglarlo en uno deja el otro roto, y como hoy
+son iguales, nada avisa: las dos pantallas simplemente empiezan a verse distinto.
 
 **Conclusión de arquitectura:** mientras los tokens vivan dentro de los componentes, cada arreglo
-de contraste es un arreglo por duplicado, y la duplicación ya demostró que diverge sola.
+de contraste es un arreglo por duplicado que depende de que alguien recuerde el segundo sitio.
 
 ## A2.5 · La propuesta
 

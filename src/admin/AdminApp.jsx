@@ -41,7 +41,6 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
     const contabilidad = useAccountingData(role);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const sidebarWidth = sidebarCollapsed ? 78 : 240;
-    const isDark = theme === 'dark';
     const navSections = useMemo(() => ([
         {
             label: 'Administración general',
@@ -85,26 +84,12 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             background: 'var(--admin-bg)',
             height: '100vh',
             color: 'var(--admin-text)',
-            overflow: 'hidden',
-            '--admin-bg': isDark ? '#0F1410' : '#F5EFE6',
-            '--admin-sidebar': isDark ? '#0A0F09' : '#FFFDF8',
-            '--admin-surface': isDark ? '#1A2118' : '#FFFFFF',
-            '--admin-surface-soft': isDark ? '#10170F' : '#F8F1E7',
-            '--admin-border': isDark ? '#2A332A' : '#E8D9C5',
-            '--admin-border-soft': isDark ? '#1A2118' : '#EFE2D1',
-            '--admin-text': isDark ? C.cream : C.brown,
-            '--admin-muted': isDark ? '#7A8C77' : C.brownMid,
-            '--admin-subtle': isDark ? '#5A6B57' : C.brownLight,
-            '--admin-row-text': isDark ? '#9AAA97' : C.brownMid,
-            '--admin-accent-text': isDark ? C.sageLight : C.sageDark,
-            '--admin-on-accent': '#1E1B18'
+            overflow: 'hidden'
+            // Los tokens --admin-* y las clases .admin-card/.admin-input viven
+            // en la hoja global de App.jsx. Estaban aqui Y en DoctorApp.jsx,
+            // identicos byte a byte, asi que cada arreglo habia que hacerlo dos
+            // veces. Ver "TOKENS DEL ADMIN" en App.jsx.
         }}>
-            <style>{`
-        .admin-card { background: var(--admin-surface); border: 1px solid var(--admin-border); }
-        .admin-input { background: var(--admin-surface); border: 1px solid var(--admin-border); color: var(--admin-text); }
-        .admin-input::placeholder { color: var(--admin-subtle); }
-      `}</style>
-
             <div style={{ display: 'flex', height: '100vh', minWidth: 0 }}>
                 {/* Sidebar */}
                 <aside style={{
