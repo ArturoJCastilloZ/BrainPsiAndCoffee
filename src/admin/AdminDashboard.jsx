@@ -11,25 +11,56 @@ import {
 import { C } from '../theme';
 import { THERAPISTS, THERAPY_SERVICES } from '../data';
 import { fullDayLabel, todayISO } from '../utils.jsx';
+import {
+  CAFETERIA, CONSULTORIO, collected, formatMoney,
+  periodRange, previousRange, variation,
+} from '../accounting.mjs';
 
-export default function AdminDashboard({ bookings, orders, setPage, catalogs }) {
+const SIN_CONTABILIDAD = { datos: { payments: [], expenses: [] } };
+
+export default function AdminDashboard({ bookings, orders, setPage, catalogs, contabilidad = SIN_CONTABILIDAD }) {
   const services = catalogs?.services || THERAPY_SERVICES;
   const therapists = catalogs?.therapists || THERAPISTS;
   const today = todayISO();
   const todayBookings = bookings.filter(b => b.date === today && b.status !== 'cancelled');
   const todayOrders = orders.filter(o => o.createdAt.startsWith(today));
-  const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0) +
-    bookings.filter(b => b.status === 'confirmed').reduce((sum, b) => {
-      const s = services.find(s => s.id === b.serviceId);
-      return sum + (s?.price || 0);
-    }, 0);
   const pendingOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
 
+  // El dinero sale de accounting.mjs, el mismo motor probado que usa
+  // Contabilidad. Antes se calculaba aqui a mano y estaba mal de tres
+  // formas a la vez:
+  //
+  //   1. Sumaba los DOS negocios en un solo "Ingresos estimados". Cafeteria
+  //      y consultorio son dominios separados en todo el producto —RLS los
+  //      aisla por area en 0027— y el dueño necesita verlos aparte.
+  //   2. Usaba el precio ACTUAL del catalogo por cada cita. La 0027 congela
+  //      appointments.price al agendar justamente para que subir el catalogo
+  //      no reescriba el historial; leer services[].price lo reescribia.
+  //   3. Llamaba "ingresos" a lo FACTURADO. Facturado, cobrado y por cobrar
+  //      son tres cifras distintas; el dashboard mostraba la primera con el
+  //      nombre de la segunda.
+  //
+  // Lo que se muestra es lo COBRADO del mes, por area, que es flujo real.
+  const pagos = contabilidad?.datos?.payments || [];
+  const rangoMes = periodRange('mes');
+  const rangoPrevio = previousRange(rangoMes);
+  const cobradoDe = (area) => ({
+    valor: collected(pagos, rangoMes, area),
+    variacion: variation(collected(pagos, rangoMes, area), collected(pagos, rangoPrevio, area)),
+  });
+  const consultorio = cobradoDe(CONSULTORIO);
+  const cafeteria = cobradoDe(CAFETERIA);
+
+  // `cambio` solo lleva texto cuando ese texto es CIERTO. Antes decia '+12%'
+  // y '+5', dos literales escritos a mano: los unicos numeros inventados que
+  // tenia la app. Cuando no hay mes anterior con que comparar no se pinta
+  // nada, en vez de rellenar el hueco con un adorno que se lee como dato.
   const stats = [
-    { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, change: '+12%', page: 'clinic-appointments' },
-    { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, change: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'cafe-orders' },
-    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.rust, change: '+5', page: 'clinic-appointments' },
-    { label: 'Ingresos estimados', value: `$${totalRevenue.toLocaleString('es-MX')}`, icon: DollarSign, color: C.sageLight, change: 'MXN', page: 'cafe-orders' },
+    { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, page: 'clinic-appointments' },
+    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.rust, page: 'clinic-appointments' },
+    { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, cambio: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'cafe-orders' },
+    { label: 'Cobrado · consultorio', value: formatMoney(consultorio.valor), icon: DollarSign, color: C.sageLight, variacion: consultorio.variacion, ayuda: rangoMes.label, page: 'general-accounting' },
+    { label: 'Cobrado · cafetería', value: formatMoney(cafeteria.valor), icon: Coffee, color: C.caramel, variacion: cafeteria.variacion, ayuda: rangoMes.label, page: 'general-accounting' },
   ];
 
   return (
@@ -40,7 +71,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
+      <div className="rejilla-tarjetas" style={{ '--rejilla-min': '180px', gap: 12, marginBottom: 28 }}>
         {stats.map(s => (
           <button key={s.label} onClick={() => setPage(s.page)} className="admin-card" style={{
             borderRadius: 14,
@@ -60,16 +91,19 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
               <div style={{ width: 36, height: 36, borderRadius: 10, background: s.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <s.icon size={18} color={s.color} strokeWidth={1.6} />
               </div>
-              <span style={{ fontSize: 10, color: 'var(--admin-muted)', fontWeight: 600 }}>{s.change}</span>
+              <Cambio variacion={s.variacion} etiqueta={s.cambio} />
             </div>
             <div className="font-display" style={{ fontSize: 28, fontWeight: 600, color: 'var(--admin-text)', lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
             <div style={{ fontSize: 11, color: 'var(--admin-muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{s.label}</div>
+            {s.ayuda && (
+              <div style={{ fontSize: 10.5, color: 'var(--admin-subtle)', marginTop: 4, textTransform: 'none', letterSpacing: 0 }}>{s.ayuda}</div>
+            )}
           </button>
         ))}
       </div>
 
       {/* Two columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <div className="rejilla-tarjetas" style={{ '--rejilla-min': '320px', gap: 16 }}>
         {/* Today's appointments */}
         <div className="admin-card" style={{ borderRadius: 16, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -131,6 +165,38 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs }) 
 
     </div>
   );
+}
+
+// El chip de la esquina de cada tarjeta. Tres estados, y ninguno inventa:
+//   - variacion comparable -> el porcentaje REAL contra el mes anterior
+//   - variacion sin base   -> se dice que no hay con que comparar
+//   - etiqueta factual     -> texto que describe el estado ("Atender")
+//   - nada                 -> no se pinta el chip
+// El color no adorna: verde y rust solo cuando hay una direccion medida.
+function Cambio({ variacion, etiqueta }) {
+  if (variacion) {
+    if (!variacion.comparable) {
+      return (
+        <span style={{ fontSize: 10, color: 'var(--admin-subtle)', fontWeight: 600, textAlign: 'right', maxWidth: 110 }}>
+          Sin mes anterior con qué comparar
+        </span>
+      );
+    }
+    const sube = variacion.direction === 'up';
+    const plano = variacion.direction === 'flat';
+    return (
+      <span style={{
+        fontSize: 10, fontWeight: 700,
+        color: plano ? 'var(--admin-muted)' : sube ? C.sageDark : C.rustText,
+      }}>
+        {sube ? '+' : ''}{variacion.pct}%
+      </span>
+    );
+  }
+  if (etiqueta) {
+    return <span style={{ fontSize: 10, color: 'var(--admin-muted)', fontWeight: 600 }}>{etiqueta}</span>;
+  }
+  return null;
 }
 
 // ============ ADMIN APPOINTMENTS ============

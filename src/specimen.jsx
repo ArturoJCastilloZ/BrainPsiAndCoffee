@@ -65,6 +65,24 @@ const PEDIDOS = [
 // medicion produce lecturas de su propio andamiaje.
 const LIMPIO = new URLSearchParams(location.search).has('limpio');
 
+// Cobros con fechas a ambos lados del corte de mes, para poder comprobar
+// la variacion con aritmetica en vez de creerle a la pantalla.
+const hoyD = new Date();
+const esteMes = (d) => `${hoyD.getFullYear()}-${String(hoyD.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+const mesPasadoD = new Date(hoyD.getFullYear(), hoyD.getMonth() - 1, 15);
+const mesPasado = `${mesPasadoD.getFullYear()}-${String(mesPasadoD.getMonth() + 1).padStart(2, '0')}-15`;
+
+const COBROS = [
+  // Consultorio · este mes: 600 + 900 = 1500 · mes pasado: 1000  -> +50%
+  { id: 'g1', appointmentId: 'c1', amount: 600,  method: 'tarjeta',      paidAt: esteMes(3) },
+  { id: 'g2', appointmentId: 'c2', amount: 900,  method: 'transferencia', paidAt: esteMes(4) },
+  { id: 'g3', appointmentId: 'cx', amount: 1000, method: 'tarjeta',      paidAt: mesPasado },
+  // Cafeteria · este mes: 70 · mes pasado: 140  -> -50%
+  { id: 'g4', orderId: 'p1', amount: 70,  method: 'efectivo', paidAt: esteMes(5) },
+  { id: 'g5', orderId: 'px', amount: 140, method: 'tarjeta',  paidAt: mesPasado },
+];
+const CONTABILIDAD = { datos: { payments: COBROS, expenses: [] }, cargando: false, error: '', recargar: () => {}, registrarCobro: async () => {} };
+
 function Especimen() {
   const [theme, setTheme] = useState('light');
   const [pantalla, setPantalla] = useState('AdminApp');
@@ -111,7 +129,7 @@ function Especimen() {
           {pantalla === 'Citas'        && <AdminAppointments bookings={citas} setBookings={setCitas} catalogs={CATALOGOS} />}
           {pantalla === 'Pedidos'      && <AdminOrders orders={pedidos} setOrders={setPedidos} catalogs={CATALOGOS} session={SESION} />}
           {pantalla === 'Contabilidad' && <AdminAccounting bookings={citas} orders={pedidos} catalogs={CATALOGOS} session={SESION} />}
-          {pantalla === 'Dashboard'    && <AdminDashboard bookings={citas} orders={pedidos} setPage={() => {}} catalogs={CATALOGOS} />}
+          {pantalla === 'Dashboard'    && <AdminDashboard bookings={citas} orders={pedidos} setPage={() => {}} catalogs={CATALOGOS} contabilidad={CONTABILIDAD} />}
           {pantalla === 'Horarios'     && <AdminSchedules catalogs={CATALOGOS} reload={() => {}} />}
         </div>
       </main>

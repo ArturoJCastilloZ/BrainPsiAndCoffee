@@ -695,12 +695,50 @@ de la barra **sin error ni pantalla en blanco**. `tests/front/admin-nav.test.mjs
 verificó inyectando el desajuste —confirmando primero que la inyección había entrado— y el guard
 nombró las cuatro entradas afectadas.
 
+## A2.6d · El Dashboard, reescrito sobre `accounting.mjs`
+
+Tenía **tres defectos de dinero a la vez**, y el más visible no era el peor:
+
+| Defecto | Qué pasaba |
+|---|---|
+| `'+12%'` y `'+5'` literales (`:29,31`) | Los **únicos números inventados de la app**, y se leían igual que los reales |
+| «Ingresos estimados» sumaba los dos negocios | RLS los aísla por área desde `0027`; la pantalla los volvía a mezclar |
+| El importe por cita salía del **catálogo actual** | `0027` congela `appointments.price` justamente para que subir el catálogo no reescriba el historial |
+
+Y uno más, de nombre: llamaba «ingresos» a lo **facturado**. Facturado, cobrado y por cobrar son
+tres cifras distintas; mostraba la primera con el nombre de la segunda.
+
+Ahora el dinero sale de `accounting.mjs` —el mismo motor probado de Contabilidad— y se muestra
+**lo cobrado del mes, por área**, con la variación real contra el mes anterior vía `variation()`,
+que ya devolvía `comparable: false` cuando no hay base. El comentario de `previousRange()` en el
+motor **ya nombraba** este `+12%` como el caso que venía a resolver.
+
+Verificado con aritmética, no mirando: cobros sembrados a ambos lados del corte de mes →
+consultorio $600+$900 = **$1,500 contra $1,000 → +50%**; cafetería **$70 contra $140 → −50%**.
+Y el camino sin base: **«Sin mes anterior con qué comparar»** en vez de un adorno.
+
+**Un puente que faltaba, encontrado por chequeo propio:** `AdminApp` no le pasaba `contabilidad`
+al Dashboard. Sin él habría mostrado **$0.00 sin un solo error** — la misma familia que
+`mapAppointmentFromDb` sin mapear `price`.
+
+**Guard nuevo** (`tests/front/dashboard-numbers.test.mjs`), con las cinco aserciones: sin literales
+de métrica, dinero desde el motor, `collected()` y `variation()` en uso, las dos áreas separadas,
+el precio de cita no leído del catálogo, y el puente cableado. Ejercitado inyectando **dos**
+defectos distintos —un literal en código y el puente quitado— confirmando antes que cada inyección
+había entrado.
+
+> **La primera versión del guard se disparó con su propio comentario**, el que explica los
+> literales viejos. Ahora mira el código con los comentarios retirados: un guard que castiga
+> documentar el defecto empuja a no documentarlo.
+
+De paso, las dos rejillas del Dashboard (`:43` y `:72`) pasan a `.rejilla-tarjetas`. Eran dos de
+los «vecinos medidos y no tocados» de M2b.
+
 ## A2.7 · Lo que esta fase deliberadamente NO toca
 
 Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería esconderlo:
 
-- El **Dashboard del dueño** y sus dos números inventados (`AdminDashboard.jsx:29,31`). Hay que
-  reescribirlo con `accounting.mjs`. Es trabajo de datos, no de layout.
+- ~~El **Dashboard del dueño** y sus dos números inventados~~ → **HECHO** (ver A2.6d).
 - Los **catálogos DEMO** de `useSupabaseCrud.js:55-64` y el `[] || X === []` roto en ambos
   sentidos.
 - El **estado vacío antes del banner de error** de `DoctorApp.jsx:321`.
