@@ -963,6 +963,27 @@ export const inviteStaff = async (email, role, therapistId = null) => {
   return data;
 };
 
+// Contraseña temporal para una invitacion PENDIENTE (opcion C).
+//
+// Es un acto deliberado del dueño y no un efecto lateral de invitar: la
+// pantalla solo ofrece el boton en filas pendientes. La funcion ademas se
+// niega si esa cuenta se usa en otra clinica — reescribirle la contraseña
+// seria tomarle el acceso alla.
+export const generateTempPassword = async (email) => {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.functions.invoke('invite-staff', {
+    body: { email, accion: 'temporal' },
+  });
+  if (error) {
+    let detalle = '';
+    try { detalle = (await error.context?.json())?.error || ''; } catch { /* sin cuerpo */ }
+    const fallo = new Error(detalle || 'No se pudo generar la contraseña temporal.');
+    fallo.cause = error;
+    throw fallo;
+  }
+  return data;
+};
+
 export const myPendingInvitations = async () => {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc('my_pending_invitations');

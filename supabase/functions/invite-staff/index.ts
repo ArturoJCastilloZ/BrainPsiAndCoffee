@@ -40,21 +40,43 @@ const json = (body: unknown, status = 200) =>
 // existe termina en un segundo intento de crear la cuenta, que rebota
 // con un error del proveedor que nadie sabe leer. Es el mismo motivo por
 // el que sync-doctor-access tiene listAllUsers.
-const existeUsuario = async (
+const buscarUsuario = async (
   adminClient: ReturnType<typeof createClient>,
   email: string,
-): Promise<boolean> => {
+): Promise<{ id: string; app_metadata?: Record<string, unknown> } | null> => {
   const porPagina = 200;
   for (let page = 1; page <= 100; page += 1) {
     const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: porPagina });
     if (error) throw error;
     const usuarios = data?.users ?? [];
-    if (usuarios.some((u) => (u.email || '').toLowerCase() === email)) return true;
-    if (usuarios.length < porPagina) return false;
+    const hallado = usuarios.find((u) => (u.email || '').toLowerCase() === email);
+    if (hallado) return hallado as { id: string; app_metadata?: Record<string, unknown> };
+    if (usuarios.length < porPagina) return null;
   }
   // 20 000 usuarios sin encontrarlo: se falla CERRADO. Seguir y crear la
   // cuenta seria decidir "no existe" sin haber mirado.
   throw new Error('No se pudo comprobar si el correo ya tiene cuenta.');
+};
+
+// Las OTRAS clinicas activas de esa persona, segun tenant_members.
+//
+// Decide si esta clinica puede reescribirle la contraseña. Sale de la
+// TABLA y no del claim: el claim es su cache y puede quedarse corta, y
+// decidir con ella reabre el secuestro de cuenta que cerro 8.3. Misma
+// doctrina que canRewriteLoginEmail en sync-doctor-access.
+const otrasClinicasDe = async (
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+  tenantId: string,
+): Promise<string[]> => {
+  const { data, error } = await adminClient
+    .from('tenant_members')
+    .select('tenant_id')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .neq('tenant_id', tenantId);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.tenant_id as string);
 };
 
 const manejar = async (req: Request): Promise<Response> => {
@@ -112,7 +134,7 @@ const manejar = async (req: Request): Promise<Response> => {
     return json({ error: 'Solo el dueño de la clinica puede dar de alta personal.' }, 403);
   }
 
-  let body: { email?: string; role?: string; therapistId?: string };
+  let body: { email?: string; role?: string; therapistId?: string; accion?: string };
   try {
     body = await req.json();
   } catch {
@@ -122,14 +144,25 @@ const manejar = async (req: Request): Promise<Response> => {
   const email = String(body.email ?? '').trim().toLowerCase();
   const role = String(body.role ?? '');
   const therapistId = String(body.therapistId ?? '').trim() || null;
+  // 'temporal' = el dueño pide explicitamente una contraseña temporal para
+  // una invitacion que sigue pendiente, en vez de esperar a que la acepte.
+  const accion = String(body.accion ?? 'alta');
 
-  const problema = validarAlta({ email, role, therapistId });
-  if (problema) return json({ error: problema }, 400);
+  // En la accion 'temporal' el rol y la ficha NO vienen del cuerpo: salen
+  // de la invitacion pendiente que ya existe. Validar aqui lo que el
+  // cliente mando obligaria a la pantalla a reenviarlos, y entonces el
+  // cliente podria cambiarlos de paso.
+  if (accion === 'alta') {
+    const problema = validarAlta({ email, role, therapistId });
+    if (problema) return json({ error: problema }, 400);
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: 'Correo invalido.' }, 400);
+  }
 
   // Un doctor necesita que la ficha exista Y este libre. Se comprueba
   // aqui porque en la rama de creacion no pasa por
   // set_tenant_member_role, que es donde vivian estos chequeos.
-  if (role === 'doctor') {
+  if (accion === 'alta' && role === 'doctor') {
     const { data: ficha, error: fichaError } = await adminClient
       .from('therapists')
       .select('id')
@@ -154,9 +187,90 @@ const manejar = async (req: Request): Promise<Response> => {
   // y ejecutado con los permisos del llamante. Crear cuentas es para
   // quien no tiene; meter a alguien que ya existe es otra cosa y necesita
   // su permiso.
-  const yaExiste = await existeUsuario(adminClient, email);
+  const existente = await buscarUsuario(adminClient, email);
 
-  if (yaExiste) {
+  // ------------------------------------------------------------
+  // Contraseña temporal para una invitacion PENDIENTE.
+  //
+  // Es un acto deliberado del dueño, no un efecto lateral de invitar: la
+  // pantalla solo ofrece el boton en filas pendientes. Reescribirle la
+  // contraseña a alguien es tomarle la cuenta, asi que hay dos candados:
+  //
+  //   1. Tiene que haber una invitacion PENDIENTE suya en esta clinica.
+  //      Sin eso, esto seria un "cambiale la contraseña a cualquiera".
+  //   2. No puede pertenecer a NINGUNA otra clinica. Un doctor que
+  //      atiende en otro consultorio entra alli con esa misma cuenta, y
+  //      quien controla su contraseña controla su acceso alla. Es el
+  //      secuestro que cerro 8.3, y la condicion es la misma que usa
+  //      canRewriteLoginEmail.
+  // ------------------------------------------------------------
+  if (accion === 'temporal') {
+    if (!existente) {
+      return json({ error: 'Ese correo no tiene cuenta. Dale de alta en vez de generar una temporal.' }, 400);
+    }
+
+    const { data: pendiente, error: pendienteError } = await adminClient
+      .from('tenant_members')
+      .select('role, therapist_id, invited_at')
+      .eq('tenant_id', tenantId)
+      .eq('user_id', existente.id)
+      .eq('active', false)
+      .maybeSingle();
+    if (pendienteError) throw pendienteError;
+    if (!pendiente || !pendiente.invited_at) {
+      return json({ error: 'Esa persona no tiene una invitacion pendiente en esta clinica.' }, 400);
+    }
+
+    const otras = await otrasClinicasDe(adminClient, existente.id, tenantId);
+    if (otras.length > 0) {
+      return json({
+        error: 'Esa cuenta tambien se usa en otra clinica, asi que esta no puede cambiarle la contraseña. Tiene que aceptar la invitacion ella misma.',
+      }, 403);
+    }
+
+    const temporalPendiente = generarTemporal();
+    const caducaPendiente = caducidadTemporal();
+
+    // app_metadata se REEMPLAZA, no se fusiona, asi que se parte del que
+    // el usuario ya tiene. Fabricar uno nuevo le borraria sus otras
+    // claves — el mismo defecto que qa-check vigila en sync-doctor-access.
+    const metaPrevio = (existente.app_metadata ?? {}) as Record<string, unknown>;
+    const membresias = { ...((metaPrevio.memberships ?? {}) as Record<string, string>), [tenantId]: pendiente.role };
+    const fichas = { ...((metaPrevio.therapist_ids ?? {}) as Record<string, string>) };
+    if (pendiente.therapist_id) fichas[tenantId] = pendiente.therapist_id;
+
+    const { error: claveError } = await adminClient.auth.admin.updateUserById(existente.id, {
+      password: temporalPendiente,
+      app_metadata: {
+        ...metaPrevio,
+        memberships: membresias,
+        therapist_ids: fichas,
+        must_change_password: true,
+        temp_expires_at: caducaPendiente,
+      },
+    });
+    if (claveError) return json({ error: claveError.message }, 400);
+
+    const { error: activarError } = await adminClient
+      .from('tenant_members')
+      .update({ active: true, invited_at: null, updated_at: new Date().toISOString() })
+      .eq('tenant_id', tenantId)
+      .eq('user_id', existente.id);
+    if (activarError) throw activarError;
+
+    if (pendiente.therapist_id) {
+      const { error: fichaError } = await adminClient
+        .from('therapists')
+        .update({ user_id: existente.id, updated_at: new Date().toISOString() })
+        .eq('tenant_id', tenantId)
+        .eq('id', pendiente.therapist_id);
+      if (fichaError) throw fichaError;
+    }
+
+    return json({ estado: 'temporal', email, temporal: temporalPendiente, caduca: caducaPendiente });
+  }
+
+  if (existente) {
     const { error: invitarError } = await callerClient.rpc('set_tenant_member_role', {
       p_email: email,
       p_role: role,

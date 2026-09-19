@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Copy, KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import { C } from '../theme';
-import { listTenantMembers, revokeTenantMember, inviteStaff } from '../api/supabaseData';
+import { listTenantMembers, revokeTenantMember, inviteStaff, generateTempPassword } from '../api/supabaseData';
 import { supabase } from '../api/supabaseClient';
 import { useConfirm } from '../components/ConfirmDialog';
 import TempPasswordPanel from './TempPasswordPanel';
@@ -100,6 +100,34 @@ export default function AdminAccess() {
       await load();
     } catch (err) {
       setError(err.message || 'No se pudo dar de alta al usuario.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Solo en filas PENDIENTES. Para un miembro que ya entra, esto seria
+  // "cambiale la contraseña a quien quieras", que es otro flujo y no
+  // este. La funcion ademas se niega si la cuenta se usa en otra clinica.
+  const generarTemporal = async (correo) => {
+    const ok = await confirmar({
+      titulo: 'Generar contraseña temporal',
+      mensaje: `Se le va a cambiar la contraseña a ${correo} y tendra que ponerse una nueva al entrar. Solo hazlo si vas a entregarsela en persona.`,
+      aceptar: 'Generar',
+      destructivo: true,
+    });
+    if (!ok) return;
+
+    setBusy(true);
+    setError('');
+    setNotice('');
+    setTemporal(null);
+    try {
+      const r = await generateTempPassword(correo);
+      setTemporal({ email: r.email, clave: r.temporal, caduca: r.caduca });
+      setCopiado(false);
+      await load();
+    } catch (err) {
+      setError(err.message || 'No se pudo generar la contraseña temporal.');
     } finally {
       setBusy(false);
     }
@@ -218,10 +246,23 @@ export default function AdminAccess() {
                   aqui, el dueño invita, ve a la persona en la lista igual
                   que a las demas, y no entiende por que no puede entrar. */}
               {m.invitedAt && (
-                <div style={etiquetaPendiente}>
-                  {diasParaCaducar(m.expiraEl) === 0
-                    ? 'Invitacion caducada · vuelve a invitar'
-                    : `Invitacion pendiente · caduca en ${diasParaCaducar(m.expiraEl)} d`}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                  <span style={etiquetaPendiente}>
+                    {diasParaCaducar(m.expiraEl) === 0
+                      ? 'Invitacion caducada · vuelve a invitar'
+                      : `Invitacion pendiente · caduca en ${diasParaCaducar(m.expiraEl)} d`}
+                  </span>
+                  {/* Solo aqui. En una fila que ya entra, un boton que
+                      reescribe la contraseña es una herramienta para
+                      entrar como otro. */}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => generarTemporal(m.email)}
+                    style={boton('ghost', busy)}
+                  >
+                    <KeyRound size={13} /> Generar contraseña temporal
+                  </button>
                 </div>
               )}
             </div>
@@ -339,7 +380,6 @@ const diasParaCaducar = (expiraEl) => {
 // Va en --admin-text y no en --admin-muted: es el dato que explica por
 // que esa persona no puede entrar, asi que no es texto secundario.
 const etiquetaPendiente = {
-  marginTop: 4,
   fontSize: 11,
   fontWeight: 700,
   color: 'var(--admin-text)',
