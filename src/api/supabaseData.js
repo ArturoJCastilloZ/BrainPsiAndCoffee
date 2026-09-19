@@ -1,4 +1,5 @@
 import { menuVacio } from '../menuCategorias.mjs';
+import { cambiosDePedidos } from '../orderDiff.mjs';
 import { getSelectedTenant } from './tenant';
 import { supabase, assertSupabaseConfigured } from './supabaseClient';
 import { validateAppointment, validateOrder } from '../validation';
@@ -781,8 +782,17 @@ export const saveOrders = async (items, previousItems = []) => {
   const role = authenticated ? await getAuthRole() : null;
   const invalid = items.find((item) => Object.keys(validateOrder(item)).length);
   if (invalid) throw new Error('El pedido requiere nombre y telefono validos.');
-  const previousIds = new Set(previousItems.map((item) => item.id));
-  const itemsToPersist = authenticated ? items : items.filter((item) => !previousIds.has(item.id));
+  // Un guardado escribe LO QUE CAMBIO, y nada mas.
+  //
+  // Antes reescribia todos los pedidos cargados: cambiar el estado de uno
+  // reinsertaba las lineas de todos los demas, historial incluido. Fue la
+  // causa raiz de dos ciclos de auditoria — un pedido podia quedar con
+  // cero lineas, y despues de la 0026 cualquier guardado fallaba al topar
+  // el primer pedido cerrado. El `continue` de abajo trataba el sintoma.
+  const cambios = cambiosDePedidos(items, previousItems);
+  // Sin sesion solo se crean pedidos nuevos: el checkout publico no edita
+  // los ajenos. Con sesion, ademas, se persisten los modificados.
+  const itemsToPersist = authenticated ? cambios.aPersistir : cambios.nuevos;
 
   if (isBarista(role)) {
     const previousById = new Map(previousItems.map((item) => [item.id, item]));
@@ -804,17 +814,23 @@ export const saveOrders = async (items, previousItems = []) => {
   }
   if (authenticated) await deleteMissing('orders', items.map((item) => item.id));
 
-  for (const order of itemsToPersist) {
-    // Un pedido cobrado no se reescribe.
+  // Solo los pedidos cuyas LINEAS cambiaron. Para los demas no se toca
+  // order_items, ni siquiera para reinsertar lo mismo.
+  const conLineas = authenticated
+    ? cambios.conLineasCambiadas
+    : cambios.nuevos;
+
+  for (const order of conLineas) {
+    // Se conserva como defensa en profundidad, no como el arreglo.
     //
-    // Este bucle BORRA las lineas y las reinserta, en dos peticiones sin
-    // transaccion. Con la inmutabilidad de 0026 el borrado se rechaza, asi
-    // que sin este filtro cualquier guardado desde el panel fallaria al
-    // topar el primer pedido entregado del historial.
+    // El bucle BORRA las lineas y las reinserta en dos peticiones SIN
+    // transaccion: si la segunda falla, el pedido queda sin lineas. Ahora
+    // solo corre cuando las lineas de verdad cambiaron, asi que la ventana
+    // es mucho mas estrecha — pero sigue existiendo, y cerrarla del todo
+    // pide una RPC transaccional, que es cambio de esquema.
     //
-    // Y sin la inmutabilidad era peor: el borrado pasaba, el insert
-    // tronaba, y el pedido quedaba sin lineas. La causa raiz no era el
-    // trigger — era reescribir el historial completo en cada guardado.
+    // La inmutabilidad de 0026 rechaza tocar un pedido cerrado. Que este
+    // filtro siga aqui evita pedir algo que la base va a negar.
     if (order.status === 'delivered' || order.status === 'cancelled') continue;
 
     if (authenticated) throwIfError(await supabase.from('order_items').delete().eq('order_id', order.id));
