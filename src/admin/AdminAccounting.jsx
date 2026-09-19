@@ -149,7 +149,7 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
 
       <Tendencia serie={cifras.serie} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 14, marginTop: 14 }}>
+      <div className="rejilla-tarjetas" style={{ '--rejilla-min': '320px', gap: 14, marginTop: 14 }}>
         {cifras.servicios.length > 0 && (
           <Desglose titulo="Por servicio" filas={cifras.servicios} vacio="Sin citas en el periodo." />
         )}
@@ -265,7 +265,7 @@ function Tarjetas({ c }) {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 12 }}>
+    <div className="rejilla-tarjetas" style={{ '--rejilla-min': '200px', gap: 12 }}>
       {tarjetas.map((t) => <Tarjeta key={t.label} {...t} />)}
     </div>
   );

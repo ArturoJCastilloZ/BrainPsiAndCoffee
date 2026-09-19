@@ -52,10 +52,17 @@ const SESION = { user: { role: 'owner', name: 'Espécimen' } };
 // que dependa de ese fallback estaria midiendo la rama equivocada.
 const CATALOGOS = { services: THERAPY_SERVICES, therapists: THERAPISTS, schedules: [] };
 
+// Un pedido, para que la tarjeta "Por producto" exista: el caso que el dev
+// reporto tiene CUATRO tarjetas, y con tres el hueco no se reproduce.
+const PEDIDOS = [
+  { id: 'p1', status: 'delivered', createdAt: dia(0), total: 70,
+    items: [{ id: 'apego', name: 'Apego seguro', price: 70, qty: 1 }] },
+];
+
 function Especimen() {
   const [theme, setTheme] = useState('light');
   const [pantalla, setPantalla] = useState('Citas');
-  const [pedidos, setPedidos] = useState([]);
+  const [pedidos, setPedidos] = useState(PEDIDOS);
   const [citas, setCitas] = useState(CITAS);
   const isDark = theme === 'dark';
   return (

@@ -291,6 +291,31 @@ export default function GlobalStyle() {
             grid-template-columns: minmax(230px, 0.3fr) minmax(420px, 1fr);
           }
         }
+
+        /* ==================================================================
+           REJILLA DE TARJETAS — Fase 2 / M2b. Reportado por el dev: las
+           tarjetas de desglose "se desalinean" al 100%% de zoom.
+           Causa medida: repeat(auto-fit, minmax(320px,1fr)) con CUATRO
+           tarjetas da 3 pistas mientras el contenedor mide entre 1000 y
+           1339px, asi que la cuarta cae sola con DOS celdas vacias al lado.
+           Fuera de esa banda no se nota (2x2 por debajo de 1000, 4x1 desde
+           1340), y un portatil de 1280 cae justo dentro.
+           auto-fit no puede arreglarlo: reparte en pistas iguales y el
+           sobrante deja hueco. Con flex el sobrante CRECE y ocupa el
+           renglon, asi que la ultima tarjeta se lee como decision y no como
+           huerfano — verificado con 2, 3 y 4 tarjetas, sin hueco en ningun
+           ancho.
+           --rejilla-min es la base por tarjeta; equivale al minmax anterior.
+           ================================================================== */
+        .rejilla-tarjetas {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: stretch;
+        }
+        .rejilla-tarjetas > * {
+          flex: 1 1 var(--rejilla-min, 320px);
+          min-width: 0;
+        }
       `}</style>
   );
 }

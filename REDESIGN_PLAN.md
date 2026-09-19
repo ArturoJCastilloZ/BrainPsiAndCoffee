@@ -629,6 +629,21 @@ tarjetas; a 520, 900 y 1280 vuelven a 3 columnas y a `display: table` con cabece
   nunca pudiera ser «borrar la línea»: el grid reparte el poco ancho que hay en vez de rebasar,
   así que el defecto se vuelve invisible para una prueba de scroll y solo se ve mirando.
 
+**M2b · las tarjetas de desglose se desalineaban (reportado por el dev, con sesión real).**
+`repeat(auto-fit, minmax(320px,1fr))` con **cuatro** tarjetas da 3 pistas mientras el contenedor
+mide entre **1000 y 1339px**: la cuarta cae sola con dos celdas vacías al lado. Fuera de esa banda
+no se nota (2×2 por debajo de 1000, 4×1 desde 1340) — y un portátil de 1280 cae justo dentro.
+
+`auto-fit` no puede arreglarlo: reparte en pistas iguales y el sobrante deja hueco. Con
+`flex-wrap` el sobrante **crece** y ocupa el renglón. Nueva clase compartida `.rejilla-tarjetas`
+con `--rejilla-min`, aplicada a las dos rejillas de Contabilidad (desglose y KPIs) porque son el
+mismo defecto de clase. Verificado sobre el componente real en 10 anchos de 900 a 1700: **sin
+hueco en ninguno**, con 2, 3 y 4 tarjetas.
+
+**Vecinos medidos y NO tocados** (misma familia `auto-fit`, conteo variable, a decisión del dev):
+`AdminDashboard:43,72` · `AdminCatalog:519` · `AdminOrders:172` · `AdminSchedules:207,312` ·
+`AdminAccounting:541`.
+
 **P2.2 también cerrado.** El maestro-detalle de `DoctorApp.jsx:317` era
 `minmax(230px,0.3fr) minmax(420px,1fr)` + gap 24 = piso de **674px** en dos columnas fijas sin
 `auto-fit`: no colapsaba jamás, con 206% de desbordamiento a 375px, y es la pantalla donde se
