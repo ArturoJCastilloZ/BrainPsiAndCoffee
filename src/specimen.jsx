@@ -1,0 +1,68 @@
+// ============================================================================
+// ESPECIMEN DE DESARROLLO — NO forma parte del producto.
+//
+// Vite construye unicamente index.html (no hay vite.config, asi que el input
+// por defecto es ese), de modo que este archivo y specimen.html se sirven en
+// `npm run dev` y NO entran en dist/. Verificado contra dist/ tras un build.
+//
+// Por que existe: las pantallas del admin solo se alcanzan con credenciales
+// reales y tres roles distintos. Sin esto, "responsive arreglado" solo se
+// podria AFIRMAR, no ver — y el handoff ya registra que varios bugs de esta
+// linea los encontro el dev mirando la pantalla, no las pruebas.
+//
+// Honestidad sobre lo que prueba: el COMPONENTE es el real, sin mocks por
+// dentro (AdminAppointments no hace una sola llamada de red; se alimenta
+// entero por props). Lo que aqui se reproduce es su CONTENEDOR — el <main>
+// de AdminApp con su padding de 24 — no el AdminApp completo. Sirve para
+// medir el layout interno; no sustituye ver la app con sesion real.
+// ============================================================================
+import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import GlobalStyle, { themeVars } from './GlobalStyle';
+import AdminAppointments from './admin/AdminAppointments';
+import { todayISO, addDays } from './utils.jsx';
+
+// addDays devuelve un Date, no una cadena ISO: las citas guardan 'YYYY-MM-DD'.
+const dia = (n) => (n === 0 ? todayISO() : addDays(todayISO(), n).toISOString().split('T')[0]);
+
+const hoy = todayISO();
+// Citas con nombres y correos LARGOS a proposito: lo que desborda una fila no
+// es el caso promedio, es el peor caso real.
+// Los estados son SOLO los que el esquema admite:
+// migrations -> check (status in ('confirmed','completed','cancelled')).
+// Un mock con un estado inventado produce un falso hallazgo: 'pending'
+// hizo creer por un momento que la etiqueta se mostraba sin traducir.
+const CITAS = [
+  { id: 'c1', serviceId: 'psi-adultos',   therapistId: 't1', date: dia(0),             time: '09:00', name: 'María Fernanda Villalobos Treviño', email: 'mariafernanda.villalobos@ejemplo.com.mx', phone: '8112345678', notes: '', wantsCoffee: true,  durationMinutes: 50, status: 'confirmed', price: 600, createdAt: hoy, reminderSent: false },
+  { id: 'c2', serviceId: 'neuro-adultos', therapistId: 't2', date: dia(0),             time: '11:30', name: 'Juan Pablo Sáenz',                  email: 'jp.saenz@ejemplo.com',                   phone: '8187654321', notes: '', wantsCoffee: false, durationMinutes: 60, status: 'confirmed', price: 800, createdAt: hoy, reminderSent: false },
+  { id: 'c3', serviceId: 'psi-infantil',  therapistId: 't3', date: dia(1), time: '10:00', name: 'Ana Sofía Cárdenas',               email: 'ana.cardenas@ejemplo.com',               phone: '8155512345', notes: '', wantsCoffee: false, durationMinutes: 45, status: 'completed',   price: 550, createdAt: hoy, reminderSent: false },
+  { id: 'c4', serviceId: 'evaluacion',    therapistId: 't2', date: dia(2), time: '16:00', name: 'Roberto Gutiérrez Montemayor',     email: 'roberto.gutierrez@ejemplo.com',          phone: '8199988776', notes: '', wantsCoffee: true,  durationMinutes: 120, status: 'confirmed', price: 2500, createdAt: hoy, reminderSent: false },
+  { id: 'c5', serviceId: 'pareja',        therapistId: 't4', date: dia(3), time: '18:00', name: 'Lucía y Andrés',                   email: 'lucia.andres@ejemplo.com',               phone: '8111223344', notes: '', wantsCoffee: false, durationMinutes: 75, status: 'cancelled', price: 900, createdAt: hoy, reminderSent: false },
+];
+
+function Especimen() {
+  const [theme, setTheme] = useState('light');
+  const [citas, setCitas] = useState(CITAS);
+  const isDark = theme === 'dark';
+  return (
+    <div data-theme={theme} style={{ minHeight: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: "'Outfit', system-ui, sans-serif", ...themeVars(isDark) }}>
+      <GlobalStyle />
+      <div style={{ position: 'fixed', right: 8, bottom: 8, zIndex: 999 }}>
+        <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
+          style={{ fontFamily: 'inherit', fontSize: 11, padding: '6px 10px', borderRadius: 999, cursor: 'pointer',
+                   background: 'var(--admin-surface)', color: 'var(--admin-text)', border: '1px solid var(--admin-border-interactive)' }}>
+          {isDark ? 'Claro' : 'Oscuro'}
+        </button>
+      </div>
+      {/* Reproduce el <main> de AdminApp.jsx: mismo padding, sin el
+          minWidth:900 que M2 retiro. */}
+      <main id="especimen-main" style={{ padding: '24px', paddingBottom: 100, boxSizing: 'border-box' }}>
+        <div>
+          <AdminAppointments bookings={citas} setBookings={setCitas} catalogs={null} />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+createRoot(document.getElementById('root')).render(<Especimen />);

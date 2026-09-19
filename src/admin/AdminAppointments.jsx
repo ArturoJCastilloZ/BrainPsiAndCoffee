@@ -413,16 +413,13 @@ export default function AdminAppointments({
                 const t = therapists.find(th => th.id === b.therapistId);
                 return (
                   <div key={b.id} style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: ' 76px minmax(0, 1fr) auto',
-                      alignItems: 'center', gap: 14, padding: '12px 2px',
+                    <div className="cita-fila" style={{
                       opacity: b.status === 'cancelled' ? 0.55 : 1,
                     }}>
                       {/* Columna de hora fija: es lo que hace que la lista
                           se lea en vertical de un vistazo. tabular-nums
                           evita que los digitos bailen de fila en fila. */}
-                      <div>
+                      <div className="cita-hora">
                         <div style={{
                           fontSize: 14.5, fontWeight: 600, color: 'var(--admin-text)',
                           fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
@@ -432,7 +429,7 @@ export default function AdminAppointments({
                         </div>
                       </div>
 
-                      <div style={{ minWidth: 0 }}>
+                      <div className="cita-datos" style={{ minWidth: 0 }}>
                         {/* El nombre del paciente no se trunca sin mas: en
                             contexto clinico una identificacion a medias es
                             un riesgo, asi que lleva title. */}
@@ -448,7 +445,7 @@ export default function AdminAppointments({
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <div className="cita-acciones">
                         <EstadoCita status={b.status} />
                         {canRecordPayments && b.status !== 'cancelled' && (
                           <CobroChip booking={b} payments={payments} onCobrar={() => setCobrando(b)} />

@@ -184,7 +184,14 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
 
                 {/* Main */}
                 <main style={{ flex: 1, minWidth: 0, height: '100vh', overflow: 'auto', padding: '24px', paddingBottom: 100, boxSizing: 'border-box' }}>
-                    <div style={{ minWidth: 900 }}>
+                    {/* Aqui vivia minWidth:900. Envolvia las 13 pantallas y
+                        forzaba 573px de scroll horizontal a 375 (padding 48 +
+                        900 - 375). Peor que el scroll: con el contenedor
+                        clavado en 900, NINGUNA de las 11 rejillas auto-fit del
+                        admin podia plegarse, porque auto-fit resuelve contra
+                        el ancho disponible y ese ancho nunca bajaba. Estaban
+                        escritas para ser fluidas y no servian de nada. */}
+                    <div>
                         {page === 'general-dashboard' && canViewDashboard(role) && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} />}
                         {page === 'general-accounting' && canViewAccounting(role) && <AdminAccounting bookings={bookings} orders={orders} catalogs={catalogs} session={session} contabilidad={contabilidad} />}
                         {page === 'general-access' && canManageAccess(role) && <AdminAccess />}
