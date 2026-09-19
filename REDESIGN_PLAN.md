@@ -430,8 +430,168 @@ equivalente para el layout pero **no** prueba teclado virtual, safe areas ni ges
 # Design System
 **Pendiente — se formaliza al aprobar A o B.**
 
-# Arquitectura propuesta
-**Pendiente — Fase 2.**
+# Arquitectura propuesta — Fase 2
+
+> **Estado: PROPUESTA. Nada implementado.** Análisis del 18 sep 2026 (noche), medido sobre
+> `fbc6935`. Pruebas en verde al empezar: `npm test` 14/14 y `tests/tenancy/run.sh`
+> «TODAS LAS PRUEBAS PASARON» (80 aserciones `ok`).
+
+## A2.0 · Lo que la auditoría de Fase 2 corrige del plan anterior
+
+Tres afirmaciones que arrastrábamos y que **la medición desmiente**. Importan porque una de
+ellas cambia el costo de todo el rediseño.
+
+| Afirmación previa | Medido hoy | Consecuencia |
+|---|---|---|
+| «No hay media queries posibles con estilos inline» | **Falso.** Hay 4 media queries vivas, en `AdminCatalog.jsx:343,351` y `AdminApp.jsx:240,244` | El mecanismo **ya existe**: bloques `<style>` inyectados por componente. No hay que inventar infraestructura |
+| «`minWidth: 900` está en `AdminApp.jsx:193`» | Está en **`AdminApp.jsx:202`**. La 193 es un `<div>` del header móvil | Apuntar al lugar correcto |
+| «No hay `:focus-visible` posible» | El *posible* es falso (ver arriba); el **hecho** se confirma: **cero ocurrencias** de `:focus` o `:focus-visible` en todo `src/` | El anillo de foco es trabajo nuevo, pero barato |
+
+**Por qué importa:** la Fase 2 se había presupuestado como «hay que introducir CSS real antes de
+poder tocar nada». No es cierto. El patrón de `<style>` por componente ya está en producción y
+funcionando — lo que falta es **una hoja global**, no una capacidad nueva.
+
+## A2.1 · El prerrequisito, con el número derivado
+
+`AdminApp.jsx:202` — `<div style={{ minWidth: 900 }}>` envuelve **las 13 pantallas del admin**.
+
+El desbordamiento se deriva del propio código, no hace falta emular nada:
+
+```
+main (AdminApp.jsx:201)  padding: '24px'        →  24 + 24  =  48 px
+div  (AdminApp.jsx:202)  minWidth: 900          →            900 px
+                                                   ancho mínimo = 948 px
+viewport de teléfono                             →            375 px
+                                       desbordamiento = 948 − 375 = 573 px
+```
+
+**573px de scroll horizontal**, que es exactamente la cifra del plan. Queda confirmada por
+aritmética sobre las dos líneas, no por recuerdo.
+
+Y el efecto colateral que hace inútil todo lo demás: con el contenedor fijo en 900px, **ningún
+`repeat(auto-fit, …)` puede plegarse** — `auto-fit` resuelve contra el ancho disponible, y el
+ancho disponible nunca baja de 900. Hay **11 rejillas `auto-fit`/`auto-fill`** en el admin
+escritas para ser fluidas y neutralizadas por esa línea.
+
+> Es el mismo patrón que el handoff ya nombró dos veces: código escrito correctamente y anulado
+> por una decisión de un solo renglón en otro archivo. Compila, pasa las pruebas, y no sirve.
+
+## A2.2 · La barra inferior móvil, medida
+
+`navItems` (`AdminApp.jsx:75`) es el `flatMap` de las tres secciones. Para el **dueño**, que las
+ve todas: 4 (general) + 4 (cafetería) + 5 (consultorio) = **13 destinos**.
+
+La barra (`AdminApp.jsx:220-236`) los pone todos en un `flex` con `overflowX: 'auto'`, cada botón
+con `minWidth: 72` y `gap: 8`:
+
+```
+13 botones × 72 px            = 936 px
+12 huecos  ×  8 px            =  96 px
+padding del contenedor 16 × 2 =  32 px
+                        total = 1064 px  en una barra de 375 px
+                → 689 px de scroll horizontal DENTRO de la navegación
+```
+
+Una barra de navegación que hay que **desplazar para encontrar el destino** no es una barra de
+navegación: es una lista horizontal disfrazada. Esto es la evidencia dura detrás del «de 13
+destinos a 4» ya aprobado.
+
+## A2.3 · Hallazgo nuevo — la media query global que pisa por nombre de etiqueta
+
+`AdminApp.jsx:244-246` inyecta:
+
+```css
+@media (max-width: 767px) { main { height: calc(100vh - 65px) !important; } }
+```
+
+El selector es **`main` a secas**: no está acotado a una clase ni a un contenedor. Es una regla
+global con `!important` sobre una etiqueta que otro panel también usa — `DoctorApp.jsx:149`.
+
+**Honestidad sobre el alcance: hoy NO es un bug vivo.** Verifiqué el ruteo en `App.jsx:148-166`:
+`AdminApp` y `DoctorApp` cuelgan de rutas distintas y nunca se montan a la vez, así que la regla
+solo existe mientras el admin está en pantalla. Es un **riesgo latente**, no un defecto
+observable, y lo reporto como tal.
+
+Lo que sí es seguro: el `65px` está escrito a mano y no corresponde a ninguna medida derivada del
+header móvil (`padding: '16px 20px'` más contenido). Es un número mágico que se desincroniza al
+primer cambio de header.
+
+## A2.4 · Los tokens están duplicados, y divergen
+
+Dos bloques de variables `--admin-*` definidos por separado: `AdminApp.jsx:89-100` y
+`DoctorApp.jsx:105-116`. El handoff los daba por «duplicados literalmente»; **hoy ya no lo son** —
+el rediseño del panel doctor tocó uno y no el otro.
+
+Aquí vive además el arreglo de color ya aprobado: `AdminApp.jsx:97` tiene
+`'--admin-subtle': isDark ? '#5A6B57' : …`, que es exactamente el token de 2.88:1 que la Fase 1
+mandó subir a `#7D8A7A`. Está en **dos** archivos: arreglarlo en uno deja el otro roto.
+
+**Conclusión de arquitectura:** mientras los tokens vivan dentro de los componentes, cada arreglo
+de contraste es un arreglo por duplicado, y la duplicación ya demostró que diverge sola.
+
+## A2.5 · La propuesta
+
+Cuatro movimientos, en orden de dependencia. Cada uno es verificable por separado.
+
+### M1 · Una hoja de estilos global, en `App.jsx`
+
+`App.jsx:111-134` ya tiene el bloque `<style>` global, y ya declara `[data-theme="dark"]`. Es el
+lugar natural. Entra ahí:
+
+- Los **tokens de color** (una sola definición, bajo `:root` y `[data-theme="dark"]`), incluidos
+  los cuatro arreglos aprobados de la Fase 1.
+- La **escala** aprobada: tipografía 11/12.5/14/16/20/28 · radio 6/10/14/999 · espaciado 4.
+- El **anillo de foco único** `#5F8A66` como `:focus-visible`, que hoy no existe en ninguna parte.
+- Los **breakpoints** medidos: 520 · 720 · 900 · 1280.
+
+Los componentes siguen con estilos inline; lo que cambia es **de dónde sacan los valores**. No es
+una reescritura, es mover las constantes a un solo sitio.
+
+### M2 · Quitar `minWidth: 900` — pero no a secas
+
+Borrar la línea desbloquea las 11 rejillas, y **destapa** lo que estaba oculto detrás del scroll:
+las tablas anchas (Citas, Contabilidad) quedarían apretadas en lugar de desbordadas.
+
+Por eso M2 no es «borrar la línea», es **borrarla y darle forma a cada tabla**, que es justo lo
+que la sección «Cada tabla, su forma» de la Fase 1.5 ya definió. Borrarla sola sería cambiar un
+defecto medido por otro sin medir.
+
+### M3 · Separar los dos ejes de navegación
+
+Ya aprobado. Con los números de A2.2 detrás: contexto (cafetería / consultorio / general) al
+header como control segmentado; sección a la barra inferior, **filtrada por contexto** — de 13
+destinos simultáneos a 4, que a 72px caben en 375px sin scroll (4 × 72 + 3 × 8 + 32 = **344 px**).
+
+### M4 · Unificar los tokens `--admin-*`
+
+Consecuencia de M1: `DoctorApp` y `AdminApp` dejan de declararlos y los consumen. Cierra la
+divergencia de A2.4 y hace que el arreglo de `--admin-subtle` se aplique una vez.
+
+## A2.6 · Orden propuesto y cómo se verifica cada paso
+
+| # | Movimiento | Evidencia de que funcionó |
+|---|---|---|
+| M1 | Hoja global: tokens, escala, foco, breakpoints | Tabular el contraste de los 4 tokens arreglados; ver el anillo de foco navegando con Tab |
+| M4 | Unificar `--admin-*` | `grep` devuelve **una** definición; las dos pantallas se ven igual |
+| M2 | Quitar `minWidth: 900` + dar forma a las tablas | A 375px: **cero** scroll horizontal, medido en el navegador con la app corriendo |
+| M3 | Separar los dos ejes de navegación | 4 destinos visibles sin desplazar, en los tres contextos y con los tres roles |
+
+**M1 y M4 primero porque no cambian el layout**: si algo se rompe, se sabe que fue el token. M2
+antes que M3 porque la barra inferior nueva se diseña contra un ancho que ya sea real.
+
+## A2.7 · Lo que esta fase deliberadamente NO toca
+
+Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería esconderlo:
+
+- El **Dashboard del dueño** y sus dos números inventados (`AdminDashboard.jsx:29,31`). Hay que
+  reescribirlo con `accounting.mjs`. Es trabajo de datos, no de layout.
+- Los **catálogos DEMO** de `useSupabaseCrud.js:55-64` y el `[] || X === []` roto en ambos
+  sentidos.
+- El **estado vacío antes del banner de error** de `DoctorApp.jsx:321`.
+- El **XSS almacenado** `AdminCatalog.jsx:498` → `ContactPage.jsx:29` y las 4 vulnerabilidades
+  high de `react-router-dom`.
+
+Merecen su propia fase, con una prueba que reproduzca cada uno antes del arreglo.
 
 ---
 
@@ -443,6 +603,6 @@ equivalente para el layout pero **no** prueba teclado virtual, safe areas ni ges
 | **Fase 0 — Auditoría** | ✅ Completa y aprobada |
 | **Fase 0.5 — Bugs de producción** | ✅ Reagendar (`a89529b`) y reserva pública (`9af996e`) |
 | **Fase 1 — Propuestas visuales + artifact** | ✅ Completa |
-| **Fase 1.5 — Responsive como requisito** | ✅ **Completa — esperando elección A/B** |
-| Fase 2 — Arquitectura y layout | ⬜ Bloqueada |
+| **Fase 1.5 — Responsive como requisito** | ✅ Completa · A «Oficio» **aprobada** por el dev |
+| **Fase 2 — Arquitectura y layout** | 🟡 **Analizada y documentada — esperando aprobación para implementar** |
 | Fase 3 — Implementación | ⬜ |
