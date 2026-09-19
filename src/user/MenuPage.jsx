@@ -10,6 +10,7 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
+import { MENU_CATEGORIAS } from '../menuCategorias.mjs';
 import { formatMXN } from '../utils.jsx';
 import { activeOffers } from '../offerUtils';
 import { groupOptions, optionsTotal } from '../menuOptions.mjs';
@@ -24,12 +25,11 @@ export default function MenuPage({ addToCart, catalogs, theme }) {
   const options = groupOptions(catalogs?.productOptions || []);
   const isDark = theme === 'dark';
 
-  const tabs = [
-    { id: 'hot', label: 'Calientes', icon: Coffee },
-    { id: 'cold', label: 'Frías', icon: Coffee },
-    { id: 'drinks', label: 'Bebidas', icon: null },
-    { id: 'desserts', label: 'Postres', icon: Cake },
-  ];
+  // Las pestañas salen de la MISMA taxonomia que usa la capa de datos
+  // para armar las secciones. Antes estaban escritas aqui y en data.js,
+  // con etiquetas distintas para lo mismo.
+  const ICONOS = { hot: Coffee, cold: Coffee, drinks: null, desserts: Cake };
+  const tabs = MENU_CATEGORIAS.map((c) => ({ id: c.id, label: c.pestana, icon: ICONOS[c.id] }));
 
   // Sin seccion en la base no hay seccion. Antes caia a MENU[activeTab],
   // o sea al menu de demostracion CON SUS PRECIOS.

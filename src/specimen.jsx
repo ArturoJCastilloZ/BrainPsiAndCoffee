@@ -29,7 +29,23 @@ import DoctorApp from './doctor/DoctorApp';
 import ContactPage from './user/ContactPage';
 import TherapyPage from './user/TherapyPage';
 import MenuPage from './user/MenuPage';
-import { THERAPISTS, THERAPY_SERVICES } from './data';
+// Datos del BANCO DE PRUEBAS, definidos aqui mismo. Antes se importaban
+// de data.js, que era el catalogo de ejemplo del producto; ese archivo se
+// retiro porque la app lo sembraba sola en la clinica de cada cliente
+// nuevo. Un banco de pruebas necesita datos; el producto no.
+const SERVICIOS_PRUEBA = [
+  { id: 'psi-adultos',   name: 'Psicología para adultos',  duration: 50, price: 600, for: 'Adultos' },
+  { id: 'psi-infantil',  name: 'Psicología infantil',      duration: 45, price: 550, for: 'Niños' },
+  { id: 'neuro-adultos', name: 'Neuropsicología adultos',  duration: 60, price: 800, for: 'Adultos' },
+  { id: 'pareja',        name: 'Terapia de pareja',        duration: 75, price: 900, for: 'Pareja' },
+  { id: 'evaluacion',    name: 'Evaluación neuropsicológica completa', duration: 120, price: 2500, for: 'Adultos / Niños' },
+];
+const TERAPEUTAS_PRUEBA = [
+  { id: 't1', name: 'Dra. María González',  cedula: 'PSI-8472', specialty: 'Psicología clínica · Adultos', sessionDuration: 50, services: ['psi-adultos', 'pareja'] },
+  { id: 't2', name: 'Mtro. Carlos Ramírez', cedula: 'NEU-3391', specialty: 'Neuropsicología',               sessionDuration: 60, services: ['neuro-adultos', 'evaluacion'] },
+  { id: 't3', name: 'Lic. Ana Martínez',    cedula: 'PSI-5526', specialty: 'Psicología infantil',           sessionDuration: 45, services: ['psi-infantil'] },
+  { id: 't4', name: 'Dra. Sofía Hernández', cedula: 'PSI-7104', specialty: 'Pareja y familia',              sessionDuration: 50, services: ['pareja', 'psi-adultos'] },
+];
 import { todayISO, addDays } from './utils.jsx';
 
 // addDays devuelve un Date, no una cadena ISO: las citas guardan 'YYYY-MM-DD'.
@@ -65,7 +81,7 @@ const SESION = { user: { role: 'owner', name: 'Espécimen' } };
 // Se pasan los catalogos de demo explicitamente en vez de null: `catalogs?.x
 // || FALLBACK` esta roto en ambos sentidos ([] || x === []), y un especimen
 // que dependa de ese fallback estaria midiendo la rama equivocada.
-const CATALOGOS = { services: THERAPY_SERVICES, therapists: THERAPISTS, schedules: [] };
+const CATALOGOS = { services: SERVICIOS_PRUEBA, therapists: TERAPEUTAS_PRUEBA, schedules: [] };
 
 // Un pedido, para que la tarjeta "Por producto" exista: el caso que el dev
 // reporto tiene CUATRO tarjetas, y con tres el hueco no se reproduce.

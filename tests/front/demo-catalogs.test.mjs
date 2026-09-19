@@ -1,30 +1,29 @@
-// Los datos de demostracion no vuelven a la pantalla.
+// El catalogo sale de la base. No hay catalogo en el codigo, ni siembra.
 //
-// El defecto: data.js trae un catalogo de ejemplo —servicios, doctores y
-// menu CON PRECIOS— y la app lo sustituia cuando la base no devolvia
-// nada. Dos consecuencias distintas, las dos malas:
+// Historia, porque explica por que este guard es tan estricto:
 //
-//   - Al PACIENTE le enseñaba precios que no se le iban a cobrar. Con la
-//     0028 el importe de la cita lo fija el servidor desde el catalogo
-//     real, asi que el numero de la pantalla y el del cobro no coincidian.
-//     Y los ids de demo ('psi-adultos', 't1') no existen en la base: la
-//     reserva tampoco podia completarse.
-//   - Con sesion mostraba doctores FANTASMA. Todo se veia bien y cada
-//     guardado fallaba con un error que no apuntaba a la causa.
+//   1. data.js traia un catalogo de ejemplo —servicios, doctores y menu
+//      CON PRECIOS— y los componentes lo sustituian cuando la base no
+//      devolvia nada. Al paciente le enseñaba precios que no se le iban a
+//      cobrar; con sesion, doctores fantasma.
+//   2. Cerrado eso, quedaba la SIEMBRA, que parecia el uso legitimo. No lo
+//      era: `canSeed` es isSuperAdmin, o sea el dueño de CUALQUIER
+//      clinica. El dueño de un consultorio nuevo entraba, su catalogo
+//      estaba vacio, y la app le escribia sola —sin boton, sin
+//      confirmacion— el menu de cafeteria de BrainPsi y cuatro psicologas
+//      ficticias, dentro de SU clinica. Asi llegaron a la base del tenant
+//      #1, y le habria pasado a cada cliente nuevo.
 //
-// La decision se tomaba en DOS capas —el hook y nueve sitios de
-// componente— y por eso arreglar una no bastaba. Ahora la regla es una: a
-// la pantalla solo llega lo que la base devolvio.
-//
-// data.js NO desaparece: sigue siendo la fuente de la SIEMBRA, que es su
-// uso legitimo. Lo que esta prueba vigila es que no vuelva al render.
+// Por eso data.js se retiro entero. Una clinica nueva arranca vacia: el
+// admin tiene CRUD de los cinco catalogos y las pantallas publicas dicen
+// que todavia no hay nada publicado.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Los unicos que pueden tocar data.js: la siembra.
-const SEMBRADORES = ['src/api/supabaseData.js', 'src/hooks/useSupabaseCrud.js'];
-const CATALOGOS_DEMO = ['THERAPY_SERVICES', 'THERAPISTS', 'MENU', 'OFFERS', 'SPECIALTIES'];
+// 1 · El archivo no vuelve.
+assert.ok(!existsSync('src/data.js'),
+  'src/data.js existe otra vez: es el catalogo de un cliente metido en el codigo, y la app lo sembraba en la clinica de los demas');
 
 const recorre = (dir, salida = []) => {
   for (const nombre of readdirSync(dir)) {
@@ -34,52 +33,38 @@ const recorre = (dir, salida = []) => {
   }
   return salida;
 };
+const archivos = recorre('src');
 
-const archivos = recorre('src').filter((f) => f !== 'src/data.js' && !f.endsWith('specimen.jsx'));
-
-const culpables = [];
-for (const ruta of archivos) {
-  const codigo = readFileSync(ruta, 'utf8');
-  const importaDeData = /import\s*\{([^}]*)\}\s*from\s*'\.\.?\/data'/.exec(codigo);
-  if (!importaDeData) continue;
-  const simbolos = importaDeData[1].split(',').map((x) => x.trim()).filter(Boolean);
-  const demo = simbolos.filter((x) => CATALOGOS_DEMO.includes(x));
-  if (demo.length && !SEMBRADORES.includes(ruta)) {
-    culpables.push(`${ruta} importa ${demo.join(', ')} de data.js`);
-  }
-}
-
-assert.deepEqual(culpables, [],
-  `estos archivos traen el catalogo de demostracion fuera de la siembra; si acaban en un render, el paciente ve precios que no se le van a cobrar:\n  ${culpables.join('\n  ')}`);
-
-// Y la otra forma del mismo defecto: caer al catalogo de demo con `||`
-// o con un parametro por defecto. La primera version de este barrido solo
-// buscaba `||` y se dejo vivo un `services = THERAPY_SERVICES` en una
-// firma de funcion, asi que aqui se cubren las tres formas.
-//
 // Se mira el CODIGO, no los comentarios: si no, esta misma prueba y las
 // notas que explican el defecto lo dispararian.
 const sinComentarios = (texto) => texto
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
 
-const caidas = [];
-for (const ruta of archivos) {
-  if (SEMBRADORES.includes(ruta)) continue;
-  const codigo = sinComentarios(readFileSync(ruta, 'utf8'));
-  for (const simbolo of CATALOGOS_DEMO) {
-    for (const forma of [`|| ${simbolo}`, `||${simbolo}`, `= ${simbolo}`, `${simbolo}[`]) {
-      if (codigo.includes(forma)) caidas.push(`${ruta} cae a ${simbolo} (forma: ${forma.trim()})`);
-    }
-  }
-}
-assert.deepEqual(caidas, [],
-  `estos sitios sustituyen el catalogo real por el de demostracion:\n  ${caidas.join('\n  ')}`);
+// 2 · Nadie lo importa, ni con otro nombre de ruta.
+const importadores = archivos.filter((ruta) =>
+  /from\s+'\.{1,2}\/data'/.test(sinComentarios(readFileSync(ruta, 'utf8'))));
+assert.deepEqual(importadores, [],
+  `estos archivos importan un modulo de datos local: ${importadores.join(', ')}`);
 
-// El hook arranca VACIO: el estado inicial es lo que se pinta antes de
-// que vuelva la consulta, y un placeholder con precios es un placeholder
-// que miente.
-const hook = readFileSync('src/hooks/useSupabaseCrud.js', 'utf8');
+// 3 · La siembra no vuelve, ni la automatica ni la manual.
+const conSiembra = archivos.filter((ruta) =>
+  /\bseedDefaultCatalogs\b|\bseedCatalogs\b|\bcatalogsAreEmpty\b/.test(sinComentarios(readFileSync(ruta, 'utf8'))));
+assert.deepEqual(conSiembra, [],
+  `vuelve la siembra de catalogos en: ${conSiembra.join(', ')}. Era el camino por el que el catalogo de un cliente acababa en la clinica de otro`);
+
+// 4 · Y en concreto: reload() no escribe. Es una funcion de LECTURA; que
+//     escriba es como se colo la siembra automatica la primera vez.
+const hook = sinComentarios(readFileSync('src/hooks/useSupabaseCrud.js', 'utf8'));
+const reload = hook.slice(hook.indexOf('const reload'), hook.indexOf('useEffect(() => {'));
+assert.ok(reload.length > 100, 'no se encontro el cuerpo de reload()');
+for (const escritura of ['saveServices(', 'saveSpecialties(', 'saveTherapists(', 'saveMenu(', 'saveOffers(', 'saveSettings(']) {
+  assert.ok(!reload.includes(escritura),
+    `reload() llama a ${escritura}: cargar el catalogo no debe ESCRIBIR en el catalogo de nadie`);
+}
+
+// 5 · El estado inicial sigue vacio: es lo que se pinta antes de que
+//     vuelva la consulta, y un placeholder con precios miente.
 for (const [nombre, patron] of [
   ['servicios', /useRemoteState\(\[\], saveServices\)/],
   ['especialidades', /useRemoteState\(\[\], saveSpecialties\)/],
@@ -88,7 +73,7 @@ for (const [nombre, patron] of [
   ['ofertas', /useRemoteState\(\[\], saveOffers\)/],
 ]) {
   assert.ok(patron.test(hook),
-    `el catalogo de ${nombre} no arranca vacio en useSupabaseCrud: se pintaria el de demostracion antes de que vuelva la consulta`);
+    `el catalogo de ${nombre} no arranca vacio: se pintaria algo inventado antes de que vuelva la consulta`);
 }
 
-console.log(`demo-catalogs: ${archivos.length} archivos barridos, ningun catalogo de demostracion llega al render, y el hook arranca vacio`);
+console.log(`demo-catalogs: ${archivos.length} archivos barridos · sin data.js, sin siembra, reload() no escribe y el hook arranca vacio`);

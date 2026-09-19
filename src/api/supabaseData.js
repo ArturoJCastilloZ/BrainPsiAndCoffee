@@ -1,4 +1,4 @@
-import { MENU, OFFERS, SPECIALTIES, THERAPISTS, THERAPY_SERVICES } from '../data';
+import { menuVacio } from '../menuCategorias.mjs';
 import { getSelectedTenant } from './tenant';
 import { supabase, assertSupabaseConfigured } from './supabaseClient';
 import { validateAppointment, validateOrder } from '../validation';
@@ -357,10 +357,9 @@ export const loadCatalogs = async () => {
     return acc;
   }, {});
 
-  const menu = Object.entries(MENU).reduce((acc, [category, section]) => ({
-    ...acc,
-    [category]: { ...section, items: [] },
-  }), {});
+  // El esqueleto de secciones sale de la taxonomia del producto, no de un
+  // catalogo en el codigo. Los PRODUCTOS que las llenan salen de la base.
+  const menu = menuVacio();
 
   (productsResult.data || []).forEach((row) => {
     const section = menu[row.category] || { title: row.category, items: [] };
@@ -831,15 +830,6 @@ export const saveOrders = async (items, previousItems = []) => {
   }
 
   return items;
-};
-
-export const seedDefaultCatalogs = async () => {
-  await saveServices(THERAPY_SERVICES);
-  await saveSpecialties(SPECIALTIES);
-  await saveTherapists(THERAPISTS);
-  await saveMenu(MENU);
-  await saveOffers(OFFERS);
-  await saveSettings(BUSINESS);
 };
 
 const deleteMissing = async (table, ids) => {

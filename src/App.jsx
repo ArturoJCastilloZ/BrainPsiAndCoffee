@@ -30,7 +30,6 @@ export default function App() {
     catalogActions,
     loading: dataLoading,
     error: dataError,
-    seedCatalogs,
   } = useSupabaseCrud(session);
   const showSessionWarning = useSessionWarning();
   const navigate = useNavigate();
@@ -97,7 +96,7 @@ export default function App() {
           <Route path="/set-password" element={<SetPassword session={session} onComplete={() => navigate(isDoctor(session?.user.role) ? '/doctor' : '/admin', { replace: true })} theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/admin" element={
             canAccessAdmin(session?.user.role) ? (
-              <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} dataLoading={dataLoading} seedCatalogs={seedCatalogs} />
+              <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} dataLoading={dataLoading} />
             ) : canAccessDoctor(session?.user.role) ? (
               <Navigate to="/doctor" replace />
             ) : (

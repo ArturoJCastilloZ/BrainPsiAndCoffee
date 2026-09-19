@@ -1,8 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-// Solo SPECIALTIES, y solo para SEMBRAR. Los demas catalogos de data.js
-// ya no se importan aqui: lo que se retiro fue mostrarlos como si fueran
-// el catalogo real. seedDefaultCatalogs() sigue usando data.js entero.
-import { SPECIALTIES } from '../data';
 import {
   loadAppointments,
   loadCatalogs,
@@ -16,7 +12,6 @@ import {
   saveSettings,
   saveServices,
   saveTherapists,
-  seedDefaultCatalogs,
 } from '../api/supabaseData';
 import { BUSINESS } from '../businessInfo';
 import { supabase } from '../api/supabaseClient';
@@ -63,9 +58,8 @@ export const useSupabaseCrud = (session) => {
   // menu —"inventarlos seria ofrecerle al cliente un sabor que el negocio
   // no tiene"— y que no se habia extendido a los demas catalogos.
   //
-  // data.js NO se borra: sigue siendo la fuente de la SIEMBRA
-  // (seedDefaultCatalogs), que es su uso legitimo. Lo que se retira es
-  // mostrarlo como si fuera el catalogo real.
+  // El catalogo de ejemplo de data.js ya no existe: no hay de donde
+  // sacar nada que no sea la base.
   const [services, setServicesRaw, setServices, servicesError] = useRemoteState([], saveServices);
   const [specialties, setSpecialtiesRaw, setSpecialties, specialtiesError] = useRemoteState([], saveSpecialties);
   const [therapists, setTherapistsRaw, setTherapists, therapistsError] = useRemoteState([], saveTherapists);
@@ -87,14 +81,22 @@ export const useSupabaseCrud = (session) => {
 
     setLoading(true);
     try {
-      let catalogs = await loadCatalogs();
-      if (canSeed && catalogsAreEmpty(catalogs)) {
-        await seedDefaultCatalogs();
-        catalogs = await loadCatalogs();
-      } else if (canSeed && catalogs.specialties.length === 0) {
-        await saveSpecialties(SPECIALTIES);
-        catalogs = await loadCatalogs();
-      }
+      // Aqui vivia la SIEMBRA AUTOMATICA, y era un defecto de producto:
+      // canSeed es isSuperAdmin, o sea el dueño de CUALQUIER clinica. El
+      // dueño de un consultorio nuevo entraba por primera vez, su
+      // catalogo estaba vacio, y la app le escribia sola —sin boton y sin
+      // confirmacion— el menu de cafeteria de BrainPsi y cuatro
+      // psicologas ficticias con cedulas inventadas, dentro de SU clinica.
+      //
+      // Asi es como llegaron a la base del tenant #1, y le habria pasado a
+      // cada cliente nuevo. Sembrar el catalogo real de un cliente dentro
+      // de la clinica de otro no es un detalle de arranque: son datos
+      // incorrectos en un producto clinico.
+      //
+      // Una clinica nueva arranca VACIA. El admin ya tiene CRUD de los
+      // cinco catalogos y las pantallas publicas dicen que todavia no hay
+      // nada publicado.
+      const catalogs = await loadCatalogs();
 
       // VACIO ES VACIO, tambien para el visitante.
       //
@@ -158,11 +160,6 @@ export const useSupabaseCrud = (session) => {
     };
   }, [canLoadOrders, reload]);
 
-  const seedCatalogs = useCallback(async () => {
-    await seedDefaultCatalogs();
-    await reload();
-  }, [reload]);
-
   const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || productOptionsError || settingsError || bookingsError || ordersError;
 
   return useMemo(() => ({
@@ -175,16 +172,7 @@ export const useSupabaseCrud = (session) => {
     loading,
     error,
     reload,
-    seedCatalogs,
-  }), [bookings, services, specialties, therapists, menu, offers, productOptions, settings, schedules, error, loading, orders, reload, seedCatalogs, setBookings, setMenu, setOffers, setOrders, setProductOptions, setServices, setSettings, setSpecialties, setTherapists]);
+  }), [bookings, services, specialties, therapists, menu, offers, productOptions, settings, schedules, error, loading, orders, reload, setBookings, setMenu, setOffers, setOrders, setProductOptions, setServices, setSettings, setSpecialties, setTherapists]);
 };
 
 const hasMenuItems = (menu) => Object.values(menu || {}).some((section) => section.items?.length);
-
-const catalogsAreEmpty = (catalogs) => (
-  catalogs.services.length === 0 &&
-  catalogs.specialties.length === 0 &&
-  catalogs.therapists.length === 0 &&
-  !hasMenuItems(catalogs.menu) &&
-  catalogs.offers.length === 0
-);
