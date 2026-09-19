@@ -936,6 +936,33 @@ export const setTenantMemberRole = async (email, role, therapistId = null) => {
 // Las tres RPC cuelgan de auth.uid() y NO de la clinica activa: quien
 // tiene una invitacion puede no tener ninguna clinica todavia, asi que no
 // hay tenant del que colgarse.
+// Alta de personal con contraseña temporal (0033 + invite-staff).
+//
+// El correo de invitacion de Supabase no llega —su SMTP por defecto esta
+// limitado a unos pocos envios por hora— asi que el dueño entrega la
+// contraseña en mano. La devuelve la funcion UNA vez y no se guarda en
+// ningun sitio: si se pierde, se regenera.
+//
+// Si el correo YA tiene cuenta no se crea nada: se cae en la invitacion
+// pendiente de 0032, que si pide consentimiento.
+export const inviteStaff = async (email, role, therapistId = null) => {
+  assertSupabaseConfigured();
+  const { data, error } = await supabase.functions.invoke('invite-staff', {
+    body: { email, role, therapistId },
+  });
+  if (error) {
+    // El cuerpo del error trae el motivo real (rol invalido, ficha
+    // ocupada, sin permisos). Sin esto el dueño ve "Edge Function
+    // returned a non-2xx status code", que no dice nada.
+    let detalle = '';
+    try { detalle = (await error.context?.json())?.error || ''; } catch { /* sin cuerpo */ }
+    const fallo = new Error(detalle || 'No se pudo dar de alta al usuario.');
+    fallo.cause = error;
+    throw fallo;
+  }
+  return data;
+};
+
 export const myPendingInvitations = async () => {
   assertSupabaseConfigured();
   const { data, error } = await supabase.rpc('my_pending_invitations');

@@ -80,10 +80,64 @@ export default function App() {
     trackPageView(location.pathname);
   }, [location.pathname]);
 
+  // Contraseña temporal (0033). Va ANTES que todo lo demas: quien entro
+  // con una temporal no puede hacer nada hasta cambiarla, y la base ya lo
+  // impone —current_tenant_id() devuelve null y las 40 policies que
+  // dependen de el niegan—. Esto solo evita que vea pantallas vacias sin
+  // entender por que.
+  //
+  // No se ofrece salida: no hay nada que pueda hacer en otro sitio.
+  // Las pantallas que cortan el flujo -contraseña temporal, invitaciones,
+  // elegir clinica- salen por un return ANTES del arbol principal, que es
+  // donde vive el <div data-theme> con themeVars(isDark). Fuera de ese
+  // div las variables --bp-* no existen, asi que todo color que venga de
+  // un token queda sin valor: se veia texto negro sobre fondo negro, con
+  // solo los hex literales funcionando.
+  //
+  // Pasaba ya con TenantPicker antes de esta sesion. Este marco es el
+  // mismo contenedor, para que una puerta se pinte igual que el resto.
+  const Marco = ({ children }) => (
+    <div data-theme={theme} style={{
+      background: C.ivory,
+      minHeight: '100vh',
+      fontFamily: "'Outfit', system-ui, sans-serif",
+      ...themeVars(isDark),
+    }}>
+      <GlobalStyle />
+      {children}
+    </div>
+  );
+
+  if (session?.user?.mustChangePassword) {
+    // Suspense porque SetPassword es lazy (linea 21) y este return sale
+    // ANTES del <Suspense> del arbol de rutas. Sin el, React lanza al
+    // montar — un fallo que el build no ve, porque compilar no es
+    // funcionar.
+    return (
+      <Marco>
+      <Suspense fallback={<RouteFallback />}>
+      <SetPassword
+        session={session}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        onComplete={async () => {
+          // El trigger limpia el flag en la base, pero el JWT que el
+          // navegador ya tiene sigue diciendo que debe cambiarla. Sin
+          // pedir un token nuevo, la persona cambia la contraseña y se
+          // queda encerrada igual.
+          try { await authService.refreshClaims(); } catch { authService.logout(); }
+        }}
+      />
+      </Suspense>
+      </Marco>
+    );
+  }
+
   // Va ANTES del selector de clinica: quien no tiene ninguna no llega al
   // selector, y es precisamente quien mas necesita ver la invitacion.
   if (mostrarInvitaciones) {
     return (
+      <Marco>
       <PendingInvitations
         invitations={invitaciones}
         puedeSaltar={tieneClinica}
@@ -102,11 +156,13 @@ export default function App() {
         }}
         onSkip={() => setInvitacionesVistas(true)}
       />
+      </Marco>
     );
   }
 
   if (mustPickTenant) {
     return (
+      <Marco>
       <TenantPicker
         memberships={session.user.memberships}
         theme={theme}
@@ -114,6 +170,7 @@ export default function App() {
         // clinica recien elegida.
         onSelected={() => authService.reloadSession()}
       />
+      </Marco>
     );
   }
 

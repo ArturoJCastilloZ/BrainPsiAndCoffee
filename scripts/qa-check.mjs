@@ -269,6 +269,60 @@ assert(
   'sync-doctor-access no debe leer therapist_ids del claim en index.ts: la revocacion se decide sobre tenant_members. El claim es su cache y deja fuera a quien no refleje, que conserva el acceso en silencio.',
 );
 
+// ---------------------------------------------------------------
+// invite-staff: crea CUENTAS y maneja una contraseña en claro.
+// ---------------------------------------------------------------
+const inviteStaff = sinComentarios(read('supabase/functions/invite-staff/index.ts'));
+
+// La contraseña temporal no puede acabar en los logs de la Edge
+// Function: ahi se queda, con la retencion que tenga el proyecto, y
+// cualquiera con acceso al panel la lee. Se prohibe console entero
+// porque un console.log('alta', body) la arrastra igual sin nombrarla.
+assert(
+  !/\bconsole\s*\./.test(inviteStaff),
+  'invite-staff no debe escribir a consola: la contraseña temporal quedaria en los logs de la Edge Function.',
+);
+
+// La autorizacion se comprueba contra tenant_members, NO contra el claim.
+// sync-doctor-access mira memberships del JWT, que es su cache: un dueño
+// al que le quitaron el rol lo conserva hasta que su token se renueve.
+// Aqui se crean cuentas, asi que se pregunta a la fuente de verdad.
+assert(
+  /from\('tenant_members'\)[\s\S]{0,200}eq\('active',\s*true\)/.test(inviteStaff),
+  'invite-staff debe verificar al llamante contra tenant_members (activo), no contra el claim del JWT.',
+);
+
+// En POSICION DE LLAMADA: el import menciona el nombre igual, y una
+// contraseña generada a mano aqui no pasaria por las pruebas de sesgo,
+// largo y caracteres ambiguos.
+assert(
+  /generarTemporal\s*\(/.test(inviteStaff),
+  'invite-staff debe generar la temporal LLAMANDO a generarTemporal, no a mano.',
+);
+
+// El cliente que actua EN NOMBRE del llamante tiene que llevar
+// x-tenant-id ademas de Authorization. requested_tenant() lo lee de
+// request.headers y current_tenant_id() cuelga de el: sin ese header
+// cualquier RPC sale sin clinica activa y assert_tenant_owner() corta
+// con "No hay una clinica activa en esta sesion".
+//
+// Existe porque paso: la rama de "ya tiene cuenta" fallaba SIEMPRE, y no
+// lo vio ninguna prueba porque la Edge Function no se puede ejecutar
+// desde la suite. Lo encontro el dev al usarla.
+assert(
+  /Authorization:\s*authorization,\s*'x-tenant-id':\s*tenantId/.test(inviteStaff),
+  'invite-staff: el cliente del llamante debe llevar x-tenant-id, o toda RPC que haga sale sin clinica activa.',
+);
+
+// Todo error tiene que salir como JSON con CORS. Un throw suelto dentro
+// de Deno.serve devuelve un 500 sin cuerpo y sin cabeceras: el navegador
+// no lo puede leer, el cliente cae a un mensaje generico y el motivo real
+// se pierde. Habia siete throws y ninguno llegaba a la pantalla.
+assert(
+  /Deno\.serve\(async \(req\) => \{\s*try \{/.test(inviteStaff),
+  'invite-staff debe envolver el manejador en try/catch y devolver JSON: un throw suelto da un 500 sin CORS que el navegador no puede leer.',
+);
+
 if (failures.length) {
   console.error('QA check failed:');
   failures.forEach((failure) => console.error(`- ${failure}`));

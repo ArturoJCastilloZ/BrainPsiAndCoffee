@@ -30,6 +30,11 @@ const toAppSession = (session) => {
       tenantId,
       memberships,
       therapistId: (session.user.app_metadata?.therapist_ids || {})[tenantId] || null,
+      // Alta con contraseña temporal (0033). Mientras esto sea cierto,
+      // current_tenant_id() devuelve null en la base y las 40 policies
+      // que dependen de el niegan todo: la pantalla solo refleja lo que
+      // el motor ya impone, no lo sustituye.
+      mustChangePassword: session.user.app_metadata?.must_change_password === true,
     },
     accessToken: session.access_token,
     expiresAt: Date.now() + inactivityMs,
@@ -78,7 +83,16 @@ class AuthService {
   async updatePassword(password) {
     assertSupabaseConfigured();
     const { data, error } = await supabase.auth.updateUser({ password });
-    if (error) throw new Error('No se pudo guardar la contraseña. Solicita una nueva invitación.');
+    // El mensaje de Supabase va DENTRO. Antes se descartaba y se
+    // mostraba siempre "solicita una nueva invitacion", que manda a
+    // pedir otra invitacion aunque el problema sea que la contraseña es
+    // debil o que la temporal caduco. Un error que no se puede
+    // diagnosticar desde la pantalla obliga a abrir el inspector.
+    if (error) {
+      const fallo = new Error(`No se pudo guardar la contraseña: ${error.message}`);
+      fallo.cause = error;
+      throw fallo;
+    }
     return data.user;
   }
 
@@ -86,7 +100,11 @@ class AuthService {
     assertSupabaseConfigured();
     const redirectTo = `${window.location.origin}/set-password`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-    if (error) throw new Error('No se pudo enviar el enlace de recuperación.');
+    if (error) {
+      const fallo = new Error(`No se pudo enviar el enlace de recuperación: ${error.message}`);
+      fallo.cause = error;
+      throw fallo;
+    }
     return true;
   }
 

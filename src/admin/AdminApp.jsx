@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
+import MobileMenu from './MobileMenu';
 import AdminDashboard from './AdminDashboard';
 import AdminAppointments from './AdminAppointments';
 import AdminOrders from './AdminOrders';
@@ -198,10 +199,17 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                             <div style={{ fontSize: 10, color: 'var(--admin-accent-text)', letterSpacing: 1, fontWeight: 600 }}>BRAINPSI</div>
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={toggleTheme} style={{ background: 'transparent', border: '1px solid var(--admin-border)', padding: '6px 12px', borderRadius: 999, color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>{theme === 'dark' ? 'Claro' : 'Oscuro'}</button>
-                        <button onClick={switchToUser} style={{ background: 'transparent', border: '1px solid var(--admin-border)', padding: '6px 12px', borderRadius: 999, color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>App</button>
-                    </div>
+                    {/* Un solo menu en vez de tres pastillas.
+                        Cerrar sesion NO existia aqui: vivia solo en el
+                        <aside>, que se oculta a partir de 768px, asi que en
+                        telefono no habia forma de salir de la cuenta. Medido
+                        a 375: el boton estaba en el DOM y no se veia. */}
+                    <MobileMenu
+                        theme={theme}
+                        toggleTheme={toggleTheme}
+                        onSwitchToUser={switchToUser}
+                        onLogout={logout}
+                    />
                   </div>
 
                   {/* Eje de CONTEXTO. Una sola pieza que dice en que negocio

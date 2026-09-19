@@ -28,6 +28,7 @@ import AdminApp from './admin/AdminApp';
 import DoctorApp from './doctor/DoctorApp';
 import ContactPage from './user/ContactPage';
 import PendingInvitations from './components/PendingInvitations';
+import TempPasswordPanel from './admin/TempPasswordPanel';
 import TherapyPage from './user/TherapyPage';
 import MenuPage from './user/MenuPage';
 // Datos del BANCO DE PRUEBAS, definidos aqui mismo. Antes se importaban
@@ -67,7 +68,7 @@ const CITAS = [
   { id: 'c5', serviceId: 'pareja',        therapistId: 't4', date: dia(3), time: '18:00', name: 'Lucía y Andrés',                   email: 'lucia.andres@ejemplo.com',               phone: '8111223344', notes: '', wantsCoffee: false, durationMinutes: 75, status: 'cancelled', price: 900, createdAt: hoy, reminderSent: false },
 ];
 
-const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto', 'Publico vacio', 'DoctorApp', 'Invitaciones'];
+const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto', 'Publico vacio', 'DoctorApp', 'Invitaciones', 'Temporal'];
 
 // Invitaciones pendientes (0032). Tres casos en una sola pantalla porque
 // los tres se ven distinto y los tres pueden romperse por separado: una
@@ -170,6 +171,21 @@ function Especimen() {
           catalogActions={{ reload: () => {} }}
         />
       )}
+      {pantalla === 'Temporal' && (
+        <div style={{ maxWidth: 640, margin: '0 auto', padding: 24 }}>
+          <TempPasswordPanel
+            alta={{
+              email: 'admin.cafeteria@ejemplo.mx',
+              clave: 'Kv7rQmXe4TsB2n',
+              caduca: new Date(Date.now() + 72 * 3600 * 1000).toISOString(),
+            }}
+            copiado={false}
+            onCopiar={() => alert('copiada')}
+            onCerrar={() => alert('cerrada')}
+          />
+        </div>
+      )}
+
       {pantalla === 'Invitaciones' && (
         <PendingInvitations
           invitations={INVITACIONES}

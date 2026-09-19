@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { Check, Copy, KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import { C } from '../theme';
-import { listTenantMembers, revokeTenantMember, setTenantMemberRole } from '../api/supabaseData';
+import { listTenantMembers, revokeTenantMember, inviteStaff } from '../api/supabaseData';
 import { supabase } from '../api/supabaseClient';
 import { useConfirm } from '../components/ConfirmDialog';
+import TempPasswordPanel from './TempPasswordPanel';
 
 const ROLE_OPTIONS = [
   { id: 'owner', label: 'Dueño', help: 'Todo, incluido administrar accesos' },
@@ -25,6 +26,11 @@ export default function AdminAccess() {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('admin_consultorio');
   const [therapistId, setTherapistId] = useState('');
+  // La contraseña temporal viaja UNA vez, en la respuesta del alta. No se
+  // guarda en ningun sitio ni se puede volver a consultar: si se pierde,
+  // se regenera dando de alta otra vez.
+  const [temporal, setTemporal] = useState(null);
+  const [copiado, setCopiado] = useState(false);
   const { confirmar, dialogo } = useConfirm();
 
   const load = useCallback(async () => {
@@ -67,14 +73,47 @@ export default function AdminAccess() {
     }
   };
 
-  const grant = (event) => {
+  // Un solo boton para los dos casos, porque para el dueño es una sola
+  // cosa: "dale acceso a esta persona". Quien decide es la funcion:
+  //
+  //   sin cuenta  -> la crea con una contraseña temporal, que se muestra
+  //                  aqui una vez. No hay correo de por medio.
+  //   con cuenta  -> la INVITA (0032) y no le toca nada hasta que acepte.
+  const grant = async (event) => {
     event.preventDefault();
     const correo = email.trim();
     if (!correo) return;
-    run(
-      () => setTenantMemberRole(correo, role, role === 'doctor' ? therapistId : null),
-      `${correo} quedo como ${roleLabel(role)}. Tiene que volver a iniciar sesion para que aplique.`,
-    ).then(() => setEmail(''));
+
+    setBusy(true);
+    setError('');
+    setNotice('');
+    setTemporal(null);
+    try {
+      const r = await inviteStaff(correo, role, role === 'doctor' ? therapistId : null);
+      if (r?.estado === 'creado') {
+        setTemporal({ email: r.email, clave: r.temporal, caduca: r.caduca });
+        setCopiado(false);
+      } else {
+        setNotice(`${correo} ya tenia cuenta, asi que se le envio una invitacion. Entra en vigor cuando la acepte.`);
+      }
+      setEmail('');
+      await load();
+    } catch (err) {
+      setError(err.message || 'No se pudo dar de alta al usuario.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(temporal.clave);
+      setCopiado(true);
+    } catch {
+      // Sin permiso de portapapeles no se rompe nada: la contraseña esta
+      // a la vista y se puede seleccionar a mano.
+      setCopiado(false);
+    }
   };
 
   // Un doctor sin ficha no puede trabajar, asi que el boton no se ofrece
@@ -133,12 +172,24 @@ export default function AdminAccess() {
         <p style={{ fontSize: 12, color: 'var(--admin-muted)', margin: '10px 0 0' }}>
           {ROLE_OPTIONS.find((r) => r.id === role)?.help}
         </p>
-        {/* Crear cuentas exige la API de administracion de auth, que no se
-            expone al navegador: la persona se registra y aqui se le da el rol. */}
+        {/* La leyenda anterior decia "la persona ya debe tener una cuenta,
+            pidele que se registre" — y no habia ningun sitio donde
+            registrarse: ni ruta, ni signUp en todo el codigo. Mandaba a un
+            paso que no existia. */}
         <p style={{ fontSize: 12, color: 'var(--admin-muted)', margin: '6px 0 0' }}>
-          La persona ya debe tener una cuenta. Si aun no se ha registrado, pidele que lo haga y vuelve aqui.
+          Si no tiene cuenta, se le crea aqui con una contraseña temporal que tendra que cambiar al entrar.
+          Si ya tiene, se le envia una invitacion y decide ella.
         </p>
       </form>
+
+      {temporal && (
+        <TempPasswordPanel
+          alta={temporal}
+          copiado={copiado}
+          onCopiar={copiar}
+          onCerrar={() => setTemporal(null)}
+        />
+      )}
 
       <div style={{ ...tarjeta, marginTop: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
