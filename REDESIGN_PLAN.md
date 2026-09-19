@@ -734,6 +734,48 @@ había entrado.
 De paso, las dos rejillas del Dashboard (`:43` y `:72`) pasan a `.rejilla-tarjetas`. Eran dos de
 los «vecinos medidos y no tocados» de M2b.
 
+## A2.6e · El XSS almacenado — y una corrección al informe
+
+**El informe exageraba el caso concreto, y se quedaba corto en la clase.**
+
+Medido en la pantalla real, con el saneado quitado a propósito: **React 19 ya bloquea el esquema
+ejecutable clásico**, sustituyendo el `href` por un stub que lanza. El payload que la auditoría
+describía —un admin escribe `javascript:` y se le sirve a todo visitante— **no se ejecutaba**.
+
+Lo que React **no** bloquea, y sí entraba:
+
+| Payload | Sin sanear | Qué consigue |
+|---|---|---|
+| `data:text/html,<img src=x onerror=…>` | entra al `href` **tal cual** | React no lo toca |
+| `//evil.example/perfil` | resuelve a `http://evil.example/perfil` | el visitante pulsa «Instagram» y aterriza en el dominio de otro — **phishing servido desde el sitio del consultorio** |
+
+Por eso el arreglo se mantiene, y por eso **no se apoya en React**: esa protección es una red
+heredada que su propio equipo anuncia retirar, y sólo cubre uno de los tres casos.
+
+**El control va en el SUMIDERO, no en el formulario.** La base puede tener ya un valor envenenado,
+guardado antes de que existiera ninguna validación; «el admin ya no puede escribirlo» no protege a
+quien lo tiene guardado. `src/safeUrl.mjs` usa **lista blanca** (`http:`, `https:`) y no lista
+negra, porque una negra siempre se queda corta con el siguiente esquema que alguien recuerde.
+
+Sólo **`mapsUrl` e `instagram`** lo llevan: son los únicos donde el valor del admin ocupa el href
+**entero**. En `tel:`, `mailto:` y el de WhatsApp el esquema está fijo en el código y lo del admin
+va detrás, así que no puede introducir uno nuevo — marcarlos por igual escondería cuál es el que
+de verdad decide.
+
+**Sin href seguro la tarjeta se pinta pero no enlaza.** La dirección y el `@` siguen siendo
+información útil; un enlace muerto es mejor que uno que ejecuta, y ocultar el dato perdería dos
+cosas en vez de una. De paso desaparece un `card.href.startsWith(...)` que reventaba si el campo
+llegaba nulo desde la base.
+
+**Y el aviso en el formulario**, que no es el control de seguridad pero sí completa el cambio: sin
+él, el admin guardaba una URL mala y veía **desaparecer el enlace sin que nada le dijera por qué**.
+
+`tests/front/safe-url.test.mjs` ejercita **16 formas de evasión** —mayúsculas mezcladas, espacios
+delante, tabulador/salto/retorno metidos dentro del esquema (que los navegadores ignoran, así que
+navegan igual), byte nulo, `data:`, `vbscript:`, protocolo-relativa— más 4 URLs legítimas que
+deben pasar, y comprueba que **el sumidero llama al saneador**: que exista y esté probado no sirve
+de nada si la pantalla no lo usa.
+
 ## A2.7 · Lo que esta fase deliberadamente NO toca
 
 Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería esconderlo:
@@ -742,8 +784,8 @@ Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería es
 - Los **catálogos DEMO** de `useSupabaseCrud.js:55-64` y el `[] || X === []` roto en ambos
   sentidos.
 - El **estado vacío antes del banner de error** de `DoctorApp.jsx:321`.
-- El **XSS almacenado** `AdminCatalog.jsx:498` → `ContactPage.jsx:29` y las 4 vulnerabilidades
-  high de `react-router-dom`.
+- ~~El **XSS almacenado** `AdminCatalog.jsx:498` → `ContactPage.jsx:29`~~ → **HECHO** (ver A2.6e).
+  Siguen abiertas las 4 vulnerabilidades high de `react-router-dom`.
 
 Merecen su propia fase, con una prueba que reproduzca cada uno antes del arreglo.
 

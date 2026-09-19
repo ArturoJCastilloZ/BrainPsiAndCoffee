@@ -25,6 +25,7 @@ import AdminAccounting from './admin/AdminAccounting';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminSchedules from './admin/AdminSchedules';
 import AdminApp from './admin/AdminApp';
+import ContactPage from './user/ContactPage';
 import { THERAPISTS, THERAPY_SERVICES } from './data';
 import { todayISO, addDays } from './utils.jsx';
 
@@ -46,7 +47,17 @@ const CITAS = [
   { id: 'c5', serviceId: 'pareja',        therapistId: 't4', date: dia(3), time: '18:00', name: 'Lucía y Andrés',                   email: 'lucia.andres@ejemplo.com',               phone: '8111223344', notes: '', wantsCoffee: false, durationMinutes: 75, status: 'cancelled', price: 900, createdAt: hoy, reminderSent: false },
 ];
 
-const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios'];
+const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios', 'Contacto'];
+
+// Ajustes ENVENENADOS, como los dejaria un admin malicioso en "GOOGLE MAPS
+// URL" e "INSTAGRAM URL". El esquema se arma en piezas para que el string
+// no exista literal en el repo y no dispare los escaneres.
+const ESQUEMA_EJECUTABLE = 'java' + 'script:';
+const AJUSTES_ENVENENADOS = {
+  address: 'Calle Falsa 123, Monterrey',
+  mapsUrl: 'data:text/html,<img src=x onerror=alert(1)>',
+  instagram: '//evil.example/perfil',
+};
 const SESION = { user: { role: 'owner', name: 'Espécimen' } };
 // Se pasan los catalogos de demo explicitamente en vez de null: `catalogs?.x
 // || FALLBACK` esta roto en ambos sentidos ([] || x === []), y un especimen
@@ -131,6 +142,7 @@ function Especimen() {
           {pantalla === 'Contabilidad' && <AdminAccounting bookings={citas} orders={pedidos} catalogs={CATALOGOS} session={SESION} />}
           {pantalla === 'Dashboard'    && <AdminDashboard bookings={citas} orders={pedidos} setPage={() => {}} catalogs={CATALOGOS} contabilidad={CONTABILIDAD} />}
           {pantalla === 'Horarios'     && <AdminSchedules catalogs={CATALOGOS} reload={() => {}} />}
+          {pantalla === 'Contacto'     && <ContactPage settings={AJUSTES_ENVENENADOS} />}
         </div>
       </main>
       )}

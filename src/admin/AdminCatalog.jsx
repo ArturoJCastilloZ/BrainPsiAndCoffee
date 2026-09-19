@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Brain, Building2, Coffee, Gift, Heart, Milk, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { C } from '../theme';
+import { safeUrl } from '../safeUrl.mjs';
 import { uid } from '../utils.jsx';
 import { SPECIALTIES } from '../data';
 import { isValidEmail, isValidMoney, isValidPositiveInteger } from '../validation';
@@ -245,16 +246,29 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder, required = false, min, className = '' }) {
+function Field({ label, value, onChange, type = 'text', placeholder, required = false, min, className = '', aviso = '' }) {
   const missing = required && String(value || '').trim().length === 0;
+  const conAviso = Boolean(aviso);
   return (
     <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
       <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>{label}</span>
-      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} placeholder={placeholder} required={required} min={min} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', borderColor: missing ? C.rust : undefined }} />
+      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} placeholder={placeholder} required={required} min={min} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', borderColor: missing || conAviso ? C.rust : undefined }} />
       {missing && <span style={requiredHint}>Campo requerido</span>}
+      {!missing && conAviso && <span style={requiredHint}>{aviso}</span>}
     </label>
   );
 }
+
+// El saneador de ContactPage no pinta el enlace si la URL no es segura, y
+// sin este aviso el admin guardaria y veria DESAPARECER el enlace sin que
+// nada le diga por que. La validacion de entrada no es el control de
+// seguridad —ese vive en el sumidero— pero sin ella el arreglo deja al
+// usuario a oscuras.
+const avisoUrl = (valor) => (
+  String(valor || '').trim() && !safeUrl(valor)
+    ? 'Tiene que ser una direccion http:// o https:// completa. Si no, el enlace no se publica.'
+    : ''
+);
 
 function ProductForm({ draft, setDraft }) {
   return <FormGrid>
@@ -495,8 +509,8 @@ function BusinessSettings({ settings, setSettings }) {
         <Field label="TELEFONO" value={draft.phone} onChange={value => update('phone', value)} />
         <Field label="WHATSAPP CON PAIS" value={draft.whatsapp} onChange={value => update('whatsapp', value)} />
         <Field label="CORREO" type="email" value={draft.email} onChange={value => update('email', value)} />
-        <Field label="INSTAGRAM URL" value={draft.instagram} onChange={value => update('instagram', value)} />
-        <Field label="GOOGLE MAPS URL" value={draft.mapsUrl} onChange={value => update('mapsUrl', value)} />
+        <Field label="INSTAGRAM URL" value={draft.instagram} onChange={value => update('instagram', value)} aviso={avisoUrl(draft.instagram)} />
+        <Field label="GOOGLE MAPS URL" value={draft.mapsUrl} onChange={value => update('mapsUrl', value)} aviso={avisoUrl(draft.mapsUrl)} />
       </FormGrid>
       <label style={{ display: 'grid', gap: 6, marginTop: 10 }}>
         <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>HORARIOS, UNO POR LINEA</span>
