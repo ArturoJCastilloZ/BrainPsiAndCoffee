@@ -290,6 +290,18 @@ honesta contra el periodo anterior) está **enterrada** bajo "Administración ge
 ---
 
 # Decisiones aprobadas
+
+## ✅ DIRECCIÓN VISUAL APROBADA (dev, 18 sep 2026)
+
+**Propuesta A · «Oficio»**, con:
+- **Acento por contexto**: caramelo `#C08A4D` cafetería · sage consultorio · tostado `#8B7355`
+  dueño. El acento **marca** (barra, punto, chip), **nunca escribe** — el caramelo da 3.01:1
+  sobre blanco.
+- **Barra inferior filtrada por contexto** en lugar de la tira de 13 destinos. Contexto en el
+  header como control segmentado; secciones en la barra inferior según ese contexto.
+
+**Pendiente de implementar. Nada de esto está en el código todavía.**
+
 - RLS y migraciones **dentro** del alcance de la auditoría (dev, 18 sep 2026).
 - Continuar **sin** el plugin `design`; la auditoría WCAG se hizo calculando los ratios a mano.
 
