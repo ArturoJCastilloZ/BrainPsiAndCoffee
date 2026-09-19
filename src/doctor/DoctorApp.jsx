@@ -314,7 +314,7 @@ function DoctorPatients({
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(230px, 0.3fr) minmax(420px, 1fr)', gap: 24, alignItems: 'start' }}>
+    <div className="doctor-maestro-detalle">
       {/* Lista de navegacion, no una reja de tarjetas: son nombres que se
           recorren con la vista. Una tarjeta por paciente pesaba mas que el
           dato que llevaba dentro. */}

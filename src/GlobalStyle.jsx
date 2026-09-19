@@ -212,6 +212,85 @@ export default function GlobalStyle() {
           .cita-datos    { grid-area: datos; }
           .cita-acciones { grid-area: acciones; justify-content: flex-start; }
         }
+
+        /* ==================================================================
+           "POR COBRAR" — Fase 2 / M2.
+           Es un <table> real de 5 columnas. Medido en el especimen a 375px:
+           386px de ancho IRREDUCIBLE — una tabla no se pliega, y empujaba el
+           viewport de 375 a 427. Era el unico desborde que quedaba en el
+           admin tras quitar minWidth:900.
+           Debajo de 520 deja de ser tabla y pasa a tarjetas, como define
+           "Cada tabla, su forma": no es una rejilla de datos, es una lista
+           de pendientes con UNA accion. El saldo manda (es el numero por el
+           que se entra) y "Cobrar" toma el ancho completo.
+           La cabecera no se pinta: al volverse display:block la asociacion
+           fila/columna se pierde igual, asi que cada celda lleva su propia
+           etiqueta desde data-etiqueta.
+           ================================================================== */
+        @media (max-width: 519px) {
+          .tabla-cobrar,
+          .tabla-cobrar tbody,
+          .tabla-cobrar tr,
+          /* box-sizing y NO width:100% en la celda: display:block ya la hace
+             llenar. Con width:100% la celda medía el ancho de contenido del
+             tr e ignoraba su padding, desbordando exactamente 26px
+             (2x12 de padding + 2x1 de borde). Medido, no supuesto. */
+          .tabla-cobrar td { display: block; box-sizing: border-box; }
+          .tabla-cobrar,
+          .tabla-cobrar tbody,
+          .tabla-cobrar tr { width: 100%; }
+
+          .tabla-cobrar thead { display: none; }
+
+          .tabla-cobrar tr {
+            border: 1px solid var(--admin-border);
+            border-radius: var(--bp-radius-md);
+            padding: var(--bp-space-3);
+            margin-bottom: var(--bp-space-2);
+          }
+
+          .tabla-cobrar td {
+            text-align: left !important;
+            border: none !important;
+            padding: 2px 0 !important;
+          }
+          .tabla-cobrar td::before {
+            content: attr(data-etiqueta);
+            display: block;
+            font-size: var(--bp-text-xs);
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--admin-row-text);
+          }
+          .tabla-cobrar td.celda-accion::before { content: none; }
+
+          .tabla-cobrar .celda-concepto { font-weight: 600; }
+          .tabla-cobrar .celda-saldo    { font-size: var(--bp-text-xl); font-weight: 700; }
+
+          .tabla-cobrar .celda-accion { margin-top: var(--bp-space-2); }
+          .tabla-cobrar .celda-accion button { width: 100%; justify-content: center; }
+        }
+
+        /* ==================================================================
+           PANEL DOCTOR · maestro-detalle — Fase 2 / M2 (P2.2 de la auditoria).
+           Era minmax(230px,0.3fr) minmax(420px,1fr) + gap 24 = piso de 674px
+           en DOS columnas fijas, sin auto-fit: no colapsaba jamas. A 375px
+           hay 327 disponibles, o sea 206% de desbordamiento — y es la
+           pantalla donde se LEEN NOTAS CLINICAS.
+           720 es el piso medido del maestro-detalle (contenido 704).
+           ================================================================== */
+        .doctor-maestro-detalle {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: var(--bp-space-6);
+          align-items: start;
+        }
+        @media (min-width: 720px) {
+          .doctor-maestro-detalle {
+            grid-template-columns: minmax(230px, 0.3fr) minmax(420px, 1fr);
+          }
+        }
       `}</style>
   );
 }

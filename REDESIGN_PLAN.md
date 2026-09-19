@@ -1,7 +1,7 @@
 # BrainPsiAndCoffee — Plan de rediseño
 
 > Documento vivo. Se actualiza al cerrar cada fase.
-> **Estado: FASE 0 (auditoría) COMPLETA — esperando aprobación para la Fase 1.**
+> **Estado: FASE 2 — M1, M4 y M2 implementados y verificados. M3 (navegación) pendiente.**
 
 ---
 
@@ -594,6 +594,54 @@ divergencia de A2.4 y hace que el arreglo de `--admin-subtle` se aplique una vez
 **M1 y M4 primero porque no cambian el layout**: si algo se rompe, se sabe que fue el token. M2
 antes que M3 porque la barra inferior nueva se diseña contra un ancho que ya sea real.
 
+## A2.6b · Resultado medido de M1 · M4 · M2 (18 sep 2026, noche)
+
+**M1 · hoja global** (`src/GlobalStyle.jsx`, nuevo). Escala, anillo de foco y breakpoints. Los
+once contrastes salieron exactamente como la Fase 1 los aprobó: `accent-text` claro 2.99 → **5.21**,
+`subtle` oscuro 2.88 → **4.54**, bordes interactivos **3.10** y **3.06**, y el anillo `#5F8A66`
+sobre las cuatro superficies: 3.46 / 3.95 / 4.17 / 4.71 — todos ≥3:1. El anillo se comprobó
+**pintando**: `rgb(95,138,102)`, 2px, offset 2px sobre el elemento enfocado.
+
+**M4 · tokens unificados.** El mapa de tokens y la hoja salieron de `App.jsx` a `GlobalStyle.jsx`.
+Verificado comparando **88 valores computados** (44 tokens × 2 temas) antes y después:
+**cero diferencias**. Es un cambio de domicilio, no una reescritura.
+
+**M2 · el piso de 900 retirado, y las dos tablas que lo escondían.**
+
+| Pantalla | A 375px, antes | Ahora |
+|---|---|---|
+| Citas | Celda del nombre en **30px** para un texto de 217 → «M…» | Restack bajo 520: **233px**, los 4 nombres enteros |
+| Contabilidad · Por cobrar | `<table>` de 5 columnas, **386px irreducibles**; empujaba el viewport de 375 a **427** | Tarjetas bajo 520; viewport estable en 375 |
+| Pedidos · Dashboard · Horarios | — | Limpias sin tocarlas: el `minWidth` era todo el problema |
+
+Barrido final a 375px en las cinco pantallas: **cero desborde de documento, cero elementos más
+anchos que su contenedor, cero elementos apretados** — salvo la línea secundaria de la fila de
+cita (servicio · terapeuta · teléfono), truncada con elipsis **a propósito** por el código.
+
+Conmutación verificada en los cuatro pisos: a 519 la fila son 2 columnas apiladas y la tabla son
+tarjetas; a 520, 900 y 1280 vuelven a 3 columnas y a `display: table` con cabecera. Sin regresión.
+
+**Dos cosas que solo se vieron midiendo, no leyendo:**
+
+- El `td` con `width: 100%` **ignoraba el padding de su `tr`** y desbordaba exactamente 26px
+  (2×12 de padding + 2×1 de borde). Se corrigió con `box-sizing` en vez de `width`.
+- Quitar `minWidth: 900` **no produce desbordamiento sino aplastamiento**. Es la razón de que M2
+  nunca pudiera ser «borrar la línea»: el grid reparte el poco ancho que hay en vez de rebasar,
+  así que el defecto se vuelve invisible para una prueba de scroll y solo se ve mirando.
+
+**P2.2 también cerrado.** El maestro-detalle de `DoctorApp.jsx:317` era
+`minmax(230px,0.3fr) minmax(420px,1fr)` + gap 24 = piso de **674px** en dos columnas fijas sin
+`auto-fit`: no colapsaba jamás, con 206% de desbordamiento a 375px, y es la pantalla donde se
+**leen notas clínicas**. Ahora una columna por debajo de 720 (el piso medido del maestro-detalle).
+Conmutación verificada: 375 → una columna de 327px · 719 → una de 671px · 720 → `230px 420px`.
+
+**Límite honesto:** los paneles admin y doctor **no se pudieron abrir con sesión real** — exigen
+credenciales del dev. En el caso de `DoctorApp` lo verificado es la **regla CSS**, no la pantalla:
+se inyectó un elemento con la clase y se midió su conmutación. Es evidencia del mecanismo, no del
+resultado en vivo. Lo medido corre sobre `specimen.html`, un banco de desarrollo donde el
+COMPONENTE es el real (ninguno de los medidos hace llamadas de red) y lo reproducido es su
+contenedor. `AdminAccess` no se pudo medir en absoluto: consulta Supabase al montar.
+
 ## A2.7 · Lo que esta fase deliberadamente NO toca
 
 Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería esconderlo:
@@ -619,5 +667,5 @@ Merecen su propia fase, con una prueba que reproduzca cada uno antes del arreglo
 | **Fase 0.5 — Bugs de producción** | ✅ Reagendar (`a89529b`) y reserva pública (`9af996e`) |
 | **Fase 1 — Propuestas visuales + artifact** | ✅ Completa |
 | **Fase 1.5 — Responsive como requisito** | ✅ Completa · A «Oficio» **aprobada** por el dev |
-| **Fase 2 — Arquitectura y layout** | 🟡 **Analizada y documentada — esperando aprobación para implementar** |
+| **Fase 2 — Arquitectura y layout** | 🟢 **M1, M4 y M2 implementados y verificados** · M3 pendiente |
 | Fase 3 — Implementación | ⬜ |

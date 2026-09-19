@@ -20,6 +20,11 @@ import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import GlobalStyle, { themeVars } from './GlobalStyle';
 import AdminAppointments from './admin/AdminAppointments';
+import AdminOrders from './admin/AdminOrders';
+import AdminAccounting from './admin/AdminAccounting';
+import AdminDashboard from './admin/AdminDashboard';
+import AdminSchedules from './admin/AdminSchedules';
+import { THERAPISTS, THERAPY_SERVICES } from './data';
 import { todayISO, addDays } from './utils.jsx';
 
 // addDays devuelve un Date, no una cadena ISO: las citas guardan 'YYYY-MM-DD'.
@@ -40,8 +45,17 @@ const CITAS = [
   { id: 'c5', serviceId: 'pareja',        therapistId: 't4', date: dia(3), time: '18:00', name: 'Lucía y Andrés',                   email: 'lucia.andres@ejemplo.com',               phone: '8111223344', notes: '', wantsCoffee: false, durationMinutes: 75, status: 'cancelled', price: 900, createdAt: hoy, reminderSent: false },
 ];
 
+const PANTALLAS = ['Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios'];
+const SESION = { user: { role: 'owner', name: 'Espécimen' } };
+// Se pasan los catalogos de demo explicitamente en vez de null: `catalogs?.x
+// || FALLBACK` esta roto en ambos sentidos ([] || x === []), y un especimen
+// que dependa de ese fallback estaria midiendo la rama equivocada.
+const CATALOGOS = { services: THERAPY_SERVICES, therapists: THERAPISTS, schedules: [] };
+
 function Especimen() {
   const [theme, setTheme] = useState('light');
+  const [pantalla, setPantalla] = useState('Citas');
+  const [pedidos, setPedidos] = useState([]);
   const [citas, setCitas] = useState(CITAS);
   const isDark = theme === 'dark';
   return (
@@ -56,9 +70,24 @@ function Especimen() {
       </div>
       {/* Reproduce el <main> de AdminApp.jsx: mismo padding, sin el
           minWidth:900 que M2 retiro. */}
+      <div style={{ position: 'fixed', left: 8, bottom: 8, zIndex: 999, display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: '70vw' }}>
+        {PANTALLAS.map(p => (
+          <button key={p} onClick={() => setPantalla(p)}
+            style={{ fontFamily: 'inherit', fontSize: 10, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
+                     background: pantalla === p ? 'var(--admin-accent-text)' : 'var(--admin-surface)',
+                     color: pantalla === p ? 'var(--admin-on-accent)' : 'var(--admin-text)',
+                     border: '1px solid var(--admin-border-interactive)' }}>{p}</button>
+        ))}
+      </div>
+      {/* Reproduce el <main> de AdminApp.jsx: mismo padding, sin el
+          minWidth:900 que M2 retiro. */}
       <main id="especimen-main" style={{ padding: '24px', paddingBottom: 100, boxSizing: 'border-box' }}>
         <div>
-          <AdminAppointments bookings={citas} setBookings={setCitas} catalogs={null} />
+          {pantalla === 'Citas'        && <AdminAppointments bookings={citas} setBookings={setCitas} catalogs={CATALOGOS} />}
+          {pantalla === 'Pedidos'      && <AdminOrders orders={pedidos} setOrders={setPedidos} catalogs={CATALOGOS} session={SESION} />}
+          {pantalla === 'Contabilidad' && <AdminAccounting bookings={citas} orders={pedidos} catalogs={CATALOGOS} session={SESION} />}
+          {pantalla === 'Dashboard'    && <AdminDashboard bookings={citas} orders={pedidos} setPage={() => {}} catalogs={CATALOGOS} />}
+          {pantalla === 'Horarios'     && <AdminSchedules catalogs={CATALOGOS} reload={() => {}} />}
         </div>
       </main>
     </div>

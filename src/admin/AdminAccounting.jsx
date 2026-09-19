@@ -462,7 +462,7 @@ function PorCobrar({ filas, onCobrar }) {
           No queda nada por cobrar en el periodo.
         </p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+        <table className="tabla-cobrar" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr>
               <th scope="col" style={th}>Concepto</th>
@@ -475,15 +475,15 @@ function PorCobrar({ filas, onCobrar }) {
           <tbody>
             {filas.map((f) => (
               <tr key={`${f.kind}-${f.doc.id}`}>
-                <td style={td}>{f.etiqueta}</td>
-                <td style={td}>{STATUS_LABEL[f.estado.estado]}</td>
-                <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                <td data-etiqueta="Concepto" className="celda-concepto" style={td}>{f.etiqueta}</td>
+                <td data-etiqueta="Estado" style={td}>{STATUS_LABEL[f.estado.estado]}</td>
+                <td data-etiqueta="Importe" style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {formatMoney(f.estado.total)}
                 </td>
-                <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: C.rustText }}>
+                <td data-etiqueta="Pendiente" className="celda-saldo" style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: C.rustText }}>
                   {formatMoney(f.estado.saldo)}
                 </td>
-                <td style={{ ...td, textAlign: 'right' }}>
+                <td className="celda-accion" style={{ ...td, textAlign: 'right' }}>
                   <button
                     onClick={() => onCobrar(f)}
                     // Sin importe no se ofrece cobrar: no hay cuanto.
