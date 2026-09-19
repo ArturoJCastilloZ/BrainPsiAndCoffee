@@ -261,6 +261,8 @@ if [[ "$CMD" == "baseline" ]]; then
     # crea y no existia antes: el trigger sobre tenant_members.
     "0031_access_audit_and_oracle|(select 1 from pg_trigger where tgname='audit_tenant_members')"
     "0032_membership_consent|(select 1 from pg_proc where proname='accept_tenant_invitation')"
+    # Anclado al TRIGGER y no a current_tenant_id, que existe desde 0006.
+    "0033_temp_password|(select 1 from pg_trigger where tgname='clear_password_change_flag')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.

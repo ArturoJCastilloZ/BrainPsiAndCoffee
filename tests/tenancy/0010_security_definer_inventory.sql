@@ -96,7 +96,14 @@ declare
     -- execute revocado de public y anon en las tres.
     'my_pending_invitations',
     'accept_tenant_invitation',
-    'decline_tenant_invitation'
+    'decline_tenant_invitation',
+    -- 0033: quita must_change_password cuando encrypted_password cambia
+    -- de verdad. Es definer porque escribe sobre auth.users, que la
+    -- aplicacion no puede tocar. No acota por tenant y no tiene que
+    -- hacerlo: opera sobre la fila que dispara el trigger, y es la unica
+    -- que ve. search_path fijo. No hace falta revocarle el execute
+    -- porque devuelve 'trigger': Postgres no admite llamarla desde SQL.
+    'clear_password_change_flag'
   ];
   v_reales text[];
   v_nuevas text[];

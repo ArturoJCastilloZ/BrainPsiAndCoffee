@@ -26,7 +26,12 @@ create schema if not exists auth;
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text,
-  raw_app_meta_data jsonb default '{}'::jsonb
+  raw_app_meta_data jsonb default '{}'::jsonb,
+  -- La columna real de Supabase, confirmada el 2026-09-19 contra la base
+  -- de produccion con information_schema. El stub la necesita porque 0033
+  -- cuelga un trigger de que ESTA columna cambie: sin ella el trigger no
+  -- se podria ejercitar, y un guard que no se puede ver fallar no vale.
+  encrypted_password text
 );
 
 -- OJO: replica la forma REAL de GoTrue, que hace coalesce del claim
