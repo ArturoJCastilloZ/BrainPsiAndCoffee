@@ -400,7 +400,7 @@ export default function GlobalStyle() {
           border-top: 1px solid var(--admin-border-soft);
         }
         /* flex:1 y NO un ancho minimo fijo. Consultorio tiene CINCO destinos
-           (Citas, Servicios, Doctores, Especialidades, Horarios): a 72px
+           (Citas, Servicios, Especialistas, Especialidades, Horarios): a 72px
            fijos serian 424px y seguirian sin caber en 375. Repartiendo el
            ancho, cinco dan 62px cada uno y cuatro dan 80 — por encima del
            objetivo tactil de 44 en las dos dimensiones, y sin scroll. */

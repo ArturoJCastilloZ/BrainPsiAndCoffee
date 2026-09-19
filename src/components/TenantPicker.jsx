@@ -8,7 +8,7 @@ const ROLE_LABELS = {
   owner: 'Dueño',
   admin_consultorio: 'Administracion del consultorio',
   admin_cafe: 'Administracion de cafeteria',
-  doctor: 'Doctor',
+  doctor: 'Especialista',
   barista: 'Barista',
 };
 

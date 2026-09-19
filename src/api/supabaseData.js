@@ -878,7 +878,7 @@ const syncDoctorAccess = async (therapists) => {
   if (result.error) {
     // Antes esto solo hacia console.warn y el guardado seguia como si nada:
     // un doctor podia quedarse sin acceso sin que nadie se enterara.
-    const error = new Error('Los doctores se guardaron, pero no se pudo sincronizar su acceso al sistema. Revisa la lista de accesos e intenta de nuevo.');
+    const error = new Error('Los especialistas se guardaron, pero no se pudo sincronizar su acceso al sistema. Revisa la lista de accesos e intenta de nuevo.');
     error.cause = result.error;
     throw error;
   }
@@ -1033,7 +1033,7 @@ export const loadTherapistSchedules = async () => {
 
 export const saveTherapistSchedules = async (therapistId, blocks) => {
   assertSupabaseConfigured();
-  if (!therapistId) throw new Error('No hay un doctor seleccionado.');
+  if (!therapistId) throw new Error('No hay un especialista seleccionado.');
   // Se reemplaza el horario completo del terapeuta: es mas simple de
   // razonar que un diff, y RLS ya acota el borrado a su clinica.
   //
@@ -1052,7 +1052,7 @@ export const saveTherapistSchedules = async (therapistId, blocks) => {
 
 export const saveTherapistAgendaPrefs = async (therapistId, prefs) => {
   assertSupabaseConfigured();
-  if (!therapistId) throw new Error('No hay un doctor seleccionado.');
+  if (!therapistId) throw new Error('No hay un especialista seleccionado.');
   // Por RPC y no por update directo: los buffers viven en therapists,
   // donde el doctor solo tiene SELECT. La funcion autoriza las dos vias
   // —la clinica sobre cualquiera de sus fichas, el doctor sobre la suya—
@@ -1070,6 +1070,6 @@ export const saveTherapistAgendaPrefs = async (therapistId, prefs) => {
   // Sin .single(): cuando el update no encuentra la fila, PostgREST
   // responde "Cannot coerce the result to a single JSON object", que no
   // dice nada al usuario. Se revisa el conteo y se explica.
-  if (!result.data) throw new Error(`No se pudo guardar la agenda del doctor "${therapistId}".`);
+  if (!result.data) throw new Error(`No se pudo guardar la agenda del especialista "${therapistId}".`);
   return mapTherapistFromDb(result.data);
 };

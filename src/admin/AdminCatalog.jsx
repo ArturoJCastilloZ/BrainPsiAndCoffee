@@ -43,12 +43,12 @@ const SERVICE_ICONS = [
   { id: 'sparkles', label: 'Destellos', icon: Sparkles },
 ];
 
-export default function AdminCatalog({ catalogs, catalogActions, session, initialTab, lockedTab = false, heading = 'Catálogos', description = 'Administra productos, servicios, ofertas, doctores y precios.' }) {
+export default function AdminCatalog({ catalogs, catalogActions, session, initialTab, lockedTab = false, heading = 'Catálogos', description = 'Administra productos, servicios, ofertas, especialistas y precios.' }) {
   const role = session?.user?.role;
   const tabs = useMemo(() => [
     canManageCafeCatalog(role) && { id: 'products', label: 'Productos', icon: Coffee },
     canManageClinicCatalog(role) && { id: 'services', label: 'Servicios', icon: Brain },
-    canManageClinicCatalog(role) && { id: 'therapists', label: 'Doctores', icon: Users },
+    canManageClinicCatalog(role) && { id: 'therapists', label: 'Especialistas', icon: Users },
     canManageClinicCatalog(role) && { id: 'specialties', label: 'Especialidades', icon: Sparkles },
     canManageCafeCatalog(role) && { id: 'options', label: 'Personalización', icon: Milk },
     canManageCafeCatalog(role) && { id: 'offers', label: 'Ofertas', icon: Gift },
@@ -81,7 +81,7 @@ export default function AdminCatalog({ catalogs, catalogActions, session, initia
 
       {tab === 'products' && <ProductsManager menu={catalogs.menu} setMenu={catalogActions.setMenu} />}
       {tab === 'services' && <ListManager title="Servicios" items={catalogs.services} setItems={catalogActions.setServices} emptyItem={emptyService} renderForm={ServiceForm} summary={(item) => `${item.duration} min · $${item.price} · ${item.for}`} />}
-      {tab === 'therapists' && <ListManager title="Doctores" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || []} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}`} />}
+      {tab === 'therapists' && <ListManager title="Especialistas" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || []} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}`} />}
       {tab === 'specialties' && <ListManager title="Especialidades" items={catalogs.specialties || []} setItems={catalogActions.setSpecialties} emptyItem={emptySpecialty} renderForm={SpecialtyForm} summary={(item) => item.active === false ? 'Inactiva' : 'Activa'} />}
       {tab === 'options' && <OptionsManager options={catalogs.productOptions || []} setOptions={catalogActions.setProductOptions} />}
       {tab === 'offers' && <ListManager title="Ofertas" items={catalogs.offers} setItems={catalogActions.setOffers} emptyItem={emptyOffer} renderForm={OfferForm} summary={(item) => `$${item.price} · ${item.desc}${offerWindowLabel(item)}`} />}

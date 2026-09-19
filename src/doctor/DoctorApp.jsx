@@ -232,7 +232,7 @@ const PAGINAS = {
     titulo: 'Pacientes y notas',
     pestana: 'Pacientes',
     icono: User,
-    descripcion: 'El expediente de cada paciente. Las notas clínicas solo las ve el doctor autorizado, y cada lectura queda en la bitácora.',
+    descripcion: 'El expediente de cada paciente. Las notas clínicas solo las ve el especialista autorizado, y cada lectura queda en la bitácora.',
   },
   schedule: {
     titulo: 'Mi horario',

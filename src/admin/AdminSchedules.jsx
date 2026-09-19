@@ -148,7 +148,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
     // cargar, y en ese caso el borrado seria accidental y silencioso.
     if (!blocks.length && !(await confirmar({
       titulo: 'Sin días de atención',
-      mensaje: 'No hay ningún bloque: el doctor quedaría sin días de atención y nadie podría agendar con él.',
+      mensaje: 'No hay ningún bloque: el especialista quedaría sin días de atención y nadie podría agendar con él.',
       aceptar: 'Guardar así',
       destructivo: true,
     }))) return;
@@ -175,7 +175,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
         <Encabezado embedded={embedded} />
         <div className="admin-card" style={{ borderRadius: 16, padding: 30, textAlign: 'center' }}>
           <p style={{ color: 'var(--admin-muted)', margin: 0, fontSize: 13 }}>
-            No hay doctores dados de alta. Créalos primero en Doctores.
+            No hay especialistas dados de alta. Créalos primero en Especialistas.
           </p>
         </div>
       </div>
@@ -192,7 +192,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
 
       {!lockedTherapistId && (
         <div style={{ marginBottom: 14 }}>
-          <span style={etiqueta}>Doctor</span>
+          <span style={etiqueta}>Especialista</span>
           <select value={therapistId} onChange={(e) => setTherapistId(e.target.value)} style={{ ...campo, width: '100%', marginTop: 6 }}>
             {therapists.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -542,8 +542,8 @@ function VistaPrevia({ therapist, blocks, catalogs }) {
 }
 
 function Encabezado({ embedded = false }) {
-  // Incrustado en el panel doctor no se pinta: ese ya puso su titulo. Y
-  // "cada doctor" era falso ahi — el doctor solo ve y edita el suyo.
+  // Incrustado en el panel del especialista no se pinta: ese ya puso su
+  // titulo. Y "cada especialista" era falso ahi — solo ve y edita el suyo.
   if (embedded) return null;
   return (
     <>
@@ -551,7 +551,7 @@ function Encabezado({ embedded = false }) {
         Horarios
       </h1>
       <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginBottom: 20 }}>
-        Cuándo trabaja cada doctor y cuánto descanso deja entre citas
+        Cuándo trabaja cada especialista y cuánto descanso deja entre citas
       </p>
     </>
   );

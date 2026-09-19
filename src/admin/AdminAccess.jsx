@@ -8,10 +8,10 @@ import TempPasswordPanel from './TempPasswordPanel';
 
 const ROLE_OPTIONS = [
   { id: 'owner', label: 'Dueño', help: 'Todo, incluido administrar accesos' },
-  { id: 'admin_consultorio', label: 'Admin consultorio', help: 'Citas, servicios, doctores y especialidades' },
+  { id: 'admin_consultorio', label: 'Admin consultorio', help: 'Citas, servicios, especialistas y especialidades' },
   { id: 'admin_cafe', label: 'Admin cafeteria', help: 'Pedidos, menu y promociones' },
   { id: 'barista', label: 'Barista', help: 'Solo pedidos de cafe' },
-  { id: 'doctor', label: 'Doctor', help: 'Su agenda y sus notas clinicas' },
+  { id: 'doctor', label: 'Especialista', help: 'Su agenda y sus notas clinicas' },
 ];
 
 const roleLabel = (id) => ROLE_OPTIONS.find((r) => r.id === id)?.label || id;
@@ -191,8 +191,8 @@ export default function AdminAccess() {
             </select>
             <p style={{ fontSize: 12, color: 'var(--admin-muted)', margin: '6px 0 0' }}>
               {therapists.length
-                ? 'Sin ficha vinculada, el doctor no puede crear citas ni ver a sus pacientes.'
-                : 'No hay fichas de terapeuta activas. Créala primero en Doctores.'}
+                ? 'Sin ficha vinculada, el especialista no puede crear citas ni ver a sus pacientes.'
+                : 'No hay fichas de terapeuta activas. Créala primero en Especialistas.'}
             </p>
           </div>
         )}
