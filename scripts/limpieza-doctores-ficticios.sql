@@ -108,6 +108,29 @@ begin
       notas_antes, notas_despues;
   end if;
 
+  -- POSTCONDICION. Esto era, hasta ahora, el ojo del operador mirando una
+  -- tabla al final del archivo. Es exactamente lo que una maquina puede
+  -- comprobar, asi que lo comprueba la maquina: si algo no cuadra, la
+  -- excepcion tira la transaccion entera y no se guarda nada.
+  if exists (select 1 from public.therapists
+              where tenant_id = tenant and id = any(ficticios) and active) then
+    raise exception 'ABORTADO: siguen publicandose ficticios con cedula falsa.';
+  end if;
+
+  if exists (select 1 from public.therapists
+              where tenant_id = tenant and id = any(borrables)) then
+    raise exception 'ABORTADO: t2, t3 o t4 no se borraron.';
+  end if;
+
+  -- t1 se conserva DESACTIVADO, no se borra: tiene un encuentro con nota
+  -- clinica y NOM-004 exige guardar el expediente 5 años desde el ultimo
+  -- acto medico. Que desaparezca seria tan defectuoso como que siga
+  -- publicandose, y por eso tambien aborta.
+  if not exists (select 1 from public.therapists
+                  where tenant_id = tenant and id = 't1') then
+    raise exception 'ABORTADO: t1 desaparecio. NOM-004 exige conservar su expediente.';
+  end if;
+
   raise notice '---';
   raise notice 'TOTAL BORRADO: % filas. Pedidos: %. Notas clinicas: % (intactas).',
     total, pedidos_despues, notas_despues;
@@ -115,8 +138,22 @@ begin
 end
 $limpieza$;
 
--- Como queda. t1 tiene que salir con active = f; t2/t3/t4 no deben salir.
+-- Se cierra sola.
+--
+-- Antes se dejaba abierta a proposito, para que el operador revisara los
+-- NOTICE y escribiera commit. Fallo dos veces, el 2026-09-18 y el
+-- 2026-09-19: una transaccion que nadie cierra no aborta, se deshace en
+-- SILENCIO. El operador ve los NOTICE correctos y la tabla correcta -el
+-- resultado real de algo que nunca ocurrio- y no tiene forma de
+-- distinguirlo de un exito.
+--
+-- El repaso previo no se pierde: vive en los scripts diagnostico-*.sql,
+-- que son solo lectura y existen justo para eso. Lo que antes miraba el
+-- ojo ahora son las aserciones de arriba, y un fallo revierte solo.
+commit;
+
+-- Corre DESPUES del commit a proposito: lo que muestre esta GUARDADO.
+-- Dentro de la transaccion mostraba un estado que podia no sobrevivir.
+-- t1 tiene que salir con active = f; t2/t3/t4 no deben salir.
 select id, name, cedula, active from public.therapists
  where tenant_id = 'brainpsi' and id in ('t1','t2','t3','t4') order by id;
-
--- Si cuadra:  commit;     Si no:  rollback;

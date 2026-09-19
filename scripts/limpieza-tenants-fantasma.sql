@@ -88,21 +88,45 @@ begin
       antes_brainpsi, despues_brainpsi;
   end if;
 
+  -- POSTCONDICION. Era el "esto tiene que salir VACIO" del final del
+  -- archivo, que dependia de que alguien lo mirara. Ahora lo comprueba la
+  -- maquina y un fallo revierte la transaccion entera.
+  if exists (select 1 from public.tenants where id = any(fantasmas)) then
+    raise exception 'ABORTADO: quedan tenants fantasma sin borrar.';
+  end if;
+
+  -- NO se comprueba aqui que no queden membresias: seria codigo muerto.
+  -- tenant_members -> tenants es ON DELETE CASCADE (verificado en
+  -- pg_constraint, confdeltype='c'), asi que si el tenant se borro las
+  -- membresias cayeron con el, y si no se borro salta la asercion de
+  -- arriba antes de llegar aqui. Se intento inyectar el defecto para
+  -- verla fallar y el script termino en exito: una asercion que no se
+  -- puede ver en rojo no se entrega.
+
   raise notice '---';
   raise notice 'TOTAL BORRADO: % filas. brainpsi intacto (% citas antes y despues).',
     total, antes_brainpsi;
 end
 $limpieza$;
 
--- Resultado: esto tiene que salir VACIO. Si devuelve filas, algo quedo.
+-- Se cierra sola.
+--
+-- Antes se dejaba abierta a proposito, para que el operador revisara los
+-- NOTICE y escribiera commit. Fallo dos veces, el 2026-09-18 y el
+-- 2026-09-19: una transaccion que nadie cierra no aborta, se deshace en
+-- SILENCIO, y el operador no tiene forma de distinguirlo de un exito.
+--
+-- El repaso previo no se pierde: vive en diagnostico-tenants-fantasma.sql,
+-- que es solo lectura y existe justo para eso. Lo que antes miraba el ojo
+-- ahora son las aserciones de arriba.
+commit;
+
+-- Corre DESPUES del commit a proposito: lo que muestre esta GUARDADO.
+-- Tiene que salir VACIO.
 select t.id as tenant_que_no_debia_seguir, t.name
   from public.tenants t
  where t.id in ('t_li_a','t_li_b','t_pf1','t_pf2');
 
--- Si lo de arriba salio vacio y los NOTICE cuadran, confirma con:
---     commit;
--- Si algo no cuadra:
---     rollback;
---
--- Se deja SIN cerrar a proposito: la transaccion la cierras tu despues de
--- mirar. Una limpieza que se confirma sola no te deja revisarla.
+-- Falta un paso que el SQL no puede dar: las cuatro cuentas en auth.users
+-- se borran desde Supabase > Authentication > Users, con la API de Auth,
+-- que limpia sesiones e identidades. Con SQL crudo quedan sueltas.
