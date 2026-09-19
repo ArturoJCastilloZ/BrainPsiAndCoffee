@@ -1,3 +1,24 @@
+-- ===========================================================================
+-- GUARD: este monolito NO se corre contra una base real.
+-- ===========================================================================
+-- Falla CERRADO: aborta salvo que pueda demostrar que esta en el Postgres
+-- desechable. Enumerar señales de produccion fallaria ABIERTO en cuanto la
+-- lista se quedara corta; exigir una marca que solo existe en el
+-- desechable no tiene esa fuga.
+--
+-- La marca la crea tests/tenancy/run.sh en el contenedor que el mismo
+-- acaba de levantar, asi que no puede existir en ningun otro lado.
+do $guard$
+begin
+  if to_regclass('public.__banco_desechable') is null then
+    raise exception using
+      message = 'ABORTADO: supabase-schema.sql ejecutado fuera del banco desechable.',
+      detail  = 'No existe la marca public.__banco_desechable, que solo crea tests/tenancy/run.sh en el contenedor que levanta.',
+      hint    = 'Este monolito reescribe las 49 policies y APAGA el aislamiento entre clinicas sin lanzar un solo error. Los cambios de esquema van por migrations/ con ./scripts/migrate.sh up. Aqui solo lo usa tests/tenancy/run.sh para construir el desechable.';
+  end if;
+end
+$guard$;
+
 create extension if not exists pgcrypto;
 create extension if not exists btree_gist;
 

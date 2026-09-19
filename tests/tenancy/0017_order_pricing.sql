@@ -1,3 +1,24 @@
+-- ===========================================================================
+-- GUARD: esto es una PRUEBA. No se corre contra una base real.
+-- ===========================================================================
+-- Falla CERRADO: aborta salvo que pueda demostrar que esta en el Postgres
+-- desechable. Enumerar señales de produccion fallaria ABIERTO en cuanto la
+-- lista se quedara corta; exigir una marca que solo existe en el
+-- desechable no tiene esa fuga.
+--
+-- La marca la crea tests/tenancy/run.sh en el contenedor que el mismo
+-- acaba de levantar, asi que no puede existir en ningun otro lado.
+do $guard$
+begin
+  if to_regclass('public.__banco_desechable') is null then
+    raise exception using
+      message = 'ABORTADO: archivo de PRUEBA ejecutado fuera del banco desechable.',
+      detail  = 'No existe la marca public.__banco_desechable, que solo crea tests/tenancy/run.sh en el contenedor que levanta.',
+      hint    = 'Corre ./tests/tenancy/run.sh. Si estas viendo esto en el editor de Supabase: PARA, estas en una base real. El 2026-09-18 se ejecutaron 0013 y 0014 contra produccion y dejaron cuatro tenants y cuatro cuentas fantasma.';
+  end if;
+end
+$guard$;
+
 -- El precio de un pedido lo decide el CATALOGO, no el navegador.
 --
 -- mapOrderToDb mandaba total y subtotal tal cual venian del cliente, y

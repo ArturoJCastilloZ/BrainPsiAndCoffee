@@ -26,6 +26,20 @@ for _ in $(seq 1 40); do
   sleep 1
 done
 
+# La MARCA del banco desechable. Todos los .sql de esta carpeta abortan si
+# no la encuentran, asi que esto es lo unico que los habilita — y solo se
+# ejecuta aqui, contra el contenedor que este script acaba de levantar.
+#
+# Existe por un incidente real: el 2026-09-18 se ejecutaron 0013 y 0014
+# contra la base de PRODUCCION y dejaron cuatro tenants y cuatro cuentas
+# fantasma, una con rol owner.
+echo "marcando el banco como desechable ..."
+docker exec "$CONTAINER" psql -U postgres -d bpc -v ON_ERROR_STOP=1 -q -c \
+  "create table if not exists public.__banco_desechable (
+     creado_en timestamptz not null default now(),
+     nota text not null default 'Postgres desechable de tests/tenancy/run.sh. Si ves esta tabla en una base real, algo se ejecuto donde no debia.'
+   );"
+
 run_file() {
   docker cp "$1" "$CONTAINER:/tmp/f.sql" >/dev/null
   docker exec "$CONTAINER" psql -U postgres -d bpc -v ON_ERROR_STOP=1 -q -f /tmp/f.sql
