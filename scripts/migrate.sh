@@ -16,12 +16,54 @@ MIGRATIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/migrations"
 CMD="${1:-status}"
 DRY_RUN="${2:-}"
 
+# Los argumentos se validan ANTES de conectar: un typo no deberia costar
+# una conexion a produccion, y sobre todo no deberia aplicar nada.
+#
+# Existe por un caso real: el 2026-09-19 se escribio 'up --dry-up' en
+# lugar de 'up --dry-run'. El script comparaba la bandera contra la
+# cadena exacta "--dry-run" y TODO lo demas caia al camino de aplicar de
+# verdad, en silencio. Esa vez no habia migraciones pendientes y no paso
+# nada; con una pendiente habria escrito en la base clinica mientras el
+# dev creia estar ensayando. Una bandera que no se reconoce tiene que
+# fallar RUIDOSA, no elegir el camino destructivo.
+if [[ "$CMD" != "status" && "$CMD" != "up" && "$CMD" != "baseline" ]]; then
+  echo "ERROR: comando desconocido: $CMD" >&2
+  echo "Uso: $0 [status|up|baseline] [--dry-run|--confirm]" >&2
+  exit 1
+fi
+
+case "$DRY_RUN" in
+  "")
+    ;;
+  --dry-run)
+    if [[ "$CMD" != "up" ]]; then
+      echo "ERROR: --dry-run solo aplica a 'up' (se recibio '$CMD')." >&2
+      exit 1
+    fi
+    ;;
+  --confirm)
+    if [[ "$CMD" != "baseline" ]]; then
+      echo "ERROR: --confirm solo aplica a 'baseline' (se recibio '$CMD')." >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "ERROR: bandera desconocida: $DRY_RUN" >&2
+    echo "       Las unicas validas son --dry-run (con up) y --confirm (con baseline)." >&2
+    echo "       NO se aplico nada. Si querias ensayar, la bandera es exactamente --dry-run." >&2
+    exit 1
+    ;;
+esac
+
 if [[ -z "${DATABASE_URL:-}" ]]; then
   echo "ERROR: falta DATABASE_URL." >&2
   echo "  local:  export DATABASE_URL=postgres://postgres:test@localhost:55432/bpc" >&2
   echo "  remoto: la connection string de Supabase (boton Connect > Session pooler)" >&2
   echo >&2
-  echo "  Para no dejarla en el historial del shell:" >&2
+  echo "  Para no dejarla en el historial del shell, pega la linea de abajo TAL CUAL" >&2
+  echo "  y luego pega la cadena cuando aparezca el prompt (no se vera nada al pegar," >&2
+  echo "  es lo esperado). El texto que va despues del '?' es el MENSAJE del prompt," >&2
+  echo "  no un hueco por rellenar: no lo sustituyas por tu cadena de conexion." >&2
   # zsh y bash difieren: en zsh el prompt va DENTRO de las comillas y
   # PEGADO al nombre de la variable con '?' — read -rs "VAR?texto: " —, y
   # 'read -p' significa leer de un coproceso, de ahi el error 'no
@@ -207,6 +249,13 @@ if [[ "$CMD" == "baseline" ]]; then
     "0027_accounting|to_regclass('public.payments')"
     "0028_money_server_side|(select to_regclass('public.payments') where exists (select 1 from pg_trigger where tgname='enforce_payment_within_balance'))"
     "0029_public_reads_schedules|(select 1 where exists (select 1 from pg_policies where tablename='therapist_schedules' and policyname='Public can read active schedules'))"
+    # 0030 REDEFINE record_audit_entry, que ya existia desde el esquema
+    # base: su existencia no prueba nada, igual que 0015 y 0020. Lo que
+    # 0030 agrega y nadie mas tiene es la consulta a clinical_notes para
+    # resolver el paciente de una adenda. Anclado a esa linea EJECUTABLE
+    # y no a un comentario: 0022 ya menciona 'clinical_notes' dentro de
+    # una lista IN, asi que buscar el nombre suelto daria falso positivo.
+    "0030_audit_patient_link|(select 1 from pg_proc where proname='record_audit_entry' and pg_get_functiondef(oid) like '%from public.clinical_notes%')"
   )
 
   # Ninguna migracion puede marcarse sin centinela.
