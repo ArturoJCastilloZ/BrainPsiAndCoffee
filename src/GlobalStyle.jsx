@@ -316,6 +316,119 @@ export default function GlobalStyle() {
           flex: 1 1 var(--rejilla-min, 320px);
           min-width: 0;
         }
+
+        /* ==================================================================
+           NAVEGACION MOVIL DEL ADMIN — Fase 2 / M3.
+           Antes la barra inferior aplanaba los DOS ejes en una sola lista:
+           13 destinos a minWidth 72 con gap 8 = 1064px dentro de una barra de
+           375, o sea 689px de scroll DENTRO de la navegacion. Una barra que
+           hay que desplazar para encontrar el destino no es una barra de
+           navegacion.
+           Ahora: CONTEXTO (que negocio) en el header como control segmentado,
+           SECCION (que pantalla) en la barra inferior, filtrada por contexto.
+           ================================================================== */
+        /* El armazon del admin es flex en FILA (sidebar | contenido). El
+           header movil es HERMANO de <main>, asi que en fila no se pone
+           ENCIMA del contenido: se pone AL LADO. Era el P2.4 de la auditoria,
+           marcado como inferencia; quitar minWidth:900 lo destapo y se
+           confirmo renderizando. Debajo de 768 la fila pasa a columna.
+           Se retiro tambien el 'main { height: calc(100vh - 65px) }' que
+           vivia en AdminApp: era un selector de ETIQUETA global con
+           !important y un 65 escrito a mano que no se derivaba de nada —
+           y el header ahora tiene dos renglones, asi que el numero ya
+           mentia. La columna reparte la altura sola. */
+        .admin-shell {
+          display: flex;
+          height: 100vh;
+          min-width: 0;
+        }
+        .admin-main {
+          flex: 1;
+          min-width: 0;
+          min-height: 0;
+          overflow: auto;
+          padding: var(--bp-space-6);
+          padding-bottom: 100px;
+          box-sizing: border-box;
+        }
+        @media (max-width: 767px) {
+          .admin-shell { flex-direction: column; }
+        }
+
+        .admin-contexto {
+          display: flex;
+          gap: 2px;
+          padding: 3px;
+          background: var(--admin-surface-soft);
+          border: 1px solid var(--admin-border);
+          border-radius: var(--bp-radius-lg);
+        }
+        .admin-contexto button {
+          flex: 1 1 0;
+          min-width: 0;
+          min-height: 36px;
+          padding: 0 10px;
+          border: 1px solid transparent;
+          border-radius: 9px;
+          background: transparent;
+          color: var(--admin-muted);
+          font-family: inherit;
+          font-size: var(--bp-text-sm);
+          font-weight: 500;
+          cursor: pointer;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .admin-contexto button.es-activa {
+          background: var(--admin-surface);
+          border-color: var(--admin-border);
+          color: var(--admin-text);
+          font-weight: 700;
+        }
+
+        .admin-barra-inferior {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 40;
+          display: flex;
+          gap: var(--bp-space-2);
+          padding: 10px 16px 20px;
+          background: var(--admin-sidebar);
+          border-top: 1px solid var(--admin-border-soft);
+        }
+        /* flex:1 y NO un ancho minimo fijo. Consultorio tiene CINCO destinos
+           (Citas, Servicios, Doctores, Especialidades, Horarios): a 72px
+           fijos serian 424px y seguirian sin caber en 375. Repartiendo el
+           ancho, cinco dan 62px cada uno y cuatro dan 80 — por encima del
+           objetivo tactil de 44 en las dos dimensiones, y sin scroll. */
+        .admin-barra-inferior button {
+          flex: 1 1 0;
+          min-width: 0;
+          min-height: 48px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          padding: 4px 2px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-family: inherit;
+          color: var(--admin-subtle);
+        }
+        .admin-barra-inferior button.es-activo { color: var(--admin-accent-text); }
+        .admin-barra-inferior button > span {
+          font-size: 10px;
+          font-weight: 600;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
       `}</style>
   );
 }

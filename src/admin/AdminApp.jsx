@@ -43,6 +43,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
     const sidebarWidth = sidebarCollapsed ? 78 : 240;
     const navSections = useMemo(() => ([
         {
+            contexto: 'general', corto: 'General',
             label: 'Administración general',
             items: [
                 canViewDashboard(role) && { id: 'general-dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -52,6 +53,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             ].filter(Boolean)
         },
         {
+            contexto: 'cafe', corto: 'Cafetería',
             label: 'Cafetería',
             items: [
                 canManageOrders(role) && { id: 'cafe-orders', label: 'Pedidos café', icon: Coffee },
@@ -61,6 +63,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             ].filter(Boolean)
         },
         {
+            contexto: 'clinic', corto: 'Consultorio',
             label: 'Consultorio',
             items: [
                 canManageAppointments(role) && { id: 'clinic-appointments', label: 'Citas', icon: CalendarIcon },
@@ -72,6 +75,24 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
         }
     ].filter((section) => section.items.length)), [role]);
     const navItems = useMemo(() => navSections.flatMap((section) => section.items), [navSections]);
+
+    // M3 · Los dos ejes de la navegacion son distintos y estaban mezclados:
+    // CONTEXTO (en que negocio estoy) y SECCION (que pantalla veo). La barra
+    // inferior los aplanaba en una sola lista de 13 destinos que, a 72px con
+    // gap 8, median 1064px dentro de una barra de 375: habia que DESPLAZAR la
+    // navegacion para encontrar un destino.
+    //
+    // El contexto NO es estado nuevo: los ids de pagina ya lo codifican
+    // ('general-', 'cafe-', 'clinic-'). Derivarlo no puede desincronizarse;
+    // un useState paralelo si.
+    const contextoActivo = useMemo(() => {
+        const prefijo = String(page).split('-')[0];
+        return navSections.some((s) => s.contexto === prefijo) ? prefijo : navSections[0]?.contexto;
+    }, [navSections, page]);
+    const seccionActiva = useMemo(
+        () => navSections.find((s) => s.contexto === contextoActivo) || navSections[0],
+        [contextoActivo, navSections],
+    );
 
     useEffect(() => {
         if (!canAccessAdminPage(role, page)) {
@@ -90,7 +111,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             // identicos byte a byte, asi que cada arreglo habia que hacerlo dos
             // veces. Ver "TOKENS DEL ADMIN" en App.jsx.
         }}>
-            <div style={{ display: 'flex', height: '100vh', minWidth: 0 }}>
+            <div className="admin-shell">
                 {/* Sidebar */}
                 <aside style={{
                     width: sidebarWidth, background: 'var(--admin-sidebar)', borderRight: '1px solid var(--admin-border-soft)',
@@ -168,7 +189,8 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                 </aside>
 
                 {/* Mobile top nav */}
-                <div style={{ position: 'sticky', top: 0, zIndex: 30, background: 'var(--admin-sidebar)', padding: '16px 20px', borderBottom: '1px solid var(--admin-border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} className="md:hidden">
+                <div style={{ position: 'sticky', top: 0, zIndex: 30, background: 'var(--admin-sidebar)', padding: '16px 20px 12px', borderBottom: '1px solid var(--admin-border-soft)', display: 'grid', gap: 12 }} className="md:hidden">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <BrandMark size={32} />
                         <div>
@@ -180,10 +202,33 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                         <button onClick={toggleTheme} style={{ background: 'transparent', border: '1px solid var(--admin-border)', padding: '6px 12px', borderRadius: 999, color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>{theme === 'dark' ? 'Claro' : 'Oscuro'}</button>
                         <button onClick={switchToUser} style={{ background: 'transparent', border: '1px solid var(--admin-border)', padding: '6px 12px', borderRadius: 999, color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>App</button>
                     </div>
+                  </div>
+
+                  {/* Eje de CONTEXTO. Una sola pieza que dice en que negocio
+                      estas, en vez de tres destinos sueltos que se ven igual
+                      que los demas. Con un solo contexto no se pinta: un
+                      selector de una opcion no selecciona nada. */}
+                  {navSections.length > 1 && (
+                    <nav aria-label="Area del negocio" className="admin-contexto">
+                      {navSections.map((seccion) => {
+                        const activa = seccion.contexto === contextoActivo;
+                        return (
+                          <button
+                            key={seccion.contexto}
+                            onClick={() => setPage(seccion.items[0].id)}
+                            aria-current={activa ? 'true' : undefined}
+                            className={activa ? 'es-activa' : undefined}
+                          >
+                            {seccion.corto}
+                          </button>
+                        );
+                      })}
+                    </nav>
+                  )}
                 </div>
 
                 {/* Main */}
-                <main style={{ flex: 1, minWidth: 0, height: '100vh', overflow: 'auto', padding: '24px', paddingBottom: 100, boxSizing: 'border-box' }}>
+                <main className="admin-main">
                     {/* Aqui vivia minWidth:900. Envolvia las 13 pantallas y
                         forzaba 573px de scroll horizontal a 375 (padding 48 +
                         900 - 375). Peor que el scroll: con el contenedor
@@ -209,20 +254,14 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                 </main>
 
                 {/* Mobile bottom nav */}
-                <nav style={{
-                    position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--admin-sidebar)', borderTop: '1px solid var(--admin-border-soft)',
-                    padding: '10px 16px 20px', display: 'flex', justifyContent: 'flex-start', gap: 8, zIndex: 40,
-                    overflowX: 'auto'
-                }} className="md:hidden">
-                    {navItems.map(t => (
-                        <button key={t.id} onClick={() => setPage(t.id)} style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                            color: page === t.id ? 'var(--admin-accent-text)' : 'var(--admin-subtle)', padding: '4px 8px',
-                            fontFamily: 'inherit',
-                            minWidth: 72
-                        }}>
-                            <t.icon size={18} /> <span style={{ fontSize: 10, fontWeight: 600 }}>{t.label}</span>
+                <nav aria-label={`Secciones de ${seccionActiva?.label || 'la administracion'}`}
+                     className="admin-barra-inferior md:hidden">
+                    {(seccionActiva?.items || []).map(t => (
+                        <button key={t.id} onClick={() => setPage(t.id)}
+                                aria-current={page === t.id ? 'page' : undefined}
+                                className={page === t.id ? 'es-activo' : undefined}>
+                            <t.icon size={18} aria-hidden="true" />
+                            <span>{t.label}</span>
                         </button>
                     ))}
                 </nav>
@@ -232,9 +271,6 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
         @media (min-width: 768px) {
           aside.md\\:flex { display: flex !important; }
           .md\\:hidden { display: none !important; }
-        }
-        @media (max-width: 767px) {
-          main { height: calc(100vh - 65px) !important; }
         }
       `}</style>
         </div>

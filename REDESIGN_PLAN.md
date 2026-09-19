@@ -657,6 +657,44 @@ resultado en vivo. Lo medido corre sobre `specimen.html`, un banco de desarrollo
 COMPONENTE es el real (ninguno de los medidos hace llamadas de red) y lo reproducido es su
 contenedor. `AdminAccess` no se pudo medir en absoluto: consulta Supabase al montar.
 
+## A2.6c · Resultado medido de M3 — los dos ejes de navegación
+
+La barra inferior aplanaba **contexto** y **sección** en una sola lista de 13 destinos: a
+`minWidth:72` con `gap:8` medían **1064px dentro de una barra de 375**, o sea 689px de scroll
+*dentro de la navegación*. Ahora el contexto vive en el header como control segmentado y la
+sección en la barra, filtrada.
+
+**El contexto no es estado nuevo.** Los ids de página ya lo codifican (`general-`, `cafe-`,
+`clinic-`), así que se deriva de `page` con un `split('-')`. Un `useState` paralelo habría sido
+una segunda fuente de verdad capaz de desincronizarse; una derivación no puede.
+
+Medido a 375px, con los tres contextos:
+
+| Contexto | Destinos | Ancho c/u | Scroll en la barra |
+|---|---|---|---|
+| General | 4 | 80px | **0** |
+| Cafetería | 4 | 80px | **0** |
+| Consultorio | **5** | 62px | **0** |
+
+Consultorio tiene **cinco** destinos, no cuatro: a los 72px fijos de antes habrían sido 424px y
+seguirían sin caber en 375. Por eso los botones son `flex:1` y reparten el ancho en vez de
+declarar un mínimo. Alto 48px, ancho mínimo 62 — por encima del objetivo táctil de 44 en las dos
+dimensiones. Sin regresión a 1280: vuelve el sidebar, la barra inferior desaparece y el armazón
+vuelve a fila.
+
+**P2.4 confirmado y cerrado, de paso.** La auditoría lo tenía marcado como inferencia: el header
+móvil es **hermano** de `<main>` dentro de un flex en FILA, así que no se ponía encima del
+contenido sino **al lado**. `minWidth:900` lo tapaba; quitarlo lo destapó y se vio renderizando.
+Debajo de 768 el armazón pasa a columna. Se retiró también el `main { height: calc(100vh - 65px) }`
+que vivía en `AdminApp`: selector de etiqueta global con `!important` y un 65 escrito a mano que
+además ya mentía, porque el header ahora tiene dos renglones.
+
+**Guard nuevo, ejercitado contra el defecto que existe para atrapar.** Derivar el contexto del id
+crea un invariante: una entrada con id `clinic-…` dentro de la sección de Cafetería desaparecería
+de la barra **sin error ni pantalla en blanco**. `tests/front/admin-nav.test.mjs` lo vigila; se
+verificó inyectando el desajuste —confirmando primero que la inyección había entrado— y el guard
+nombró las cuatro entradas afectadas.
+
 ## A2.7 · Lo que esta fase deliberadamente NO toca
 
 Está en la auditoría, es grave, y **no es rediseño** — repintarlo sería esconderlo:
@@ -682,5 +720,5 @@ Merecen su propia fase, con una prueba que reproduzca cada uno antes del arreglo
 | **Fase 0.5 — Bugs de producción** | ✅ Reagendar (`a89529b`) y reserva pública (`9af996e`) |
 | **Fase 1 — Propuestas visuales + artifact** | ✅ Completa |
 | **Fase 1.5 — Responsive como requisito** | ✅ Completa · A «Oficio» **aprobada** por el dev |
-| **Fase 2 — Arquitectura y layout** | 🟢 **M1, M4 y M2 implementados y verificados** · M3 pendiente |
+| **Fase 2 — Arquitectura y layout** | ✅ **M1, M4, M2 y M3 implementados y verificados** |
 | Fase 3 — Implementación | ⬜ |

@@ -45,3 +45,33 @@ assert.deepEqual(huerfanas, [],
   `estas pantallas se renderizan pero no hay como llegar a ellas desde el menu: ${huerfanas.join(', ')}`);
 
 console.log(`admin-nav: ${enMenu.length} entradas, todas con render y permiso`);
+
+// --- M3: el contexto se DERIVA del id, asi que el id tiene que decir la
+// verdad ---------------------------------------------------------------
+//
+// La barra inferior movil ya no lista los 13 destinos: muestra solo los de
+// la seccion activa, y la seccion activa se deriva del prefijo de la
+// pagina ('general-', 'cafe-', 'clinic-'). Eso evita un useState paralelo
+// que se desincronice, pero crea un invariante nuevo: si una entrada vive
+// en la seccion de Cafeteria con un id 'clinic-algo', el prefijo no
+// coincide con su seccion y el destino DESAPARECE de la barra — sin error,
+// sin pantalla en blanco, sin nada que lo delate. Es la misma familia que
+// la pantalla inalcanzable de Personalizacion.
+const secciones = [...navBloque.matchAll(/contexto:\s*'([a-z]+)'[\s\S]*?items:\s*\[([\s\S]*?)\]\.filter\(Boolean\)/g)]
+  .map((m) => ({ contexto: m[1], ids: [...m[2].matchAll(/id:\s*'([a-z-]+)'/g)].map((x) => x[1]) }));
+
+assert.ok(secciones.length >= 3,
+  `se esperaban al menos 3 secciones con contexto declarado, se hallaron ${secciones.length}`);
+
+const descuadradas = secciones.flatMap(({ contexto, ids }) =>
+  ids.filter((id) => id.split('-')[0] !== contexto)
+     .map((id) => `${id} vive en la seccion '${contexto}' pero su prefijo dice '${id.split('-')[0]}'`));
+
+assert.deepEqual(descuadradas, [],
+  `el contexto de la barra inferior se deriva del prefijo del id; estas entradas no cuadran y quedarian invisibles en movil:\n  ${descuadradas.join('\n  ')}`);
+
+// Y toda entrada del menu pertenece a alguna seccion con contexto.
+const idsEnSecciones = secciones.flatMap((s) => s.ids);
+const sinContexto = enMenu.filter((id) => !idsEnSecciones.includes(id));
+assert.deepEqual(sinContexto, [],
+  `estas entradas no quedaron dentro de ninguna seccion con contexto declarado: ${sinContexto.join(', ')}`);

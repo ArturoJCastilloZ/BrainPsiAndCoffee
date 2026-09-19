@@ -24,6 +24,7 @@ import AdminOrders from './admin/AdminOrders';
 import AdminAccounting from './admin/AdminAccounting';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminSchedules from './admin/AdminSchedules';
+import AdminApp from './admin/AdminApp';
 import { THERAPISTS, THERAPY_SERVICES } from './data';
 import { todayISO, addDays } from './utils.jsx';
 
@@ -45,7 +46,7 @@ const CITAS = [
   { id: 'c5', serviceId: 'pareja',        therapistId: 't4', date: dia(3), time: '18:00', name: 'Lucía y Andrés',                   email: 'lucia.andres@ejemplo.com',               phone: '8111223344', notes: '', wantsCoffee: false, durationMinutes: 75, status: 'cancelled', price: 900, createdAt: hoy, reminderSent: false },
 ];
 
-const PANTALLAS = ['Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios'];
+const PANTALLAS = ['AdminApp', 'Citas', 'Pedidos', 'Contabilidad', 'Dashboard', 'Horarios'];
 const SESION = { user: { role: 'owner', name: 'Espécimen' } };
 // Se pasan los catalogos de demo explicitamente en vez de null: `catalogs?.x
 // || FALLBACK` esta roto en ambos sentidos ([] || x === []), y un especimen
@@ -59,16 +60,21 @@ const PEDIDOS = [
     items: [{ id: 'apego', name: 'Apego seguro', price: 70, qty: 1 }] },
 ];
 
+// ?limpio oculta los mandos del especimen: tapaban la barra inferior, que
+// es justo lo que hay que medir. Un banco de pruebas que estorba a la
+// medicion produce lecturas de su propio andamiaje.
+const LIMPIO = new URLSearchParams(location.search).has('limpio');
+
 function Especimen() {
   const [theme, setTheme] = useState('light');
-  const [pantalla, setPantalla] = useState('Citas');
+  const [pantalla, setPantalla] = useState('AdminApp');
   const [pedidos, setPedidos] = useState(PEDIDOS);
   const [citas, setCitas] = useState(CITAS);
   const isDark = theme === 'dark';
   return (
     <div data-theme={theme} style={{ minHeight: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: "'Outfit', system-ui, sans-serif", ...themeVars(isDark) }}>
       <GlobalStyle />
-      <div style={{ position: 'fixed', right: 8, bottom: 8, zIndex: 999 }}>
+      <div style={{ position: 'fixed', right: 8, bottom: 8, zIndex: 999, display: LIMPIO ? 'none' : 'block' }}>
         <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
           style={{ fontFamily: 'inherit', fontSize: 11, padding: '6px 10px', borderRadius: 999, cursor: 'pointer',
                    background: 'var(--admin-surface)', color: 'var(--admin-text)', border: '1px solid var(--admin-border-interactive)' }}>
@@ -77,7 +83,7 @@ function Especimen() {
       </div>
       {/* Reproduce el <main> de AdminApp.jsx: mismo padding, sin el
           minWidth:900 que M2 retiro. */}
-      <div style={{ position: 'fixed', left: 8, bottom: 8, zIndex: 999, display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: '70vw' }}>
+      <div style={{ position: 'fixed', left: 8, bottom: 8, zIndex: 999, display: LIMPIO ? 'none' : 'flex', gap: 4, flexWrap: 'wrap', maxWidth: '70vw' }}>
         {PANTALLAS.map(p => (
           <button key={p} onClick={() => setPantalla(p)}
             style={{ fontFamily: 'inherit', fontSize: 10, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
@@ -86,8 +92,20 @@ function Especimen() {
                      border: '1px solid var(--admin-border-interactive)' }}>{p}</button>
         ))}
       </div>
+      {pantalla === 'AdminApp' && (
+        <AdminApp
+          bookings={citas} setBookings={setCitas}
+          orders={pedidos} setOrders={setPedidos}
+          switchToUser={() => {}} logout={() => {}}
+          session={SESION} theme={theme} toggleTheme={() => setTheme(isDark ? 'light' : 'dark')}
+          catalogs={CATALOGOS} catalogActions={{ reload: () => {} }}
+        />
+      )}
       {/* Reproduce el <main> de AdminApp.jsx: mismo padding, sin el
-          minWidth:900 que M2 retiro. */}
+          minWidth:900 que M2 retiro. AdminApp NO va aqui: trae su propio
+          layout de 100vh y meterlo dentro seria medir un contenedor que en
+          la app no existe. */}
+      {pantalla !== 'AdminApp' && (
       <main id="especimen-main" style={{ padding: '24px', paddingBottom: 100, boxSizing: 'border-box' }}>
         <div>
           {pantalla === 'Citas'        && <AdminAppointments bookings={citas} setBookings={setCitas} catalogs={CATALOGOS} />}
@@ -97,6 +115,7 @@ function Especimen() {
           {pantalla === 'Horarios'     && <AdminSchedules catalogs={CATALOGOS} reload={() => {}} />}
         </div>
       </main>
+      )}
     </div>
   );
 }
