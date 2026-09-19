@@ -281,6 +281,7 @@ honesta contra el periodo anterior) está **enterrada** bajo "Administración ge
 | Riesgo | Mitigación |
 |---|---|
 | Tocar el sistema visual sin tokens rompe pantallas dispersas | Introducir escala de tipografía/espaciado/radio **antes** de cualquier cambio visual |
+| El responsive con estilos inline es imposible: no hay media queries | Las reglas de breakpoint exigen añadirlas al `<style>` global. Es el mismo cambio estructural que pide el anillo de foco |
 | Quitar `minWidth:900` destapa todos los desbordamientos a la vez | Hacerlo con una pantalla piloto, no global |
 | Los tres motores de disponibilidad divergen aún más | Unificar en `agenda.mjs` **antes** de tocar UI de agenda |
 | `0028` sin aplicar deja dinero expuesto | Aplicarla es independiente del rediseño; no debe esperar |
@@ -295,6 +296,7 @@ honesta contra el periodo anterior) está **enterrada** bajo "Administración ge
 # Decisiones pendientes
 - **Propuesta A u B.**
 - **Si el acento por contexto entra** o el contexto se queda solo en la navegación.
+- Si la barra inferior filtrada por contexto sustituye a la tira de 13 destinos.
 - Si se adopta escala de tokens de tipografía/espaciado o se mantiene inline.
 - Si el Dashboard se reescribe o se sustituye por Contabilidad como landing del dueño.
 - Cuáles oportunidades de negocio entran y en qué orden.
@@ -362,6 +364,57 @@ El `minWidth: 900`, el Dashboard del dueño, las paletas paralelas de MenuPage y
 de layout y de arquitectura: Fase 2. El anillo de foco **sí** exige un cambio estructural — añadir
 reglas al `<style>` global, porque con estilos inline `:focus-visible` no se puede declarar.
 
+## Responsive — requisito de primer nivel (añadido por el dev, 18 sep 2026)
+
+El dev señaló que la propuesta era de escritorio con una nota al pie sobre móvil. Tenía razón.
+El responsive pasa a ser parte del diseño, no una adaptación posterior.
+
+### Breakpoints derivados del CONTENIDO
+
+Se midió el **piso real** de cada pieza. Ningún corte viene de un nombre de dispositivo.
+
+| Pieza | Piso medido | Corte | Qué pasa debajo |
+|---|---|---|---|
+| Fila de cita | 512px | **520** | Dos líneas: hora + estado arriba, paciente + servicio abajo |
+| Fila de horario | 490px | **520** | El día sube como encabezado, los bloques se apilan |
+| Maestro-detalle de pacientes | 704px | **720** | Una columna: lista → detalle con volver |
+| Sidebar + contenido útil | 888px | **900** | Sidebar fuera; el contexto sube al header |
+| Cuatro tarjetas de KPI | 836px | **900 / 720** | 2×2, y luego una línea por KPI |
+| — | — | **1280** | El ancho extra va a más información, no a renglones más largos |
+
+### La decisión de navegación
+
+Hoy en móvil los tres encabezados de sección desaparecen y el dueño ve **13 destinos** en una tira
+horizontal sin saber en qué negocio está. El arreglo **no** es una hamburguesa: es **separar el eje
+de contexto del eje de sección**. Contexto en el header (control segmentado), secciones en la barra
+inferior **filtradas por ese contexto**. De 13 destinos a 4.
+
+### Cada tabla, su forma
+
+| Tabla | Qué es | En móvil |
+|---|---|---|
+| Citas | Una agenda | Fila de dos líneas; la fila entera es el objetivo táctil |
+| Por cobrar | Lista de pendientes con una acción | Tarjetas: saldo grande + «Cobrar» de ancho completo |
+| Gastos | Registro histórico | Lista; área y borrar en hoja inferior |
+| Por servicio / producto / terapeuta | Un **ranking**, no una tabla | Barra proporcional; núm. y promedio al tocar |
+| Últimos 6 meses | Una tendencia | La gráfica se queda; la tabla colapsa en acordeón |
+
+### Mobile-first vs desktop-first, por módulo
+
+- **Mobile-first:** reserva del paciente, pedidos de mostrador, leer la agenda del día.
+- **Tablet-first:** pacientes y notas (leer la última nota en teléfono sí; escribir una larga, no).
+- **Desktop-first:** agendar (necesita la rejilla de 35 días), catálogos, horarios, y contabilidad
+  para analizar — aunque en móvil debe responder *una* pregunta, no replicar el panel.
+
+### Verificado, y su límite
+
+Medido en el espécimen real a 375 / 768 / 990: sidebar fuera, barra inferior en `grid`, switcher en
+`flex`, fila de 61px → 95px, objetivo táctil de 63px, **cero desbordamiento**.
+
+**Límite honesto:** el panel del navegador no baja de 650px, así que no pude emular un teléfono
+físico. Los anchos se forzaron sobre el contenedor del espécimen (container queries), que es
+equivalente para el layout pero **no** prueba teclado virtual, safe areas ni gestos reales.
+
 # Design System
 **Pendiente — se formaliza al aprobar A o B.**
 
@@ -377,6 +430,7 @@ reglas al `<style>` global, porque con estilos inline `:focus-visible` no se pue
 | Selección de skills | ✅ Completa |
 | **Fase 0 — Auditoría** | ✅ Completa y aprobada |
 | **Fase 0.5 — Bugs de producción** | ✅ Reagendar (`a89529b`) y reserva pública (`9af996e`) |
-| **Fase 1 — Propuestas visuales + artifact** | ✅ **Completa — esperando elección A/B** |
+| **Fase 1 — Propuestas visuales + artifact** | ✅ Completa |
+| **Fase 1.5 — Responsive como requisito** | ✅ **Completa — esperando elección A/B** |
 | Fase 2 — Arquitectura y layout | ⬜ Bloqueada |
 | Fase 3 — Implementación | ⬜ |
