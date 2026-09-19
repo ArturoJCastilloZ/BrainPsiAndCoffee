@@ -871,10 +871,20 @@ se recorrieron **las nueve rutas** en el navegador —las cinco públicas, `/log
 `/doctor` **redirigen a `/login`** sin sesión, y que la ruta desconocida cae a `/`. Más una carga
 completa (no `pushState`) para ejercitar el arranque real.
 
-**Queda abierto, y es decisión del dev:** `vite`, `postcss` y `nanoid` siguen con avisos high. Al
-converger `node_modules` con el lockfile, vite quedó en **8.0.10**, que está dentro del rango
-vulnerable (8.0.0 – 8.0.15); el lockfile ya lo decía, no lo introdujo este cambio. Son
-dev-only, pero actualizarlos es barato y toca la cadena de build, así que no se hizo sin pedirlo.
+**Y la cadena de build, después:** `vite` **8.0.10 → 8.3.0**, que arrastró `postcss`
+8.5.14 → 8.5.28 y `nanoid` 3.3.12 → 3.3.19 — los dos eran transitivos suyos. `npm audit` pasa de
+5 avisos a **cero**.
+
+Un cambio de herramienta de build no lo prueba «compiló»: se sirvió el **bundle de producción**
+(`vite preview`, sin cliente de desarrollo — verificado) y se recorrieron ahí las nueve rutas, más
+un enlace profundo con carga completa a `/therapy`. Consola sin un solo error propio. Después se
+comprobó también el camino de desarrollo, que es distinto: Vite 8.3.0 levanta y sirve la app y el
+espécimen.
+
+**Hallazgo de paso:** `@vitejs/plugin-react` está declarado en `devDependencies` y **no se usa**.
+No existe `vite.config` y no se menciona en ningún archivo del proyecto: Vite 8 compila el JSX
+nativamente con oxc. Se deja anotado, no se retira — quitar una dependencia es una decisión
+aparte.
 
 ## A2.7 · Lo que esta fase deliberadamente NO toca
 
