@@ -126,7 +126,7 @@ function PasswordField({ label, value, onChange, showPassword, onToggle, invalid
       <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{label}</label>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, border: `1px solid ${invalid ? C.rust : (isDark ? '#2A332A' : C.sagePale)}`, marginBottom: invalid ? 6 : 14, background: isDark ? '#0F1410' : C.ivory }}>
         <Lock size={16} />
-        <input value={value} onChange={event => onChange(event.target.value)} type={showPassword ? 'text' : 'password'} autoComplete="new-password" required style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit' }} />
+        <input value={value} onChange={event => onChange(event.target.value)} type={showPassword ? 'text' : 'password'} autoComplete="new-password" required style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit' }} />
         <button type="button" onClick={onToggle} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
           {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
         </button>

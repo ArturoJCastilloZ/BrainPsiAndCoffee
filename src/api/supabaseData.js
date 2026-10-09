@@ -5,6 +5,7 @@ import { getSelectedTenant } from './tenant';
 import { supabase, assertSupabaseConfigured } from './supabaseClient';
 import { validateAppointment, validateOrder } from '../validation';
 import { BUSINESS } from '../businessInfo';
+import { todayISO } from '../localDay.mjs';
 import { isBarista } from '../auth/permissions';
 
 const throwIfError = ({ error }) => {
@@ -47,14 +48,14 @@ const mapTherapistFromDb = (row, services = []) => ({
   color: row.color || '#7A9E7E',
   active: row.active,
   services,
-  // Preferencias de agenda. La vista publica no las expone, asi que un
-  // visitante cae a los defaults; para agendar solo necesita los horarios,
-  // que se consultan aparte.
+  // Preferencias de agenda. Desde 0038 la vista publica tambien las trae;
+  // los respaldos son los DEFAULTS DE LA BASE (0016), no otros: con aviso
+  // minimo 0 el visitante veia horarios de hoy que la base rechazaba.
   bufferBefore: Number(row.buffer_before_minutes ?? 0),
   bufferAfter: Number(row.buffer_after_minutes ?? 30),
   // 0 = automatico: los horarios se encadenan a duracion + buffer.
   slotInterval: Number(row.slot_interval_minutes ?? 0),
-  minimumNotice: Number(row.minimum_notice_minutes ?? 0),
+  minimumNotice: Number(row.minimum_notice_minutes ?? 1440),
   bookingWindowDays: Number(row.booking_window_days ?? 90),
   maxBookingsPerDay: Number(row.max_bookings_per_day ?? 12),
   timezone: row.timezone || 'America/Mexico_City',
@@ -205,6 +206,9 @@ const mapAppointmentFromDb = (row) => ({
   name: row.customer_name,
   email: row.customer_email,
   phone: row.customer_phone,
+  // 0038: cita para un menor. name es entonces el adulto responsable.
+  forMinor: Boolean(row.for_minor),
+  patientName: row.patient_name || '',
   notes: row.notes || '',
   wantsCoffee: row.wants_coffee,
   status: row.status,
@@ -216,6 +220,19 @@ const mapAppointmentFromDb = (row) => ({
   // No viaja de vuelta en mapAppointmentToDb a proposito — lo pone y lo
   // conserva el trigger freeze_appointment_price.
   price: toNumber(row.price),
+});
+
+// Un rango ocupado con la forma de una cita, para que el motor de agenda
+// (agenda.mjs) lo trate igual que las citas que ve el personal.
+const mapBusySlotFromDb = (row, i) => ({
+  id: `ocupado-${i}`,
+  therapistId: row.therapist_id,
+  date: row.appointment_date,
+  time: String(row.appointment_time || '').slice(0, 5),
+  durationMinutes: Number(row.duration_minutes || 50),
+  bufferBefore: row.buffer_before_minutes ?? undefined,
+  bufferAfter: row.buffer_after_minutes ?? undefined,
+  status: 'confirmed',
 });
 
 export const PRIVACY_NOTICE_VERSION = '2026-08-v1';
@@ -230,6 +247,8 @@ const mapAppointmentToDb = (item) => ({
   customer_name: item.name,
   customer_email: item.email,
   customer_phone: item.phone,
+  for_minor: Boolean(item.forMinor),
+  patient_name: item.forMinor ? String(item.patientName || '').trim() : null,
   notes: String(item.notes || '').slice(0, 280),
   wants_coffee: Boolean(item.wantsCoffee),
   duration_minutes: Number(item.durationMinutes) > 0 ? Number(item.durationMinutes) : 50,
@@ -243,6 +262,9 @@ const mapPatientFromDb = (row) => ({
   name: row.full_name,
   email: row.email,
   phone: row.phone,
+  // 0038: paciente menor; email y phone son los del adulto responsable.
+  isMinor: Boolean(row.is_minor),
+  guardianName: row.guardian_name || '',
   active: row.active,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -316,7 +338,7 @@ export const loadCatalogs = async () => {
   const { data: sessionData } = await supabase.auth.getSession();
   const therapistsSource = sessionData?.session ? 'therapists' : 'therapists_public';
 
-  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, optionsResult, offersResult, settingsResult, schedulesResult] = await Promise.all([
+  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, optionsResult, offersResult, settingsResult, schedulesResult, busyResult] = await Promise.all([
     supabase.from('therapy_services').select('*').order('created_at'),
     supabase.from(therapistsSource).select('*').order('created_at'),
     supabase.from('specialties').select('*').order('created_at'),
@@ -327,12 +349,15 @@ export const loadCatalogs = async () => {
     // Ya no es el singleton 'main': hay una fila por clinica y RLS
     // devuelve solo la del tenant activo.
     supabase.from('business_settings').select('*').maybeSingle(),
-    // Los horarios los lee solo el personal autenticado: para el visitante
-    // la disponibilidad se valida en la base, sin publicar la agenda de
-    // nadie. Sin sesion se devuelve vacio en vez de fallar.
+    // Los horarios de atencion los lee TAMBIEN el visitante (policy de
+    // 0029). Antes, sin sesion se devolvia vacio: la reserva publica no
+    // tenia un solo horario que ofrecer, aunque la base ya lo permitia.
+    supabase.from('therapist_schedules').select('*').order('weekday').order('start_time'),
+    // Lo ocupado, sin datos de nadie (0038). Solo hace falta sin sesion:
+    // el personal ya lee las citas completas.
     sessionData?.session
-      ? supabase.from('therapist_schedules').select('*').order('weekday').order('start_time')
-      : Promise.resolve({ data: [], error: null }),
+      ? Promise.resolve({ data: [], error: null })
+      : supabase.rpc('busy_slots', { p_from: todayISO(), p_days: 42 }),
   ]);
 
   [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult].forEach(throwIfError);
@@ -382,6 +407,10 @@ export const loadCatalogs = async () => {
     menu,
     offers: (offersResult.data || []).map(mapOfferFromDb),
     settings: mapSettingsFromDb(settingsResult.data),
+    // Si busy_slots aun no existe (0038 sin aplicar) o falla, la reserva
+    // sigue: el choque lo detecta la base al enviar, como antes. No se
+    // tumba el catalogo entero por un atajo.
+    busy: (busyResult.error ? [] : (busyResult.data || [])).map(mapBusySlotFromDb),
   };
 };
 

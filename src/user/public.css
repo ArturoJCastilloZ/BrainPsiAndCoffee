@@ -1,0 +1,318 @@
+/* Sitio publico · Fase 4 (auditoria 2026-10-09, seccion 5).
+ *
+ * Tesis: una cafeteria de barrio con oficio, donde la consulta se pide
+ * como un cafe — precio a la vista, horario claro. Lo memorable es UNA
+ * cosa, el pizarron; todo lo demas va callado.
+ *
+ * Clases de un solo nivel con prefijo pub- para que la especificidad no
+ * se pelee entre si. Los colores salen de los tokens de themeVars
+ * (GlobalStyle.jsx), que ya cambian con el tema.
+ */
+
+.pub {
+  --pub-gutter: 16px;
+  --pub-max: 1120px;
+  --pub-board: #2B2622;
+  --pub-board-line: #4A4038;
+  --pub-board-text: #F2EADF;
+  --pub-board-muted: #CDBFAE;
+  --pub-board-price: #E2B577;
+  color: var(--bp-brown);
+  font-size: 17px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+[data-theme="dark"] .pub {
+  --pub-board: #2A231D;
+  --pub-board-line: #4E4339;
+}
+@media (min-width: 720px) {
+  .pub { --pub-gutter: 32px; }
+}
+
+.pub-wrap { width: 100%; max-width: var(--pub-max); margin: 0 auto; padding: 0 var(--pub-gutter); box-sizing: border-box; }
+.pub-main { flex: 1; padding-bottom: 88px; }
+@media (min-width: 900px) { .pub-main { padding-bottom: 0; } }
+
+.pub-skip {
+  position: absolute; left: 8px; top: -60px; z-index: 100;
+  background: var(--bp-primary); color: var(--bp-primary-contrast);
+  padding: 10px 14px; border-radius: var(--bp-radius-md); text-decoration: none;
+}
+.pub-skip:focus { top: 8px; }
+
+/* ---------- Encabezado ---------- */
+.pub-header {
+  position: sticky; top: 0; z-index: 40;
+  background: color-mix(in srgb, var(--bp-ivory) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--bp-sage-pale);
+}
+.pub-header-row { display: flex; align-items: center; gap: 24px; min-height: 64px; }
+.pub-brand { display: flex; align-items: center; gap: 10px; color: var(--bp-brown); text-decoration: none; margin-right: auto; }
+.pub-brand-name { font-family: var(--bp-font-display); font-size: 21px; font-weight: 600; letter-spacing: -0.01em; line-height: 1; }
+.pub-brand-sub { display: block; font-size: 13px; color: var(--bp-brown-mid); line-height: 1.3; white-space: nowrap; }
+.pub-brand-name { white-space: nowrap; }
+@media (max-width: 419px) {
+  .pub-brand-sub { display: none; }
+  .pub-header-row { gap: 8px; }
+  .pub-header-actions { gap: 0; }
+  .pub-brand-name { font-size: 19px; }
+  .pub-header-actions .pub-icon-btn { width: 40px; height: 40px; }
+}
+
+.pub-nav { display: none; gap: 4px; }
+@media (min-width: 900px) { .pub-nav { display: flex; } }
+.pub-nav-link {
+  color: var(--bp-brown-mid); text-decoration: none; font-size: 16px;
+  padding: 8px 12px; border-radius: var(--bp-radius-md);
+}
+.pub-nav-link:hover { color: var(--bp-brown); background: var(--bp-sage-pale); }
+.pub-nav-link[aria-current="page"] { color: var(--bp-brown); font-weight: 700; }
+
+.pub-header-actions { display: flex; align-items: center; gap: 8px; }
+.pub-icon-btn {
+  position: relative; display: inline-grid; place-items: center;
+  width: 44px; height: 44px; border-radius: var(--bp-radius-pill);
+  background: transparent; border: 1px solid transparent; color: var(--bp-brown);
+  cursor: pointer; text-decoration: none;
+}
+.pub-icon-btn:hover { background: var(--bp-sage-pale); }
+.pub-badge {
+  position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 999px; background: var(--bp-rust-text); color: #fff;
+  font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; box-sizing: border-box;
+}
+/* Doble clase: .pub-btn (mas abajo) declara display y, con la misma
+   especificidad, ganaba por orden — el boton aparecia en el telefono. */
+.pub-btn.pub-header-cta { display: none; }
+@media (min-width: 900px) { .pub-btn.pub-header-cta { display: inline-flex; } }
+
+/* ---------- Botones ---------- */
+.pub-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 22px; border-radius: var(--bp-radius-pill);
+  font-size: 16px; font-weight: 700; text-decoration: none; cursor: pointer;
+  border: 1.5px solid transparent; box-sizing: border-box;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.pub-btn-primary { background: var(--bp-primary); color: var(--bp-primary-contrast); }
+.pub-btn-primary:hover { background: var(--bp-primary-hover); }
+.pub-btn-ghost { background: transparent; color: var(--bp-brown); border-color: var(--bp-brown-light); }
+.pub-btn-ghost:hover { border-color: var(--bp-brown); }
+.pub-btn-small { min-height: 40px; padding: 0 16px; font-size: 15px; }
+.pub-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pub-link { color: var(--bp-sage-text); font-weight: 700; text-underline-offset: 3px; }
+
+/* ---------- Hero ---------- */
+.pub-hero { padding: 40px 0 48px; }
+@media (min-width: 900px) { .pub-hero { padding: 72px 0 80px; } }
+.pub-hero-grid { display: grid; gap: 40px; align-items: start; }
+@media (min-width: 900px) { .pub-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: 56px; } }
+
+.pub-hero-title {
+  font-family: var(--bp-font-display); font-weight: 400; font-optical-sizing: auto;
+  font-size: clamp(44px, 10vw, 84px); line-height: 0.98; letter-spacing: -0.03em;
+  margin: 0 0 20px; color: var(--bp-brown);
+  animation: pubEntrada 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.pub-hero-lead { font-size: 19px; line-height: 1.55; color: var(--bp-brown-mid); max-width: 34em; margin: 0 0 28px; }
+.pub-hero-lead strong { color: var(--bp-brown); font-weight: 700; }
+.pub-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* El unico momento orquestado del sitio: titular y pizarron entran
+   juntos al cargar. Lo demas solo responde a lo que haga la persona. */
+@keyframes pubEntrada { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.pub-hero .pub-board { animation: pubEntrada 0.7s 0.12s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* ---------- Proximos horarios ---------- */
+.pub-slots { margin-top: 32px; }
+.pub-slots-title { font-size: 15px; color: var(--bp-brown-mid); margin: 0 0 10px; }
+.pub-slots-list { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.pub-slot {
+  display: inline-flex; align-items: baseline; gap: 6px; min-height: 44px; box-sizing: border-box;
+  padding: 9px 14px; border-radius: var(--bp-radius-md);
+  background: var(--bp-surface); border: 1px solid var(--bp-sage-pale); color: var(--bp-brown);
+  text-decoration: none; font-size: 15px; font-variant-numeric: tabular-nums;
+}
+.pub-slot:hover { border-color: var(--bp-sage-text); }
+.pub-slot strong { font-weight: 700; }
+
+/* ---------- Pizarron (elemento firma) ---------- */
+.pub-board {
+  background: var(--pub-board); color: var(--pub-board-text);
+  border-radius: 6px; padding: 28px 24px 24px;
+  box-shadow: inset 0 0 0 1px var(--pub-board-line), 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+@media (min-width: 720px) { .pub-board { padding: 36px 36px 30px; } }
+.pub-board-title {
+  font-family: var(--bp-font-display); font-weight: 400; font-size: 30px; line-height: 1.1;
+  margin: 0 0 6px; color: var(--pub-board-text);
+}
+.pub-board-note { font-size: 15px; color: var(--pub-board-muted); margin: 0 0 18px; }
+.pub-board-list { list-style: none; margin: 0; padding: 0; }
+.pub-board-item { border-top: 1px dashed var(--pub-board-line); }
+.pub-board-item:first-child { border-top: none; }
+.pub-board-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px;
+  padding: 14px 0; color: inherit; text-decoration: none;
+}
+a.pub-board-row:hover .pub-board-name { text-decoration: underline; text-underline-offset: 4px; }
+.pub-board-name { font-family: var(--bp-font-display); font-size: 21px; font-weight: 600; line-height: 1.25; }
+.pub-board-price {
+  font-size: 21px; font-weight: 700; color: var(--pub-board-price);
+  font-variant-numeric: tabular-nums; align-self: baseline; white-space: nowrap;
+}
+.pub-board-detail { grid-column: 1 / -1; font-size: 15px; color: var(--pub-board-muted); line-height: 1.45; }
+/* Linea de puntos entre nombre y precio, solo cuando cabe en un renglon. */
+@media (min-width: 560px) {
+  .pub-board-row { grid-template-columns: minmax(0, max-content) minmax(24px, 1fr) auto auto; align-items: baseline; }
+  .pub-board-leader { border-bottom: 2px dotted var(--pub-board-line); transform: translateY(-5px); }
+  .pub-board-time { font-size: 15px; color: var(--pub-board-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* La descripcion ocupa el ancho de nombre + puntos: no se aprieta
+     contra el precio. */
+  .pub-board-detail { grid-column: 1 / 3; max-width: 34em; }
+}
+@media (max-width: 559px) {
+  .pub-board-leader { display: none; }
+  .pub-board-time { grid-column: 1 / -1; grid-row: 2; font-size: 15px; color: var(--pub-board-muted); }
+  .pub-board-detail { grid-row: 3; }
+}
+.pub-board-foot { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--pub-board-line); font-size: 15px; color: var(--pub-board-muted); }
+.pub-board-empty { color: var(--pub-board-muted); margin: 8px 0 0; }
+.pub-board a.pub-board-cta { color: var(--pub-board-price); font-weight: 700; }
+
+/* ---------- Secciones ---------- */
+.pub-section { padding: 48px 0; }
+@media (min-width: 900px) { .pub-section { padding: 72px 0; } }
+.pub-section-alt { background: var(--bp-surface-2); }
+.pub-h2 {
+  font-family: var(--bp-font-display); font-weight: 400; font-size: clamp(30px, 5vw, 44px);
+  line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 14px; color: var(--bp-brown);
+}
+.pub-h3 { font-family: var(--bp-font-display); font-weight: 600; font-size: 22px; line-height: 1.25; margin: 0 0 6px; }
+.pub-lead { font-size: 18px; color: var(--bp-brown-mid); max-width: 36em; margin: 0 0 24px; }
+.pub-two { display: grid; gap: 32px; }
+@media (min-width: 900px) { .pub-two { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 64px; align-items: start; } }
+
+/* Franja de confianza: hechos cortos, sin iconos de colores. */
+.pub-facts { display: grid; gap: 0; list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--bp-sage-pale); }
+@media (min-width: 720px) { .pub-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: none; } }
+.pub-fact { padding: 18px 0; border-bottom: 1px solid var(--bp-sage-pale); }
+@media (min-width: 720px) { .pub-fact { padding: 4px 20px 4px 0; border-bottom: none; } }
+.pub-fact strong { display: block; font-size: 17px; color: var(--bp-brown); }
+.pub-fact span { font-size: 15px; color: var(--bp-brown-mid); }
+
+/* Pasos: SI es una secuencia, por eso va numerada. */
+.pub-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 24px; counter-reset: paso; }
+@media (min-width: 720px) { .pub-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; } }
+.pub-step { counter-increment: paso; }
+.pub-step::before {
+  content: counter(paso); display: block; font-family: var(--bp-font-display);
+  font-size: 44px; line-height: 1; color: var(--bp-caramel); margin-bottom: 8px;
+}
+.pub-step p { margin: 0; color: var(--bp-brown-mid); font-size: 16px; }
+
+.pub-quote {
+  font-family: var(--bp-font-display); font-weight: 400; font-size: clamp(24px, 3.4vw, 34px);
+  line-height: 1.3; letter-spacing: -0.01em; margin: 0; max-width: 28em; color: var(--bp-brown);
+}
+
+.pub-notice {
+  border-left: 3px solid var(--bp-sage-text); background: var(--bp-surface);
+  padding: 14px 16px; border-radius: 0 var(--bp-radius-md) var(--bp-radius-md) 0;
+  font-size: 15px; color: var(--bp-brown); line-height: 1.55;
+}
+
+/* Lista de especialistas: persona, especialidad y cedula. */
+.pub-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+@media (min-width: 720px) { .pub-people { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pub-person { display: flex; gap: 14px; align-items: flex-start; padding: 16px 0; border-top: 1px solid var(--bp-sage-pale); }
+.pub-avatar {
+  flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 700; color: #1E1B18; background: var(--bp-caramel-light);
+}
+.pub-person-meta { font-size: 15px; color: var(--bp-brown-mid); margin: 2px 0 0; }
+
+/* ---------- Pie ---------- */
+.pub-footer { background: var(--pub-board); color: var(--pub-board-text); padding: 48px 0 112px; font-size: 15px; }
+@media (min-width: 900px) { .pub-footer { padding-bottom: 48px; } }
+.pub-footer-grid { display: grid; gap: 32px; }
+@media (min-width: 720px) { .pub-footer-grid { grid-template-columns: 1.2fr 1fr 1fr; } }
+.pub-footer h2 { font-family: var(--bp-font-display); font-size: 20px; font-weight: 600; margin: 0 0 10px; color: var(--pub-board-text); }
+.pub-footer p, .pub-footer li { color: var(--pub-board-muted); margin: 0 0 6px; }
+.pub-footer ul { list-style: none; margin: 0; padding: 0; }
+.pub-footer a { color: var(--pub-board-text); text-underline-offset: 3px; }
+.pub-footer-crisis { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--pub-board-line); color: var(--pub-board-text); }
+.pub-footer-crisis strong { color: var(--pub-board-price); }
+
+/* ---------- Barra inferior (solo telefono) ---------- */
+.pub-tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  background: color-mix(in srgb, var(--bp-ivory) 96%, transparent); backdrop-filter: blur(16px);
+  border-top: 1px solid var(--bp-sage-pale);
+  padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+}
+@media (min-width: 900px) { .pub-tabbar { display: none; } }
+.pub-tabbar ul { list-style: none; margin: 0 auto; padding: 0; max-width: 560px; display: flex; justify-content: space-around; }
+.pub-tab {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 64px; min-height: 48px;
+  justify-content: center; padding: 4px 8px; border-radius: var(--bp-radius-md);
+  color: var(--bp-brown-mid); text-decoration: none; font-size: 13px;
+}
+.pub-tab[aria-current="page"] { color: var(--bp-brown); font-weight: 700; }
+
+/* ---------- Aviso flotante ---------- */
+.pub-toast {
+  position: fixed; top: 76px; right: 16px; left: 16px; z-index: 100; margin-left: auto;
+  max-width: 420px; display: flex; gap: 10px; align-items: center;
+  background: var(--bp-brown); color: var(--bp-ivory);
+  padding: 12px 16px; border-radius: var(--bp-radius-lg); font-size: 15px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  animation: pubEntrada 0.25s ease-out both;
+}
+.pub-toast-error { background: var(--bp-rust-text); color: #fff; }
+
+/* ---------- Ticket de la solicitud ---------- */
+.pub-ticket {
+  background: var(--bp-surface); color: var(--bp-brown);
+  border: 1px solid var(--bp-sage-pale); border-radius: 4px;
+  padding: 24px 22px; max-width: 420px; margin: 0 auto 24px; text-align: left;
+  font-variant-numeric: tabular-nums;
+  /* Bordes de comanda: muescas arriba y abajo. */
+  -webkit-mask: radial-gradient(circle 6px at 50% 0, transparent 98%, #000) 0 0 / 18px 51% repeat-x,
+                radial-gradient(circle 6px at 50% 100%, transparent 98%, #000) 0 100% / 18px 51% repeat-x;
+          mask: radial-gradient(circle 6px at 50% 0, transparent 98%, #000) 0 0 / 18px 51% repeat-x,
+                radial-gradient(circle 6px at 50% 100%, transparent 98%, #000) 0 100% / 18px 51% repeat-x;
+}
+.pub-ticket-when { font-family: var(--bp-font-display); font-size: 30px; line-height: 1.1; margin: 4px 0 2px; }
+.pub-ticket-sub { color: var(--bp-brown-mid); font-size: 15px; margin: 0; }
+.pub-ticket-rule { border: none; border-top: 2px dotted var(--bp-sage-pale); margin: 16px 0; }
+.pub-ticket-row { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; padding: 3px 0; }
+.pub-ticket-row span:first-child { color: var(--bp-brown-mid); }
+.pub-ticket-row span:last-child { text-align: right; font-weight: 700; }
+
+/* ---------- Formularios publicos ---------- */
+.pub-field { display: grid; gap: 6px; }
+.pub-label { font-size: 15px; font-weight: 700; color: var(--bp-brown); }
+.pub-hint { font-size: 14px; color: var(--bp-brown-mid); }
+.pub-input {
+  width: 100%; box-sizing: border-box; min-height: 48px; padding: 10px 14px;
+  font-size: 17px; color: var(--bp-brown); background: var(--bp-surface);
+  border: 1.5px solid var(--admin-border-interactive); border-radius: var(--bp-radius-md);
+}
+.pub-input:focus-visible { border-color: var(--bp-focus-ring); }
+.pub-input[aria-invalid="true"] { border-color: var(--bp-rust-text); }
+.pub-error { font-size: 14px; font-weight: 700; color: var(--bp-rust-text); }
+.pub-choice-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pub-choice {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 16px;
+  border-radius: var(--bp-radius-pill); border: 1.5px solid var(--admin-border-interactive);
+  background: var(--bp-surface); color: var(--bp-brown); cursor: pointer; font-size: 16px;
+}
+.pub-choice[aria-pressed="true"], .pub-choice[aria-checked="true"] {
+  border-color: var(--bp-brown); background: var(--bp-brown); color: var(--bp-ivory); font-weight: 700;
+}

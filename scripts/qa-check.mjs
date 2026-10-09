@@ -15,12 +15,12 @@ assert(indexHtml.includes('<!doctype html>'), 'index.html debe declarar doctype.
 assert(indexHtml.includes('lang="es-MX"'), 'index.html debe declarar lang es-MX.');
 assert(indexHtml.includes('name="description"'), 'index.html debe incluir meta description.');
 
-assert(exists('public/robots.txt'), 'Debe existir public/robots.txt.');
-assert(exists('public/sitemap.xml'), 'Debe existir public/sitemap.xml.');
-const sitemap = read('public/sitemap.xml');
-['/', '/coffee', '/therapy', '/contacto', '/privacidad'].forEach((route) => {
-  assert(sitemap.includes(`brainpsicoffee.com${route === '/' ? '/' : route}`), `Sitemap debe incluir ${route}.`);
-});
+// robots.txt y sitemap.xml ya no son archivos fijos: los escribe el build
+// desde src/seo/routes.mjs (scripts/prerender.mjs), igual que el <head> de
+// cada ruta. Las pruebas de tests/front/seo.test.mjs los revisan.
+assert(!exists('public/sitemap.xml'), 'public/sitemap.xml fijo pisaria al generado: el sitemap sale de src/seo/routes.mjs.');
+assert(indexHtml.includes('<!--route-head-->') && indexHtml.includes('<!--prerender-->'),
+  'index.html debe conservar las marcas que usa el prerender (<!--route-head--> y <!--prerender-->).');
 
 const envExample = read('.env.example');
 [

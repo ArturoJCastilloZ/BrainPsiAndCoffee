@@ -3,6 +3,7 @@ export const C = {
   sageDark: 'var(--bp-sage-dark)',
   sageDeep: 'var(--bp-sage-deep)',
   sageLight: 'var(--bp-sage-light)',
+  sageText: 'var(--bp-sage-text)',
   sagePale: 'var(--bp-sage-pale)',
   cream: 'var(--bp-cream)',
   creamLight: 'var(--bp-cream-light)',

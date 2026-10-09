@@ -32,3 +32,12 @@ export const ocupaHorario = (cita, ahora = new Date()) =>
 // compromiso: contarla inflaria lo facturado con citas que quiza no pasen.
 export const cuentaComoFacturada = (cita) =>
   cita?.status !== 'cancelled' && cita?.status !== 'requested';
+
+// Para quien es la cita (0038). Si es para una niña o un niño, el
+// paciente es el menor y `name` es el adulto que reservo: la agenda tiene
+// que nombrar a quien se atiende, no a quien llamo.
+export const nombrePaciente = (cita) =>
+  (cita?.forMinor && cita?.patientName ? cita.patientName : cita?.name || '');
+
+export const etiquetaPaciente = (cita) =>
+  (cita?.forMinor && cita?.patientName ? `${cita.patientName} (con ${cita.name})` : cita?.name || '');

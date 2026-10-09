@@ -14,8 +14,12 @@ import TenantPicker from './components/TenantPicker';
 import PendingInvitations from './components/PendingInvitations';
 import { myPendingInvitations, acceptTenantInvitation, declineTenantInvitation } from './api/supabaseData';
 import GlobalStyle, { themeVars } from './GlobalStyle';
+import { useRouteHead } from './seo/useRouteHead';
+// El sitio publico va en el paquete inicial, NO lazy: es lo que ve todo
+// visitante, y cargarlo aparte cambiaba el HTML prerenderizado por un
+// "Cargando…" mientras llegaba el chunk. Admin y doctor siguen aparte.
+import UserApp from './user/UserApp';
 
-const UserApp = lazy(() => import('./user/UserApp'));
 const AdminApp = lazy(() => import('./admin/AdminApp'));
 const DoctorApp = lazy(() => import('./doctor/DoctorApp'));
 const Login = lazy(() => import('./components/Login'));
@@ -40,8 +44,16 @@ export default function App() {
   const showSessionWarning = useSessionWarning();
   const navigate = useNavigate();
   const location = useLocation();
+  // Titulo, descripcion y robots de CADA ruta, publica o no: entrar a
+  // /login navegando dejaba el titulo y el 'index' de la portada.
+  useRouteHead();
 
   const isDark = theme === 'dark';
+  // El fondo de <html> (lo que se ve al estirar la pagina en el telefono)
+  // lo puso theme-boot.js antes de pintar; se mantiene al cambiar de tema.
+  React.useEffect(() => {
+    document.documentElement.classList.toggle('tema-oscuro', isDark);
+  }, [isDark]);
   const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
   const goUser = () => navigate('/');
   const logout = () => {
@@ -172,7 +184,7 @@ export default function App() {
     <div data-theme={theme} style={{
       background: C.ivory,
       minHeight: '100vh',
-      fontFamily: "'Outfit', system-ui, sans-serif",
+      fontFamily: 'var(--bp-font-text)',
       ...themeVars(isDark)
     }}>
       <GlobalStyle />
@@ -203,11 +215,6 @@ export default function App() {
       <ErrorBoundary resetKey={location.pathname}>
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route path="/" element={<UserApp initialPage="home" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
-          <Route path="/coffee" element={<UserApp initialPage="menu" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
-          <Route path="/therapy" element={<UserApp initialPage="therapy" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
-          <Route path="/contacto" element={<UserApp initialPage="contact" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
-          <Route path="/privacidad" element={<UserApp initialPage="privacy" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
           <Route path="/login" element={<Login onLogin={(nextSession) => navigate(isDoctor(nextSession?.user.role) ? '/doctor' : '/admin', { replace: true })} onCancel={goUser} theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/set-password" element={<SetPassword session={session} onComplete={() => navigate(isDoctor(session?.user.role) ? '/doctor' : '/admin', { replace: true })} theme={theme} toggleTheme={toggleTheme} />} />
           {/* Mientras se lee la sesion guardada no se decide nada: antes
@@ -231,7 +238,9 @@ export default function App() {
               <Navigate to="/login" replace />
             )
           } />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* El sitio publico tiene sus propias rutas (/terapia, /reservar,
+              ...) y su 404: ver user/UserApp.jsx. */}
+          <Route path="/*" element={<UserApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
         </Routes>
       </Suspense>
       </ErrorBoundary>
@@ -251,7 +260,7 @@ function Marco({ theme, isDark, children }) {
     <div data-theme={theme} style={{
       background: C.ivory,
       minHeight: '100vh',
-      fontFamily: "'Outfit', system-ui, sans-serif",
+      fontFamily: 'var(--bp-font-text)',
       ...themeVars(isDark),
     }}>
       <GlobalStyle />

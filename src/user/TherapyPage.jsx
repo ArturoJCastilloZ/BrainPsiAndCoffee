@@ -1,145 +1,101 @@
 import React from 'react';
-import { Calendar as CalendarIcon, HeartHandshake, Laptop, MapPin, MessageCircle, ShieldCheck } from 'lucide-react';
-import { C } from '../theme';
+import { Link } from 'react-router-dom';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
-import { formatMXN } from '../utils.jsx';
+import { enlaceReserva } from '../nextSlots.mjs';
+import { initials } from '../utils.jsx';
+import Pizarron, { precio } from './Pizarron';
 
-export default function TherapyPage({ catalogs, setPage }) {
-  const services = (catalogs?.services || []).filter((item) => item.active !== false);
-  const therapists = (catalogs?.therapists || []).filter((item) => item.active !== false);
+export default function TherapyPage({ catalogs, dataLoading }) {
+  const services = (catalogs?.services || []).filter((s) => s.active !== false);
+  const therapists = (catalogs?.therapists || []).filter((t) => t.active !== false);
   const business = businessFromSettings(catalogs?.settings);
+  // "Cargando" y "no hay" son cosas distintas, y se dicen distinto. Antes
+  // esta pagina afirmaba "no hay servicios" mientras la consulta seguia en
+  // camino.
+  const cargando = dataLoading && services.length === 0;
 
   return (
-    <div style={{ paddingBottom: 70 }}>
-      <section style={{ padding: '54px 20px 42px', background: `linear-gradient(180deg, ${C.creamLight}, ${C.ivory})` }}>
-        <div style={{ maxWidth: 980, margin: '0 auto' }}>
-          <span style={{ fontSize: 11, color: C.sageDark, fontWeight: 800, letterSpacing: 2 }}>TERAPIA PSICOLOGICA</span>
-          <h1 className="font-display" style={{ fontSize: 'clamp(38px, 8vw, 62px)', color: C.brown, lineHeight: 1.02, margin: '8px 0 14px', fontWeight: 600 }}>
-            Acompanamiento profesional, claro y confidencial.
-          </h1>
-          <p style={{ fontSize: 16, color: C.brownMid, lineHeight: 1.65, maxWidth: 680, margin: '0 0 22px' }}>
-            Agenda una primera sesion de psicologia o neuropsicologia. Para proteger tu privacidad, el formulario solo solicita datos de contacto y agenda.
-          </p>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button onClick={() => setPage('book')} style={primaryButton}>
-              <CalendarIcon size={17} /> Solicitar cita
-            </button>
-            <a href={whatsappUrl('Hola, quiero informacion sobre terapia psicologica.', business)} style={secondaryButton}>
-              <MessageCircle size={17} /> WhatsApp
-            </a>
+    <>
+      <section className="pub-hero">
+        <div className="pub-wrap pub-hero-grid">
+          <div>
+            <h1 className="pub-hero-title">Terapia con precio a la vista.</h1>
+            <p className="pub-hero-lead">
+              Psicología y neuropsicología para niñas, niños y adultos. Cada servicio dice cuánto dura
+              y cuánto cuesta antes de que pidas la cita; el formulario solo pide datos de contacto.
+            </p>
+            <div className="pub-actions">
+              <Link to="/reservar" className="pub-btn pub-btn-primary">Ver horarios disponibles</Link>
+              <a className="pub-btn pub-btn-ghost" target="_blank" rel="noreferrer"
+                href={whatsappUrl('Hola, quiero información sobre terapia.', business)}>
+                Preguntar por WhatsApp
+              </a>
+            </div>
+          </div>
+          <Pizarron
+            id="pizarron-terapia"
+            titulo="Servicios"
+            items={services.map((s) => ({
+              id: s.id,
+              nombre: s.name,
+              tiempo: `${s.duration} min`,
+              precio: precio(s.price),
+              detalle: [s.for, s.desc].filter(Boolean).join(' · '),
+              href: enlaceReserva({ serviceId: s.id }),
+            }))}
+            vacio={cargando ? 'Cargando el pizarrón…' : 'Todavía no hay servicios publicados. Escríbenos por WhatsApp y te contamos qué hay disponible.'}
+            pie="Pagas en el consultorio el día de tu cita."
+          />
+        </div>
+      </section>
+
+      <section className="pub-section pub-section-alt">
+        <div className="pub-wrap">
+          <h2 className="pub-h2">Quién te atiende</h2>
+          {therapists.length === 0 ? (
+            <p className="pub-lead">
+              {dataLoading ? 'Cargando el equipo…' : 'Estamos por publicar al equipo. Mientras, escríbenos y te decimos quién atiende cada servicio.'}
+            </p>
+          ) : (
+            <ul className="pub-people">
+              {therapists.map((t) => (
+                <li key={t.id} className="pub-person">
+                  <span className="pub-avatar" aria-hidden="true">{initials(t.name)}</span>
+                  <div>
+                    <h3 className="pub-h3" style={{ margin: 0 }}>{t.name}</h3>
+                    <p className="pub-person-meta">{t.specialty}</p>
+                    <p className="pub-person-meta">
+                      {t.cedula ? `Cédula profesional ${t.cedula}` : 'Cédula profesional por publicar'}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <section className="pub-section">
+        <div className="pub-wrap pub-two">
+          <div>
+            <h2 className="pub-h2">Antes de la primera cita</h2>
+            <p className="pub-lead">
+              La primera sesión sirve para conocerse y acordar qué sigue. Si la cita es para tu hijo o
+              hija, la solicitas tú a su nombre y vienen juntos.
+            </p>
+          </div>
+          <div style={{ display: 'grid', gap: 16 }}>
+            <p className="pub-notice">
+              Por privacidad, el formulario no pide motivos de consulta, diagnósticos ni antecedentes.
+              Eso se platica en persona.
+            </p>
+            <p className="pub-notice">
+              Este sitio no atiende emergencias. Si hay riesgo inmediato, llama al 911 o a la Línea de la
+              Vida, 800 911 2000, gratuita y disponible las 24 horas.
+            </p>
           </div>
         </div>
       </section>
-
-      <section style={{ maxWidth: 980, margin: '0 auto', padding: '28px 20px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
-          <TrustItem icon={ShieldCheck} title="Privacidad primero" body="No solicitamos detalles clinicos en formularios publicos." />
-          <TrustItem icon={MapPin} title="Presencial" body={`${business.city}. Confirma ubicacion y disponibilidad por contacto directo.`} />
-          <TrustItem icon={Laptop} title="En linea" body="La modalidad en linea puede confirmarse segun servicio y profesional." />
-        </div>
-      </section>
-
-      <section style={{ maxWidth: 980, margin: '0 auto', padding: '8px 20px 28px' }}>
-        <SectionHeading eyebrow="Servicios" title="Opciones de atencion" />
-        {services.length === 0 && <SinPublicar que="servicios" />}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
-          {services.map((service) => (
-            <div key={service.id} style={card}>
-              <div className="font-display" style={{ fontSize: 20, color: C.brown, fontWeight: 700, lineHeight: 1.2 }}>{service.name}</div>
-              <p style={{ color: C.brownMid, fontSize: 13, lineHeight: 1.55 }}>{service.desc}</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: C.sageDark, fontWeight: 800, fontSize: 13 }}>
-                <span>{service.duration} min</span>
-                <span>{formatMXN(service.price)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section style={{ maxWidth: 980, margin: '0 auto', padding: '8px 20px 34px' }}>
-        <SectionHeading eyebrow="Profesionales" title="Equipo" />
-        {therapists.length === 0 && <SinPublicar que="profesionales" />}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
-          {therapists.map((therapist) => (
-            <div key={therapist.id} style={card}>
-              <div style={{ width: 42, height: 42, borderRadius: 999, background: therapist.color || C.sageDark, color: '#1E1B18', display: 'grid', placeItems: 'center', fontWeight: 900, marginBottom: 10 }}>
-                {therapist.name.split(' ').slice(0, 2).map((part) => part[0]).join('')}
-              </div>
-              <div className="font-display" style={{ fontSize: 18, color: C.brown, fontWeight: 700 }}>{therapist.name}</div>
-              <div style={{ color: C.brownMid, fontSize: 13, marginTop: 4 }}>{therapist.specialty}</div>
-              <div style={{ color: C.brownLight, fontSize: 12, marginTop: 8 }}>Ced. {therapist.cedula || 'por confirmar'}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section style={{ maxWidth: 980, margin: '0 auto', padding: '0 20px 42px' }}>
-        <div style={{ background: C.sagePale, borderRadius: 16, padding: 18, color: C.sageDeep, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <HeartHandshake size={20} style={{ flexShrink: 0 }} />
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-            Este sitio no sustituye atencion de emergencia. Si estas en una situacion de riesgo, contacta servicios de emergencia locales o una unidad de atencion inmediata.
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function TrustItem({ icon: Icon, title, body }) {
-  return (
-    <div style={card}>
-      <Icon size={20} color={C.sageDark} />
-      <div style={{ color: C.brown, fontWeight: 800, marginTop: 8 }}>{title}</div>
-      <div style={{ color: C.brownMid, fontSize: 13, lineHeight: 1.5, marginTop: 4 }}>{body}</div>
-    </div>
-  );
-}
-
-function SectionHeading({ eyebrow, title }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <span style={{ fontSize: 11, color: C.sageDark, fontWeight: 800, letterSpacing: 2 }}>{eyebrow.toUpperCase()}</span>
-      <h2 className="font-display" style={{ color: C.brown, fontSize: 30, margin: '4px 0 0', fontWeight: 600 }}>{title}</h2>
-    </div>
-  );
-}
-
-const card = {
-  background: C.creamLight,
-  border: `1px solid ${C.sagePale}`,
-  borderRadius: 16,
-  padding: 18,
-};
-
-const primaryButton = {
-  background: 'var(--bp-primary)',
-  color: 'var(--bp-primary-contrast)',
-  border: 'none',
-  padding: '13px 20px',
-  borderRadius: 999,
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-  fontWeight: 800,
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  textDecoration: 'none',
-};
-
-const secondaryButton = {
-  ...primaryButton,
-  background: 'transparent',
-  color: C.brown,
-  border: `1.5px solid ${C.brown}`,
-};
-
-// Un encabezado sobre la nada no dice si el consultorio no ha publicado
-// todavia o si la pagina se rompio. Antes ese hueco lo tapaba el catalogo
-// de demostracion; ahora lo ocupa una frase que es verdad.
-function SinPublicar({ que }) {
-  return (
-    <p style={{ color: C.brownMid, fontSize: 14, lineHeight: 1.5, margin: '4px 0 0' }}>
-      Todavía no hay {que} publicados. Escríbenos por WhatsApp y te contamos qué hay disponible.
-    </p>
+    </>
   );
 }

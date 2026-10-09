@@ -28,6 +28,11 @@ CMD ["npx", "vite", "--host", "0.0.0.0", "--port", "5173"]
 
 FROM deps AS build
 ENV NODE_ENV=production
+# Dominio publico (https://..., sin barra final). Va en el BUILD y no en
+# el arranque: el canonical y el sitemap quedan escritos en el HTML
+# prerenderizado. Vacio = sin canonical ni sitemap (hoy no hay dominio).
+ARG SITE_URL=""
+ENV SITE_URL=${SITE_URL}
 COPY . .
 RUN npm run build
 

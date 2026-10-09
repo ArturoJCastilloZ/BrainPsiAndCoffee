@@ -1,98 +1,132 @@
-import React, { useMemo, useState } from 'react';
-import {
-  Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
-  ChevronRight, ChevronLeft, Plus, Minus, Check, X,
-  ShoppingBag, Settings, BarChart3, Users, Sparkles,
-  Bell, Trash2, ArrowRight, ArrowLeft,
-  CheckCircle2, AlertCircle, MessageCircle, Cake,
-  Home, Menu as MenuIcon, LogOut, TrendingUp, DollarSign,
-  Zap, Gift, Send, RefreshCw, Filter
-} from 'lucide-react';
-import { C } from '../theme';
-import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, initials, todayISO, uid, localDate, localISO } from '../utils.jsx';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { addDays, fullDayLabel, initials, uid, localDate, localISO } from '../utils.jsx';
 import { activeOffers } from '../offerUtils.mjs';
 import { validateAppointment } from '../validation';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
 import { trackEvent } from '../monitoring';
 import { poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
+import { precio } from './Pizarron';
+import './booking.css';
 
-export default function BookingFlow({ setPage, bookings, setBookings, addToCart, setLinkedBookingId, showToast, catalogs }) {
-  const services = (catalogs?.services || []).filter(item => item.active !== false);
-  const therapists = (catalogs?.therapists || []).filter(item => item.active !== false);
-  // El horario REAL del consultorio. Antes esta pantalla no lo miraba
-  // siquiera: tenia 9:00-19:00 y martes-sabado escritos a mano, asi que
-  // aceptaba reservas fuera del horario configurado. Requiere la policy
-  // de lectura publica de 0029.
+const PASOS = ['Elige el servicio', 'Elige especialista', 'Elige día y hora', 'Tus datos', 'Revisa y envía'];
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+const HORA = /^\d{2}:\d{2}$/;
+
+export default function BookingFlow({ setPage, bookings, setBookings, setLinkedBookingId, catalogs, dataLoading }) {
+  const services = (catalogs?.services || []).filter((item) => item.active !== false);
+  const therapists = (catalogs?.therapists || []).filter((item) => item.active !== false);
+  // El horario REAL del consultorio (policy publica de 0029).
   const schedules = catalogs?.schedules || [];
+  // Lo ocupado: el visitante no lee las citas, pero si los rangos que
+  // ocupan (busy_slots, 0038). Sin esto se le ofrecian horarios tomados y
+  // el choque aparecia hasta el final.
+  const ocupadas = useMemo(() => [...(bookings || []), ...(catalogs?.busy || [])], [bookings, catalogs?.busy]);
   const business = businessFromSettings(catalogs?.settings);
-  const onLightAccent = '#1E1B18';
-  // El precio del combo sale de la promocion VIGENTE, no de un texto: estaba
-  // escrito "$99" a mano mientras el menu cobraba otra cifra.
+  // El precio del combo sale de la promocion VIGENTE, no de un texto.
   const comboOffer = activeOffers(catalogs?.offers || []).find((o) => o.kind === 'combo');
-  const formNoticeStyle = {
-    background: 'var(--bp-surface-2)',
-    border: `1px solid ${C.sagePale}`,
-    borderRadius: 14,
-    padding: 14,
-    color: C.brown,
-    fontSize: 12,
-    lineHeight: 1.55,
-  };
-  const checkboxPanelStyle = {
-    background: 'var(--bp-surface)',
-    border: `1.5px solid ${C.caramel}`,
-    borderRadius: 16,
-    padding: 16,
-    color: C.brown,
-  };
+
   const [step, setStep] = useState(1);
   const [data, setData] = useState({
     serviceId: null, therapistId: null, date: null, time: null,
-    name: '', email: '', phone: '', notes: '', wantsCoffee: false, privacyAccepted: false
+    forMinor: false, patientName: '',
+    name: '', email: '', phone: '', notes: '', wantsCoffee: false, privacyAccepted: false,
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const tituloRef = useRef(null);
 
   const update = (k, v) => {
-    setData({ ...data, [k]: v });
-    if (errors[k]) setErrors({ ...errors, [k]: '' });
+    setData((prev) => ({ ...prev, [k]: v }));
+    if (errors[k]) setErrors((prev) => ({ ...prev, [k]: '' }));
   };
-  const service = services.find(s => s.id === data.serviceId);
-  const therapist = therapists.find(t => t.id === data.therapistId);
-  const avatarTextColor = (color) => (color === C.brownMid || color === C.rust ? C.cream : onLightAccent);
+  const service = services.find((s) => s.id === data.serviceId);
+  const therapist = therapists.find((t) => t.id === data.therapistId);
+
+  // Atajo desde la portada: /reservar?servicio=..&fecha=..&hora=.. llega
+  // con todo puesto y arranca en el paso del horario, para confirmarlo.
+  // Se aplica UNA vez, cuando el catalogo ya llego.
+  const [params] = useSearchParams();
+  const aplicado = useRef(false);
+  useEffect(() => {
+    if (aplicado.current || services.length === 0) return;
+    aplicado.current = true;
+    const servicio = services.find((s) => s.id === params.get('servicio'));
+    if (!servicio) return;
+    const fecha = params.get('fecha');
+    const hora = params.get('hora');
+    if (FECHA.test(fecha || '') && HORA.test(hora || '')) {
+      setData((prev) => ({ ...prev, serviceId: servicio.id, therapistId: 'any', date: fecha, time: hora }));
+      setStep(3);
+    } else {
+      setData((prev) => ({ ...prev, serviceId: servicio.id }));
+      setStep(2);
+    }
+  }, [params, services]);
+
+  // Cada paso es una pantalla nueva: el foco va a su titulo para que el
+  // lector de pantalla la anuncie, y la vista vuelve arriba.
+  const primerPaso = useRef(true);
+  useEffect(() => {
+    if (primerPaso.current) { primerPaso.current = false; return; }
+    window.scrollTo(0, 0);
+    tituloRef.current?.focus({ preventScroll: true });
+  }, [step]);
+
+  const erroresDeDatos = () => {
+    const e = validateAppointment(data);
+    // Solo los campos de ESTE paso; servicio y horario ya se eligieron.
+    const propios = Object.fromEntries(Object.entries(e).filter(([k]) => ['name', 'email', 'phone', 'patientName'].includes(k)));
+    if (!data.privacyAccepted) propios.privacyAccepted = 'Necesitamos tu permiso para contactarte y confirmar la cita.';
+    return propios;
+  };
+
+  const continuarDatos = () => {
+    const e = erroresDeDatos();
+    setErrors(e);
+    if (Object.keys(e).length) {
+      // Al primer campo con error, no a un botón deshabilitado sin razón.
+      const primero = ['patientName', 'name', 'email', 'phone', 'privacyAccepted'].find((k) => e[k]);
+      document.getElementById(`bk-${primero}`)?.focus();
+      return;
+    }
+    setStep(5);
+  };
 
   const confirmBooking = async () => {
     if (saving) return;
-    const nextErrors = validateAppointment(data);
-    if (!data.privacyAccepted) nextErrors.privacyAccepted = 'Acepta el aviso de privacidad para continuar.';
+    const nextErrors = { ...validateAppointment(data), ...erroresDeDatos() };
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
-      setStep(4);
+      setStep(nextErrors.time || nextErrors.date ? 3 : 4);
       return;
     }
     const assignedTherapistId = data.therapistId === 'any'
       ? therapists.find((item) => item.services?.includes(data.serviceId)
           && poolAvailableSlots({
             date: data.date, therapistId: item.id, serviceId: data.serviceId,
-            bookings, services, eligibleTherapists: [item], schedules,
+            bookings: ocupadas, services, eligibleTherapists: [item], schedules,
           }).includes(data.time))?.id
       : data.therapistId;
     if (!assignedTherapistId) {
-      setErrors({ time: 'Ese horario ya no esta disponible. Elige otro horario.' });
+      setErrors({ time: 'Ese horario ya no está disponible. Elige otro.' });
       setStep(3);
       return;
     }
 
-    // La duracion real de la sesion viaja con la cita: la BD calcula con ella
-    // el rango que impide agendar dos sesiones encimadas al mismo profesional.
+    // La duracion real viaja con la cita: la base calcula con ella el
+    // rango que impide encimar dos sesiones del mismo especialista.
     const assignedTherapist = therapists.find((item) => item.id === assignedTherapistId);
-    const durationMinutes = Number(assignedTherapist?.sessionDuration)
-      || Number(service?.duration)
-      || 50;
+    const durationMinutes = Number(service?.duration) || Number(assignedTherapist?.sessionDuration) || 50;
 
     const newBooking = {
       id: uid(),
       ...data,
+      name: data.name.trim(),
+      email: data.email.trim(),
+      phone: data.phone.trim(),
+      patientName: data.forMinor ? data.patientName.trim() : '',
       therapistId: assignedTherapistId,
       durationMinutes,
       notes: '',
@@ -100,19 +134,17 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
       // asi para que la pantalla diga lo mismo que la base.
       status: 'requested',
       createdAt: new Date().toISOString(),
-      reminderSent: false
+      reminderSent: false,
     };
-    // Se avanza SOLO cuando la base acepto la cita. Antes la pantalla de
-    // exito salia antes de saber: si el guardado fallaba, el paciente se
-    // iba creyendo que tenia cita y la clinica no sabia nada de el.
+    // Se avanza SOLO cuando la base acepto la cita.
     setSaving(true);
     setErrors({});
     const result = await setBookings([...bookings, newBooking]);
     setSaving(false);
     if (!result?.ok) {
-      // Otra persona tomo ese horario mientras este paciente llenaba sus
-      // datos. La misma hora exacta la rechaza el indice unico (23505); un
-      // rango encimado, el EXCLUDE (23P01).
+      // Otra persona tomo ese horario mientras se llenaban los datos: la
+      // misma hora exacta la rechaza el indice unico (23505); un rango
+      // encimado, el EXCLUDE (23P01).
       if (['23P01', '23505'].includes(result?.error?.code)) {
         setErrors({ time: 'Ese horario se acaba de ocupar. Elige otro, por favor.' });
         setStep(3);
@@ -132,306 +164,244 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
       serviceId: newBooking.serviceId,
       therapistId: newBooking.therapistId,
       wantsCoffee: newBooking.wantsCoffee,
+      forMinor: newBooking.forMinor,
     });
+    setData((prev) => ({ ...prev, therapistId: assignedTherapistId }));
     setStep(6);
   };
 
-  const stepTitles = ['Servicio', 'Profesional', 'Fecha y hora', 'Datos', 'Confirmar'];
+  const paraQuien = data.forMinor ? data.patientName.trim() : data.name.trim();
+  const mensajeWhatsApp = `Hola, acabo de solicitar una cita de ${service?.name || 'terapia'}${data.forMinor ? ` para ${paraQuien}` : ''} el ${data.date ? fullDayLabel(localDate(data.date)) : ''} a las ${data.time}. Quiero confirmarla.`;
+
+  if (step === 6) {
+    return (
+      <div className="bk bk-done">
+        <h1 className="bk-title" ref={tituloRef} tabIndex={-1} style={{ outline: 'none' }}>Solicitud enviada</h1>
+        <p className="pub-lead" style={{ margin: '0 auto 24px' }}>
+          Te apartamos el horario 24 horas. El consultorio te confirma por WhatsApp; si quieres, escríbenos tú primero.
+        </p>
+
+        {/* El cierre como una comanda: lo que importa, grande. */}
+        <div className="pub-ticket" aria-label="Resumen de tu solicitud">
+          <p className="pub-ticket-sub">{service?.name} · {service?.duration} min</p>
+          <p className="pub-ticket-when">
+            {data.date && localDate(data.date).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+            <br />{data.time} h
+          </p>
+          <hr className="pub-ticket-rule" />
+          <div className="pub-ticket-row"><span>Para</span><span>{paraQuien}</span></div>
+          {data.forMinor && <div className="pub-ticket-row"><span>Lo trae</span><span>{data.name.trim()}</span></div>}
+          <div className="pub-ticket-row"><span>Con</span><span>{therapist?.name || 'Por asignar'}</span></div>
+          <div className="pub-ticket-row"><span>Pagas en sitio</span><span>{precio(service?.price)}</span></div>
+          <div className="pub-ticket-row"><span>Estado</span><span>Por confirmar</span></div>
+          {data.wantsCoffee && (
+            <>
+              <hr className="pub-ticket-rule" />
+              <p className="pub-ticket-sub">Pide tu café ahora y estará listo 10 minutos antes de la cita.</p>
+            </>
+          )}
+        </div>
+
+        <div className="pub-actions">
+          <a className="pub-btn pub-btn-primary" href={whatsappUrl(mensajeWhatsApp, business)} target="_blank" rel="noreferrer"
+            onClick={() => trackEvent('whatsapp_confirm_click', { source: 'booking_success' })}>
+            Confirmar por WhatsApp
+          </a>
+          {data.wantsCoffee && <Link className="pub-btn pub-btn-ghost" to="/cafeteria">Pedir mi café</Link>}
+          <Link className="pub-btn pub-btn-ghost" to="/mis-citas">Ver mis citas</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: '24px 20px 40px', maxWidth: 720, margin: '0 auto' }}>
-      {step <= 5 && (
-        <>
-          {/* Progress */}
-          <div style={{ marginBottom: 24 }}>
-            <button onClick={() => step > 1 ? setStep(step - 1) : setPage('home')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.brownMid, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16, padding: 0 }}>
-              <ArrowLeft size={14} /> Atrás
-            </button>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-              {[1,2,3,4,5].map(n => (
-                <div key={n} style={{ flex: 1, height: 4, borderRadius: 999, background: n <= step ? C.sageDark : C.sagePale, transition: 'background 0.3s' }} />
-              ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 11, color: C.sageDark, fontWeight: 700, letterSpacing: 1.5 }}>PASO {step} DE 5</span>
-              <h1 className="font-display" style={{ fontSize: 30, fontWeight: 500, color: C.brown, margin: 0, letterSpacing: '-0.02em' }}>{stepTitles[step - 1]}</h1>
-            </div>
-          </div>
+    <div className="bk">
+      <button type="button" className="bk-back" onClick={() => (step > 1 ? setStep(step - 1) : setPage('home'))}>
+        <ArrowLeft size={18} aria-hidden="true" /> Atrás
+      </button>
+      <div className="bk-progress" aria-hidden="true">
+        {PASOS.map((p, i) => <span key={p} data-hecho={i < step} />)}
+      </div>
+      <p className="bk-step">Paso {step} de {PASOS.length}</p>
+      <h1 className="bk-title" ref={tituloRef} tabIndex={-1} style={{ outline: 'none' }}>{PASOS[step - 1]}</h1>
 
-          {/* Step 1: Service */}
-          {step === 1 && (
-            <div className="animate-fade-up">
-              <div style={{ display: 'grid', gap: 12 }}>
-                {services.map(s => (
-                  <button key={s.id} onClick={() => { update('serviceId', s.id); setStep(2); }} style={{
-                    background: data.serviceId === s.id ? C.sagePale : C.creamLight,
-                    border: `1.5px solid ${data.serviceId === s.id ? C.sageDark : C.sagePale}`,
-                    borderRadius: 16, padding: 18, cursor: 'pointer', textAlign: 'left',
-                    display: 'flex', alignItems: 'center', gap: 16, transition: 'all 0.2s'
-                  }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: C.sage, display: 'flex', alignItems: 'center', justifyContent: 'center', color: onLightAccent, flexShrink: 0 }}>
-                      {getServiceIcon(s.icon, 24)}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div className="font-display" style={{ fontSize: 17, fontWeight: 600, color: C.brown, marginBottom: 2 }}>{s.name}</div>
-                      <div style={{ fontSize: 12, color: C.brownMid, lineHeight: 1.5 }}>{s.desc}</div>
-                      <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 11, color: C.brownLight }}>
-                        <span><Clock size={11} style={{ display: 'inline', marginRight: 3, verticalAlign: -1 }} />{s.duration} min</span>
-                        <span style={{ fontWeight: 700, color: C.sageDark }}>${s.price}</span>
-                      </div>
-                    </div>
-                    <ChevronRight size={20} color={C.brownLight} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Therapist */}
-          {step === 2 && (
-            <div className="animate-fade-up">
-              <p style={{ fontSize: 14, color: C.brownMid, marginBottom: 16 }}>Elige al profesional con quien quieres tu sesión.</p>
-              <div style={{ display: 'grid', gap: 12 }}>
-                <button onClick={() => { update('therapistId', 'any'); setStep(3); }} style={{
-                  background: data.therapistId === 'any' ? C.sagePale : C.creamLight,
-                  border: `1.5px solid ${data.therapistId === 'any' ? C.sageDark : C.sagePale}`,
-                  borderRadius: 16, padding: 16, cursor: 'pointer', textAlign: 'left',
-                  display: 'flex', alignItems: 'center', gap: 14
-                }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 999, background: C.caramelLight, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Zap size={20} color={C.brown} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div className="font-display" style={{ fontSize: 16, fontWeight: 600, color: C.brown }}>Asignación automática</div>
-                    <div style={{ fontSize: 12, color: C.brownMid }}>El sistema te asigna al mejor profesional disponible</div>
-                  </div>
+      {step === 1 && (
+        services.length === 0 ? (
+          // "Cargando" y "no hay" son cosas distintas (auditoria M2).
+          <p className="bk-empty" aria-live="polite">
+            {dataLoading ? 'Cargando los servicios…' : 'Todavía no hay servicios publicados. Escríbenos por WhatsApp y te agendamos.'}
+          </p>
+        ) : (
+          <ul className="bk-options">
+            {services.map((s) => (
+              <li key={s.id}>
+                <button type="button" className="bk-option" aria-pressed={data.serviceId === s.id}
+                  onClick={() => { update('serviceId', s.id); setStep(2); }}>
+                  <span className="bk-option-name">{s.name}</span>
+                  <span className="bk-option-price">{precio(s.price)}</span>
+                  <span className="bk-option-meta">{s.duration} min{s.for ? ` · ${s.for}` : ''}{s.desc ? `. ${s.desc}` : ''}</span>
                 </button>
-                {therapists.filter(t => !data.serviceId || t.services.includes(data.serviceId)).map(t => (
-                  <button key={t.id} onClick={() => { update('therapistId', t.id); setStep(3); }} style={{
-                    background: data.therapistId === t.id ? C.sagePale : C.creamLight,
-                    border: `1.5px solid ${data.therapistId === t.id ? C.sageDark : C.sagePale}`,
-                    borderRadius: 16, padding: 16, cursor: 'pointer', textAlign: 'left',
-                    display: 'flex', alignItems: 'center', gap: 14
-                  }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 999, background: t.color, color: avatarTextColor(t.color), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 }}>
-                      {initials(t.name)}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div className="font-display" style={{ fontSize: 16, fontWeight: 600, color: C.brown }}>{t.name}</div>
-                      <div style={{ fontSize: 12, color: C.brownMid }}>{t.specialty} · Céd. {t.cedula}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+              </li>
+            ))}
+          </ul>
+        )
+      )}
 
-          {/* Step 3: Date and time */}
-          {step === 3 && (
-            <DateTimePicker data={data} update={update} onContinue={() => setStep(4)} bookings={bookings} therapists={therapists} services={services} schedules={schedules} />
-          )}
-
-          {/* Step 4: Personal info */}
-          {step === 4 && (
-            <div className="animate-fade-up">
-              <p style={{ fontSize: 14, color: C.brownMid, marginBottom: 20 }}>Datos para confirmar tu cita y enviarte recordatorios.</p>
-              <div style={{ display: 'grid', gap: 14 }}>
-                <Input label="Nombre completo" value={data.name} onChange={v => update('name', v)} icon={User} placeholder="Tu nombre" error={errors.name} required />
-                <Input label="Correo electrónico" value={data.email} onChange={v => update('email', v)} icon={Mail} placeholder="tucorreo@ejemplo.com" type="email" error={errors.email} required />
-                <Input label="Teléfono (WhatsApp)" value={data.phone} onChange={v => update('phone', v)} icon={Phone} placeholder="55 1234 5678" type="tel" error={errors.phone} required />
-
-                <div style={formNoticeStyle}>
-                  Para cuidar tu privacidad, no solicitamos detalles clinicos, diagnosticos ni motivos sensibles en este formulario. El profesional te orientara por contacto directo.
-                </div>
-
-                <div style={checkboxPanelStyle}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <input type="checkbox" id="wantsCoffee" checked={data.wantsCoffee} onChange={e => update('wantsCoffee', e.target.checked)} style={{ marginTop: 2, accentColor: C.sageDark, width: 18, height: 18 }} />
-                    <label htmlFor="wantsCoffee" style={{ flex: 1, cursor: 'pointer' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <Coffee size={14} color={C.caramel} />
-                        <span style={{ fontWeight: 700, fontSize: 14, color: C.brown }}>Quiero un café antes/después de mi sesión</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: C.brownMid, lineHeight: 1.5, fontWeight: 500 }}>Te llevaremos al menú al confirmar.{comboOffer ? ` Disfruta del combo café + postre por ${formatMXN(Number(comboOffer.price))}.` : ''}</div>
-                    </label>
-                  </div>
-                </div>
-
-                <div style={{
-                  background: 'var(--bp-surface)',
-                  border: `1px solid ${errors.privacyAccepted ? C.rust : C.sagePale}`,
-                  borderRadius: 14,
-                  padding: 14,
-                  color: C.brown,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <input type="checkbox" id="privacyAccepted" checked={data.privacyAccepted} onChange={e => update('privacyAccepted', e.target.checked)} style={{ marginTop: 2, accentColor: C.sageDark, width: 18, height: 18 }} />
-                    <label htmlFor="privacyAccepted" style={{ flex: 1, cursor: 'pointer', fontSize: 12, color: C.brown, lineHeight: 1.5, fontWeight: 500 }}>
-                      Acepto ser contactado por WhatsApp o correo para confirmar mi cita y declaro que no estoy enviando informacion clinica sensible por este formulario.
-                    </label>
-                  </div>
-                  {errors.privacyAccepted && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800, marginTop: 8, display: 'block' }}>{errors.privacyAccepted}</span>}
-                </div>
-              </div>
-              <button onClick={() => {
-                const nextErrors = validateAppointment(data);
-                if (!data.privacyAccepted) nextErrors.privacyAccepted = 'Acepta el aviso de privacidad para continuar.';
-                setErrors(nextErrors);
-                if (!Object.keys(nextErrors).length) setStep(5);
-              }} disabled={!data.name || !data.email || !data.phone || !data.privacyAccepted} style={{
-                marginTop: 20, width: '100%',
-                background: !data.name || !data.email || !data.phone || !data.privacyAccepted ? C.sagePale : 'var(--bp-primary)',
-                color: !data.name || !data.email || !data.phone || !data.privacyAccepted ? '#1E1B18' : 'var(--bp-primary-contrast)', border: 'none', padding: '14px', borderRadius: 14,
-                fontSize: 15, fontWeight: 600, cursor: !data.name || !data.email || !data.phone || !data.privacyAccepted ? 'not-allowed' : 'pointer'
-              }}>
-                Continuar
+      {step === 2 && (
+        <>
+          <p className="bk-intro">Si no tienes preferencia, te asignamos a quien tenga libre el horario que elijas.</p>
+          <ul className="bk-options">
+            <li>
+              <button type="button" className="bk-option" aria-pressed={data.therapistId === 'any'}
+                onClick={() => { update('therapistId', 'any'); setStep(3); }}>
+                <span className="bk-option-name">Cualquier especialista</span>
+                <span />
+                <span className="bk-option-meta">Ves más horarios disponibles.</span>
               </button>
-            </div>
-          )}
-
-          {/* Step 5: Confirm */}
-          {step === 5 && (
-            <div className="animate-fade-up">
-              <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 18, padding: 22, marginBottom: 20 }}>
-                <div style={{ fontSize: 11, letterSpacing: 1.5, color: C.sageDark, fontWeight: 700, marginBottom: 8 }}>RESUMEN DE TU CITA</div>
-                <div className="font-display" style={{ fontSize: 22, fontWeight: 600, color: C.brown, marginBottom: 14, lineHeight: 1.2 }}>{service?.name}</div>
-                <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
-                  <Row icon={User} label="Profesional" value={therapist?.name || 'Asignación automática'} />
-                  <Row icon={CalendarIcon} label="Fecha" value={fullDayLabel(localDate(data.date))} />
-                  <Row icon={Clock} label="Hora" value={`${data.time} (${service?.duration} min)`} />
-                  <Row icon={Mail} label="Contacto" value={data.email} />
-                  <Row icon={Phone} label="WhatsApp" value={data.phone} />
-                </div>
-                <div style={{ borderTop: `1px solid ${C.sagePale}`, marginTop: 16, paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 13, color: C.brownMid }}>Total a pagar en sitio</span>
-                  <span className="font-display" style={{ fontSize: 26, fontWeight: 700, color: C.sageDark }}>${service?.price}</span>
-                </div>
-              </div>
-
-              <div style={{ background: C.sagePale, borderRadius: 14, padding: 14, marginBottom: 20, fontSize: 12, color: C.sageDeep, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <Bell size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-                <div>
-                  <strong>Así funciona:</strong> tu solicitud aparta este horario. El consultorio la revisa y te confirma por WhatsApp. Si no se confirma en 24 horas, el horario se libera.
-                </div>
-              </div>
-
-              {errors.submit && (
-                <div role="alert" style={{ ...formNoticeStyle, borderColor: C.rust, color: C.rustText, marginBottom: 12 }}>
-                  {errors.submit}
-                </div>
-              )}
-
-              <button onClick={confirmBooking} disabled={saving} aria-busy={saving} style={{
-                width: '100%', background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', border: 'none',
-                padding: '16px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
-                opacity: saving ? 0.7 : 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-              }}>
-                <Check size={18} /> {saving ? 'Enviando tu solicitud…' : 'Enviar solicitud'}
-              </button>
-            </div>
-          )}
+            </li>
+            {therapists.filter((t) => !data.serviceId || t.services?.includes(data.serviceId)).map((t) => (
+              <li key={t.id}>
+                <button type="button" className="bk-option" aria-pressed={data.therapistId === t.id}
+                  onClick={() => { update('therapistId', t.id); setStep(3); }}>
+                  <span className="bk-option-name">
+                    <span className="pub-avatar" aria-hidden="true" style={{ display: 'inline-grid', width: 36, height: 36, fontSize: 14, marginRight: 10, verticalAlign: 'middle' }}>{initials(t.name)}</span>
+                    {t.name}
+                  </span>
+                  <span />
+                  <span className="bk-option-meta">{t.specialty}{t.cedula ? ` · Cédula ${t.cedula}` : ''}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </>
       )}
 
-      {/* Step 6: Success */}
-      {step === 6 && (
-        <div className="animate-fade-up" style={{ textAlign: 'center', padding: '40px 0' }}>
-          <div style={{ width: 100, height: 100, borderRadius: '50%', background: C.sagePale, margin: '0 auto 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: `2px dashed ${C.sage}`, animation: 'spin 20s linear infinite' }} />
-            <CheckCircle2 size={50} color={C.sageDeep} strokeWidth={1.5} />
-          </div>
-          <h1 className="font-display" style={{ fontSize: 32, fontWeight: 600, color: C.brown, margin: '0 0 10px', letterSpacing: '-0.02em' }}>¡Solicitud enviada, {data.name.split(' ')[0]}!</h1>
-          <p style={{ fontSize: 15, color: C.brownMid, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 24px' }}>
-            Te apartamos el horario durante 24 horas. El consultorio te confirmará por WhatsApp; si quieres agilizarlo, escríbenos con el botón de abajo.
+      {step === 3 && (
+        <DateTimePicker data={data} update={update} error={errors.time} onContinue={() => setStep(4)}
+          bookings={ocupadas} therapists={therapists} services={services} schedules={schedules} business={business} />
+      )}
+
+      {step === 4 && (
+        <div className="bk-form">
+          <fieldset className="bk-fieldset">
+            <legend className="pub-label">¿Para quién es la cita?</legend>
+            <div className="pub-choice-row">
+              <button type="button" className="pub-choice" aria-pressed={!data.forMinor} onClick={() => update('forMinor', false)}>Para mí</button>
+              <button type="button" className="pub-choice" aria-pressed={data.forMinor} onClick={() => update('forMinor', true)}>Para mi hijo o hija</button>
+            </div>
+          </fieldset>
+
+          {data.forMinor && (
+            <Field id="bk-patientName" label="Nombre de la niña o el niño" value={data.patientName}
+              onChange={(v) => update('patientName', v)} error={errors.patientName} autoComplete="off"
+              hint="Así abrimos su expediente. No escribas el motivo de consulta." />
+          )}
+
+          {data.forMinor && <h2 className="bk-subhead">Tus datos, como adulto responsable</h2>}
+          <Field id="bk-name" label={data.forMinor ? 'Tu nombre completo' : 'Nombre completo'} value={data.name}
+            onChange={(v) => update('name', v)} error={errors.name} autoComplete="name" />
+          <Field id="bk-email" label="Correo electrónico" type="email" value={data.email}
+            onChange={(v) => update('email', v)} error={errors.email} autoComplete="email" inputMode="email" />
+          <Field id="bk-phone" label="WhatsApp" type="tel" value={data.phone} placeholder="81 1234 5678"
+            onChange={(v) => update('phone', v)} error={errors.phone} autoComplete="tel" inputMode="tel"
+            hint="Por aquí te confirmamos la cita." />
+
+          <p className="pub-notice">
+            Para cuidar tu privacidad, no pedimos motivos de consulta, diagnósticos ni antecedentes. Eso se platica en persona.
           </p>
 
-          <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 14, padding: 16, marginBottom: 16, textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span className="font-display" style={{ fontSize: 16, fontWeight: 600, color: C.brown }}>{service?.name}</span>
-            </div>
-            <div style={{ fontSize: 13, color: C.brownMid }}>{fullDayLabel(localDate(data.date))} · {data.time}</div>
+          <label className="bk-check bk-panel">
+            <input type="checkbox" checked={data.wantsCoffee} onChange={(e) => update('wantsCoffee', e.target.checked)} />
+            <span>
+              <strong>Quiero un café para ese día</strong><br />
+              <span className="pub-hint">
+                Al enviar te llevamos al menú y lo tenemos listo 10 minutos antes.
+                {comboOffer ? ` ${comboOffer.name}: ${precio(comboOffer.price)}.` : ''}
+              </span>
+            </span>
+          </label>
+
+          <div className="bk-panel" data-error={Boolean(errors.privacyAccepted)}>
+            <label className="bk-check">
+              <input id="bk-privacyAccepted" type="checkbox" checked={data.privacyAccepted}
+                onChange={(e) => update('privacyAccepted', e.target.checked)}
+                aria-invalid={Boolean(errors.privacyAccepted)} aria-describedby={errors.privacyAccepted ? 'bk-privacyAccepted-error' : undefined} />
+              <span>
+                Acepto que me contacten por WhatsApp o correo para confirmar la cita, y el{' '}
+                <Link className="pub-link" to="/privacidad" target="_blank">aviso de privacidad</Link>.
+              </span>
+            </label>
+            {errors.privacyAccepted && <p id="bk-privacyAccepted-error" className="pub-error" style={{ margin: '8px 0 0' }}>{errors.privacyAccepted}</p>}
           </div>
 
-          {data.wantsCoffee ? (
-            <button onClick={() => setPage('menu')} style={{
-              width: '100%', background: C.caramel, color: '#1E1B18', border: 'none',
-              padding: '14px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10
-            }}>
-              <Coffee size={18} /> Pedir mi café ahora
-            </button>
-          ) : null}
-          <a href={whatsappUrl(`Hola, acabo de solicitar una cita para ${service?.name || 'terapia'} el ${data.date} a las ${data.time}. Quiero confirmar disponibilidad.`, business)} onClick={() => trackEvent('whatsapp_confirm_click', { source: 'booking_success' })} target="_blank" rel="noreferrer" style={{
-            width: '100%', background: C.sagePale, color: C.sageDeep, border: 'none',
-            padding: '14px', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10,
-            textDecoration: 'none', boxSizing: 'border-box'
-          }}>
-            <MessageCircle size={18} /> Confirmar por WhatsApp
-          </a>
-          <button onClick={() => setPage('mybookings')} style={{
-            width: '100%', background: 'transparent', color: C.brown, border: `1.5px solid ${C.brown}`,
-            padding: '14px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: 'pointer'
-          }}>
-            Ver mis citas
-          </button>
+          <button type="button" className="pub-btn pub-btn-primary bk-submit" onClick={continuarDatos}>Revisar mi solicitud</button>
         </div>
+      )}
+
+      {step === 5 && (
+        <>
+          <div className="bk-summary">
+            <h2 className="pub-h3" style={{ margin: 0 }}>{service?.name}</h2>
+            <dl>
+              <dt>Para</dt><dd>{paraQuien}</dd>
+              {data.forMinor && (<><dt>Adulto responsable</dt><dd>{data.name.trim()}</dd></>)}
+              <dt>Especialista</dt><dd>{therapist?.name || 'Te asignamos a quien tenga el horario libre'}</dd>
+              <dt>Día</dt><dd>{data.date && fullDayLabel(localDate(data.date))}</dd>
+              <dt>Hora</dt><dd>{data.time} h · {service?.duration} min</dd>
+              <dt>Correo</dt><dd>{data.email.trim()}</dd>
+              <dt>WhatsApp</dt><dd>{data.phone.trim()}</dd>
+            </dl>
+            <div className="bk-total"><span>Pagas en el consultorio</span><strong>{precio(service?.price)}</strong></div>
+          </div>
+
+          <p className="pub-notice" style={{ marginBottom: 18 }}>
+            Tu solicitud aparta este horario. El consultorio la revisa y te confirma por WhatsApp; si en 24 horas
+            no se confirma, el horario se libera.
+          </p>
+
+          {errors.submit && <p role="alert" className="pub-error" style={{ margin: '0 0 12px' }}>{errors.submit}</p>}
+
+          <button type="button" className="pub-btn pub-btn-primary bk-submit" style={{ marginTop: 0 }}
+            onClick={confirmBooking} disabled={saving} aria-busy={saving}>
+            {saving ? 'Enviando tu solicitud…' : 'Enviar solicitud'}
+          </button>
+        </>
       )}
     </div>
   );
 }
 
-function Row({ icon: Icon, label, value }) {
+function Field({ id, label, value, onChange, type = 'text', placeholder, error, hint, autoComplete, inputMode }) {
+  const descr = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || undefined;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <Icon size={15} color={C.brownLight} />
-      <span style={{ color: C.brownMid, fontSize: 13 }}>{label}:</span>
-      <strong style={{ color: C.brown, fontWeight: 600 }}>{value}</strong>
+    <div className="pub-field">
+      <label className="pub-label" htmlFor={id}>{label}</label>
+      {hint && <span id={`${id}-hint`} className="pub-hint">{hint}</span>}
+      <input id={id} className="pub-input" type={type} value={value} placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} inputMode={inputMode}
+        aria-invalid={Boolean(error)} aria-describedby={descr} />
+      {error && <span id={`${id}-error`} className="pub-error">{error}</span>}
     </div>
   );
 }
 
-function Input({ label, value, onChange, icon: Icon, placeholder, type = 'text', required = false, error = '' }) {
-  const missing = required && String(value || '').trim().length === 0;
-  const invalid = missing || Boolean(error);
-  return (
-    <div>
-      <label style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 6, display: 'block', letterSpacing: 0.5 }}>{label.toUpperCase()}</label>
-      <div style={{ position: 'relative' }}>
-        <Icon size={16} color={C.brownLight} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={required} style={{
-          width: '100%', padding: '12px 12px 12px 40px', border: `1.5px solid ${invalid ? C.rust : C.sagePale}`, borderRadius: 12,
-          fontSize: 14, fontFamily: 'inherit', background: C.creamLight, color: C.brown, outline: 'none',
-          boxSizing: 'border-box'
-        }} onFocus={e => e.target.style.borderColor = C.sageDark} onBlur={e => e.target.style.borderColor = invalid ? C.rust : C.sagePale} />
-      </div>
-      {missing && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4, marginTop: 5, display: 'block' }}>Campo requerido</span>}
-      {!missing && error && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4, marginTop: 5, display: 'block' }}>{error}</span>}
-    </div>
-  );
-}
+// ============ DIA Y HORA ============
 
-// ============ DATE TIME PICKER ============
-
-function DateTimePicker({ data, update, onContinue, bookings, therapists, services, schedules }) {
-  const [weekStart, setWeekStart] = useState(0); // weeks from today
+function DateTimePicker({ data, update, error, onContinue, bookings, therapists, services, schedules, business }) {
+  const [weekStart, setWeekStart] = useState(() => {
+    // Si se llego con fecha puesta (atajo de la portada), se abre ESA semana.
+    if (!data.date) return 0;
+    const dias = Math.round((localDate(data.date) - new Date(new Date().setHours(0, 0, 0, 0))) / 86400000);
+    return Math.max(0, Math.min(4, Math.floor(dias / 7)));
+  });
   const eligibleTherapists = useMemo(
-    () => therapists.filter(therapist => !data.serviceId || therapist.services?.includes(data.serviceId)),
-    [data.serviceId, therapists]
+    () => therapists.filter((therapist) => !data.serviceId || therapist.services?.includes(data.serviceId)),
+    [data.serviceId, therapists],
   );
-  const therapistPool = data.therapistId === 'any'
-    ? eligibleTherapists
-    : eligibleTherapists.filter(therapist => therapist.id === data.therapistId);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(), weekStart * 7 + i)), [weekStart]);
 
-  // Un solo motor: el mismo que usa el panel de administracion. Antes esta
-  // pantalla tenia el suyo, con el horario y los dias habiles escritos a
-  // mano, y por eso ignoraba lo que el consultorio configuraba.
-  //
-  // Se calcula el estado de TODOS los dias de la semana visible de una
-  // vez: la rejilla pregunta por celda, y hacerlo por celda repetiria el
-  // calculo 7 x (numero de horarios) veces por render.
+  // Un solo motor: el mismo que usa el panel de administracion. Se calcula
+  // el estado de TODOS los dias de la semana visible de una vez.
   const estadoPorDia = useMemo(() => {
     const mapa = new Map();
     for (const dia of days) {
@@ -444,119 +414,74 @@ function DateTimePicker({ data, update, onContinue, bookings, therapists, servic
     return mapa;
   }, [days, data.therapistId, data.serviceId, bookings, services, eligibleTherapists, schedules]);
 
-  // La union ordenada de los horarios de la semana: es lo que la rejilla
-  // pinta como renglones.
-  const slots = useMemo(() => {
-    const todos = new Set();
-    for (const estados of estadoPorDia.values()) estados.forEach((s) => todos.add(s.time));
-    return [...todos].sort((a, b) => a.localeCompare(b));
-  }, [estadoPorDia]);
-
-  const isAvailable = (date, time) =>
-    Boolean(estadoPorDia.get(date)?.find((s) => s.time === time)?.available);
+  const delDia = data.date ? (estadoPorDia.get(data.date) || []) : [];
+  // Una hora que llego puesta (atajo de la portada) puede haberse ocupado
+  // desde entonces. Solo se avanza con una hora que HOY esta libre.
+  const horaLibre = delDia.some((s) => s.time === data.time && s.available);
+  const hoy = new Date(new Date().setHours(0, 0, 0, 0));
+  const rango = `${days[0].toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} al ${days[6].toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}`;
 
   return (
-    <div className="animate-fade-up">
-      {/* Week navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <button onClick={() => setWeekStart(Math.max(0, weekStart - 1))} disabled={weekStart === 0} style={{
-          background: weekStart === 0 ? 'transparent' : C.creamLight, border: `1px solid ${C.sagePale}`,
-          width: 36, height: 36, borderRadius: 999, cursor: weekStart === 0 ? 'not-allowed' : 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: weekStart === 0 ? 0.4 : 1
-        }}>
-          <ChevronLeft size={18} color={C.brown} />
+    <div>
+      <div className="bk-week">
+        <button type="button" className="pub-icon-btn" onClick={() => setWeekStart(Math.max(0, weekStart - 1))}
+          disabled={weekStart === 0} aria-label="Semana anterior">
+          <ChevronLeft size={20} />
         </button>
-        <div style={{ fontSize: 13, color: C.brownMid, fontWeight: 600 }}>
-          {days[0].toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} – {days[6].toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
-        </div>
-        <button onClick={() => setWeekStart(weekStart + 1)} disabled={weekStart >= 4} style={{
-          background: weekStart >= 4 ? 'transparent' : C.creamLight, border: `1px solid ${C.sagePale}`,
-          width: 36, height: 36, borderRadius: 999, cursor: weekStart >= 4 ? 'not-allowed' : 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: weekStart >= 4 ? 0.4 : 1
-        }}>
-          <ChevronRight size={18} color={C.brown} />
+        <span className="bk-week-label" aria-live="polite">Del {rango}</span>
+        <button type="button" className="pub-icon-btn" onClick={() => setWeekStart(weekStart + 1)}
+          disabled={weekStart >= 4} aria-label="Semana siguiente">
+          <ChevronRight size={20} />
         </button>
       </div>
 
-      {/* Days */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 24 }}>
-        {days.map(d => {
+      <div className="bk-days" role="group" aria-label="Día">
+        {days.map((d) => {
           const iso = localISO(d);
-          const selected = data.date === iso;
-          const isPast = d < new Date(new Date().setHours(0,0,0,0));
+          const isPast = d < hoy;
+          const libres = (estadoPorDia.get(iso) || []).filter((s) => s.available).length;
           return (
-            <button key={iso} onClick={() => !isPast && update('date', iso)} disabled={isPast} style={{
-              background: selected ? C.brown : (isPast ? 'transparent' : C.creamLight),
-              border: `1.5px solid ${selected ? C.brown : C.sagePale}`,
-              borderRadius: 12, padding: '10px 4px', cursor: isPast ? 'not-allowed' : 'pointer',
-              opacity: isPast ? 0.3 : 1, color: selected ? 'var(--bp-primary-contrast)' : C.brown,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2
-            }}>
-              <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.7, textTransform: 'uppercase' }}>{d.toLocaleDateString('es-MX', { weekday: 'short' })}</span>
-              <span className="font-display" style={{ fontSize: 18, fontWeight: 600 }}>{d.getDate()}</span>
+            <button key={iso} type="button" className="bk-day" aria-pressed={data.date === iso} disabled={isPast}
+              onClick={() => { update('date', iso); update('time', null); }}
+              aria-label={`${fullDayLabel(d)}, ${libres ? `${libres} horarios libres` : 'sin horarios libres'}`}>
+              <span className="bk-day-name">{d.toLocaleDateString('es-MX', { weekday: 'short' })}</span>
+              <span className="bk-day-num">{d.getDate()}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Time slots */}
-      {data.date ? (
-        <div>
-          <div style={{ fontSize: 12, color: C.brownMid, fontWeight: 600, marginBottom: 12, letterSpacing: 0.5 }}>HORARIOS DISPONIBLES — {fullDayLabel(localDate(data.date))}</div>
-          {/* Un dia sin horarios se DICE. Antes quedaba un hueco mudo, y
-              con el horario real —no el hardcodeado— este caso es normal:
-              el consultorio simplemente no atiende ese dia. */}
-          {slots.length === 0 && (
-            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: C.brownMid }}>
-              No hay horarios disponibles ese día. Prueba con otro, o escríbenos por WhatsApp
-              y lo acomodamos.
+      {!data.date && <p className="bk-empty">Elige un día para ver sus horarios.</p>}
+
+      {data.date && (
+        <>
+          <h2 className="pub-label" style={{ margin: '0 0 10px' }}>Horarios del {fullDayLabel(localDate(data.date))}</h2>
+          {/* Un dia sin horarios se DICE: con el horario real es normal que
+              el consultorio no atienda ese dia. */}
+          {delDia.length === 0 && (
+            <p className="bk-empty">
+              Ese día no hay horarios. Prueba con otro, o{' '}
+              <a className="pub-link" href={whatsappUrl('Hola, busco un horario para una cita.', business)} target="_blank" rel="noreferrer">escríbenos por WhatsApp</a>.
             </p>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(82px, 1fr))', gap: 8 }}>
-            {slots.map(time => {
-              const available = isAvailable(data.date, time);
-              const selected = data.time === time;
-              return (
-                <button key={time} onClick={() => available && update('time', time)} disabled={!available} style={{
-                  background: selected ? C.sageDark : (available ? C.creamLight : 'transparent'),
-                  color: selected ? '#1E1B18' : (available ? C.brown : C.brownLight),
-                  border: `1.5px solid ${selected ? C.sageDark : C.sagePale}`,
-                  borderRadius: 10, padding: '10px 6px', fontSize: 13, fontWeight: 600,
-                  cursor: available ? 'pointer' : 'not-allowed',
-                  opacity: available ? 1 : 0.4,
-                  textDecoration: !available ? 'line-through' : 'none'
-                }}>{time}</button>
-              );
-            })}
+          <div className="bk-times" role="group" aria-label="Hora">
+            {delDia.map((slot) => (
+              <button key={slot.time} type="button" className="bk-time" aria-pressed={data.time === slot.time}
+                disabled={!slot.available} onClick={() => update('time', slot.time)}
+                aria-label={slot.available ? `${slot.time} horas` : `${slot.time} horas, ${slot.reason?.toLowerCase() || 'no disponible'}`}>
+                {slot.time}
+              </button>
+            ))}
           </div>
-          <button onClick={onContinue} disabled={!data.time} style={{
-            marginTop: 24, width: '100%',
-            background: !data.time ? C.sagePale : 'var(--bp-primary)',
-            color: !data.time ? '#1E1B18' : 'var(--bp-primary-contrast)', border: 'none', padding: '14px', borderRadius: 14,
-            fontSize: 15, fontWeight: 600, cursor: !data.time ? 'not-allowed' : 'pointer'
-          }}>
+          {error && <p role="alert" className="pub-error" style={{ margin: '12px 0 0' }}>{error}</p>}
+          {!error && data.time && !horaLibre && (
+            <p role="status" className="pub-hint" style={{ margin: '12px 0 0' }}>Las {data.time} ya no está libre ese día. Elige otra hora.</p>
+          )}
+          <button type="button" className="pub-btn pub-btn-primary bk-submit" onClick={onContinue} disabled={!horaLibre}>
             Continuar
           </button>
-        </div>
-      ) : (
-        <div style={{ background: C.creamLight, padding: 40, borderRadius: 16, textAlign: 'center', color: C.brownLight, border: `1px dashed ${C.sagePale}` }}>
-          <CalendarIcon size={32} strokeWidth={1.5} style={{ margin: '0 auto 8px', display: 'block' }} />
-          <div style={{ fontSize: 13 }}>Selecciona un día para ver horarios disponibles</div>
-        </div>
+        </>
       )}
     </div>
   );
 }
-
-function toMinutes(time) {
-  const [hours, minutes] = String(time || '00:00').split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-function fromMinutes(minutes) {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-}
-
-// ============ MENU PAGE ============

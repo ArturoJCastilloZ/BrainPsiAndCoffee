@@ -15,6 +15,11 @@ export function themeVars(isDark) {
       '--bp-sage-dark': isDark ? '#8FBF9F' : '#7A9E7E',
       '--bp-sage-deep': isDark ? '#E8D9C5' : '#5A3E2B',
       '--bp-sage-light': isDark ? '#CBBBAA' : '#7A9E7E',
+      // Sage CUANDO ES TEXTO (precios, enlaces). #7A9E7E daba 2.2-3:1
+      // sobre las superficies claras: todos los precios del sitio publico
+      // fallaban AA. Este da 5.7:1 sobre ivory. Mismo criterio que
+      // --bp-rust-text: un token por rol, no por color.
+      '--bp-sage-text': isDark ? '#8FBF9F' : '#4A6450',
       '--bp-sage-pale': isDark ? '#453A33' : '#E8D9C5',
       '--bp-cream': isDark ? '#F5EFE6' : '#FFFFFF',
       '--bp-cream-light': isDark ? '#332C27' : '#E8D9C5',
@@ -53,11 +58,32 @@ export function themeVars(isDark) {
 export default function GlobalStyle() {
   return (
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&family=Outfit:wght@300;400;500;600;700&family=Caveat:wght@500;700&display=swap');
+        /* Fuentes AUTOALOJADAS (main.jsx las importa de @fontsource). Antes
+           venian de Google Fonts: cada visita de un paciente le avisaba a
+           un tercero, y era una conexion mas antes de pintar texto.
+           Atkinson Hyperlegible Next distingue 0/O, 1/l/I: horarios,
+           precios y cedulas. Caveat se retiro. */
+        :root {
+          --bp-font-text: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
+          --bp-font-display: 'Fraunces Variable', Georgia, serif;
+        }
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
         body { margin: 0; }
-        .font-display { font-family: 'Fraunces', Georgia, serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
-        .font-script { font-family: 'Caveat', cursive; }
+        /* Los controles NO heredan la fuente por defecto: los botones
+           salian en Arial. */
+        button, input, select, textarea { font-family: inherit; }
+        .font-display { font-family: var(--bp-font-display); font-optical-sizing: auto; letter-spacing: -0.015em; }
+
+        /* Movimiento: quien pidio menos movimiento al sistema no ve
+           entradas, giros ni deslizamientos. */
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+          }
+        }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }

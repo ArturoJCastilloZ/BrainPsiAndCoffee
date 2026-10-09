@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react';
 
+// localStorage se lee AL CREAR el estado, no en un efecto: leido despues
+// del primer render, quien eligio el tema oscuro veia un destello claro
+// en cada carga (auditoria, seccion 4 · Bajo).
+const leerLocal = (key, defaultValue) => {
+  try {
+    const guardado = window.localStorage?.getItem(key);
+    return guardado ? JSON.parse(guardado) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+};
+
 export const useStorage = (key, defaultValue) => {
-  const [value, setValue] = useState(defaultValue);
+  const [value, setValue] = useState(() => leerLocal(key, defaultValue));
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {

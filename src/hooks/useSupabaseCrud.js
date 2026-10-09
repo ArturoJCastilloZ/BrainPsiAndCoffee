@@ -97,6 +97,8 @@ export const useSupabaseCrud = (session) => {
   const [productOptions, setProductOptionsRaw, setProductOptions, productOptionsError] = useRemoteState([], saveProductOptions);
   const [settings, setSettingsRaw, setSettings, settingsError] = useRemoteState(BUSINESS, saveSettings);
   const [schedules, setSchedules] = useState([]);
+  // Rangos ocupados para la reserva publica (0038). Sin datos de nadie.
+  const [busy, setBusy] = useState([]);
   const [bookings, setBookingsRaw, setBookings, bookingsError] = useRemoteState([], saveAppointments);
   const [orders, setOrdersRaw, setOrders, ordersError] = useRemoteState([], saveOrders);
   const [loading, setLoading] = useState(Boolean(supabase));
@@ -155,6 +157,7 @@ export const useSupabaseCrud = (session) => {
       setProductOptionsRaw(catalogs.productOptions || []);
       setSettingsRaw(catalogs.settings || BUSINESS);
       setSchedules(catalogs.schedules || []);
+      setBusy(catalogs.busy || []);
 
       if (canLoadAppointments || canLoadOrders) {
         const [remoteBookings, remoteOrders] = await Promise.all([
@@ -227,12 +230,12 @@ export const useSupabaseCrud = (session) => {
     setBookings,
     orders,
     setOrders,
-    catalogs: { services, specialties, therapists, menu, offers, productOptions, settings, schedules },
+    catalogs: { services, specialties, therapists, menu, offers, productOptions, settings, schedules, busy },
     catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setProductOptions, setSettings, reload },
     loading,
     error,
     reload,
-  }), [bookings, services, specialties, therapists, menu, offers, productOptions, settings, schedules, error, loading, orders, reload, setBookings, setMenu, setOffers, setOrders, setProductOptions, setServices, setSettings, setSpecialties, setTherapists]);
+  }), [bookings, services, specialties, therapists, menu, offers, productOptions, settings, schedules, busy, error, loading, orders, reload, setBookings, setMenu, setOffers, setOrders, setProductOptions, setServices, setSettings, setSpecialties, setTherapists]);
 };
 
 const hasMenuItems = (menu) => Object.values(menu || {}).some((section) => section.items?.length);

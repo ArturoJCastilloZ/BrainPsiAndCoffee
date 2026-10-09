@@ -1,13 +1,11 @@
 import React from 'react';
-import { AtSign, Clock, Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
-import { C } from '../theme';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
 import { esExterna, hrefSeguro } from '../safeUrl.mjs';
 import { trackEvent } from '../monitoring';
 
 export default function ContactPage({ settings }) {
   const business = businessFromSettings(settings);
-  const cards = [
+  const canales = [
     // Los dos campos que el admin escribe LIBRES pasan por el saneador:
     // su valor ocupa el href entero, asi que un esquema ejecutable ahi se
     // le sirve a todo visitante. Ver src/safeUrl.mjs.
@@ -16,68 +14,59 @@ export default function ContactPage({ settings }) {
     // 'mailto:' y el de WhatsApp el esquema esta FIJO en el codigo y lo
     // del admin va detras, asi que no puede introducir uno nuevo. Marcar
     // todo por igual escondaria cual es el que de verdad decide.
-    { icon: MessageCircle, label: 'WhatsApp', value: 'Contacto rapido para dudas, pedidos y citas.', href: whatsappUrl('Hola, quiero informacion de Brainpsi Coffee.', business) },
-    { icon: MapPin, label: 'Ubicacion', value: business.address, href: hrefSeguro(business.mapsUrl) },
-    { icon: Phone, label: 'Telefono', value: business.phone, href: `tel:${business.phone}` },
-    { icon: Mail, label: 'Correo', value: business.email, href: `mailto:${business.email}` },
-    { icon: AtSign, label: 'Instagram', value: '@brainpsicoffee', href: hrefSeguro(business.instagram) },
+    { label: 'WhatsApp', value: 'Dudas, citas y pedidos de la cafetería.', href: whatsappUrl('Hola, quiero información de Brainpsi Coffee.', business) },
+    { label: 'Dirección', value: business.address, href: hrefSeguro(business.mapsUrl), accion: 'Abrir en el mapa' },
+    { label: 'Teléfono', value: business.phone, href: `tel:${business.phone}` },
+    { label: 'Correo', value: business.email, href: `mailto:${business.email}` },
+    { label: 'Instagram', value: '@brainpsicoffee', href: hrefSeguro(business.instagram) },
   ];
 
   return (
-    <div style={{ padding: '36px 20px 70px', maxWidth: 920, margin: '0 auto' }}>
-      <div style={{ marginBottom: 24 }}>
-        <span style={{ fontSize: 11, color: C.sageDark, fontWeight: 800, letterSpacing: 2 }}>CONTACTO</span>
-        <h1 className="font-display" style={{ fontSize: 38, color: C.brown, margin: '4px 0 8px', fontWeight: 600 }}>Estamos cerca</h1>
-        <p style={{ fontSize: 15, color: C.brownMid, lineHeight: 1.6, maxWidth: 620, margin: 0 }}>
-          Escríbenos para confirmar disponibilidad, resolver dudas sobre terapia o pedir información de la cafetería.
-        </p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12, marginBottom: 18 }}>
-        {cards.map((card) => {
-          // Sin href seguro la tarjeta se pinta pero NO enlaza: la
-          // direccion y el telefono siguen siendo informacion util aunque
-          // el enlace no se pueda ofrecer. Un enlace muerto es mejor que
-          // uno que ejecuta, y esconder el dato seria perder dos cosas.
-          const Envoltura = card.href ? 'a' : 'div';
-          const props = card.href
-            ? {
-                href: card.href,
-                onClick: () => trackEvent('contact_click', { channel: card.label }),
-                // Se decide sobre la url YA saneada, nunca sobre la cruda.
-                // Antes era card.href.startsWith(...), que ademas reventaba
-                // si el campo llegaba nulo desde la base.
-                target: esExterna(card.href) ? '_blank' : undefined,
-                rel: 'noreferrer',
-              }
-            : {};
-          return (
-            <Envoltura key={card.label} {...props} style={{
-              background: C.creamLight,
-              border: `1px solid ${C.sagePale}`,
-              borderRadius: 16,
-              padding: 18,
-              color: C.brown,
-              textDecoration: 'none',
-              display: 'grid',
-              gap: 8
-            }}>
-              <card.icon size={20} color={C.sageDark} />
-              <strong style={{ fontSize: 14 }}>{card.label}</strong>
-              <span style={{ fontSize: 13, color: C.brownMid, lineHeight: 1.45 }}>{card.value}</span>
-            </Envoltura>
-          );
-        })}
-      </div>
-
-      <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 16, padding: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.brown, fontWeight: 800, marginBottom: 10 }}>
-          <Clock size={18} color={C.caramel} /> Horarios
+    <>
+      <section className="pub-hero">
+        <div className="pub-wrap pub-hero-grid">
+          <div>
+            <h1 className="pub-hero-title">Contacto</h1>
+            <p className="pub-hero-lead">
+              Escríbenos para confirmar disponibilidad, resolver dudas sobre terapia o preguntar por la cafetería.
+              Por WhatsApp respondemos más rápido.
+            </p>
+          </div>
+          <section className="pub-board" aria-labelledby="horario">
+            <h2 className="pub-board-title" id="horario">Horario</h2>
+            <ul className="pub-board-list">
+              {business.hours.map((h) => (
+                <li key={h} className="pub-board-item"><div className="pub-board-row"><span className="pub-board-name" style={{ fontSize: 19 }}>{h}</span></div></li>
+              ))}
+            </ul>
+            <p className="pub-board-foot">{business.city}</p>
+          </section>
         </div>
-        {business.hours.map((hour) => (
-          <div key={hour} style={{ fontSize: 13, color: C.brownMid, marginTop: 4 }}>{hour}</div>
-        ))}
-      </div>
-    </div>
+      </section>
+
+      <section className="pub-section pub-section-alt">
+        <div className="pub-wrap">
+          <h2 className="pub-h2">Dónde encontrarnos</h2>
+          <ul className="pub-facts">
+            {canales.map((c) => (
+              <li key={c.label} className="pub-fact">
+                <strong>{c.label}</strong>
+                {/* Sin href seguro se muestra el dato pero NO enlaza: la
+                    direccion sigue siendo util aunque el enlace no se pueda
+                    ofrecer. Un enlace muerto es mejor que uno que ejecuta. */}
+                {c.href ? (
+                  <a className="pub-link" href={c.href}
+                    onClick={() => trackEvent('contact_click', { channel: c.label })}
+                    // Se decide sobre la url YA saneada, nunca sobre la cruda.
+                    target={esExterna(c.href) ? '_blank' : undefined} rel="noreferrer">
+                    {c.value}
+                  </a>
+                ) : <span>{c.value}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    </>
   );
 }

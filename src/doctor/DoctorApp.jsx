@@ -702,7 +702,7 @@ function fechaLegible(iso, hora) {
 }
 
 const fieldLabel = { color: 'var(--admin-muted)', fontSize: 12, fontWeight: 500 };
-const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' };
+const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' };
 const smallButtonStyle = {
   display: 'inline-flex',
   alignItems: 'center',

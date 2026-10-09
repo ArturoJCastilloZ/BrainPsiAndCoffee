@@ -15,6 +15,9 @@ services:
     build:
       context: .
       target: runtime
+      args:
+        # Dominio publico para canonical y sitemap (ver Dockerfile).
+        SITE_URL: ${SITE_URL:-}
     image: brainpsi-web:${BRAINPSI_TAG:-local}
     env_file:
       - ${BRAINPSI_ENV_FILE:-.env.development}

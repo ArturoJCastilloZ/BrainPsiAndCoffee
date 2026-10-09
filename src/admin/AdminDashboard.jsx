@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { fullDayLabel, todayISO } from '../utils.jsx';
-import { solicitudVencida } from '../appointmentStatus.mjs';
+import { solicitudVencida, etiquetaPaciente } from '../appointmentStatus.mjs';
 import {
   CAFETERIA, CONSULTORIO, collected, formatMoney,
   periodRange, previousRange, variation,
@@ -129,7 +129,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
                       <span style={{ fontSize: 8, color: 'var(--admin-subtle)' }}>:{b.time.split(':')[1]}</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, color: 'var(--admin-text)', fontWeight: 500 }}>{b.name}</div>
+                      <div style={{ fontSize: 13, color: 'var(--admin-text)', fontWeight: 500 }}>{etiquetaPaciente(b)}</div>
                       <div style={{ fontSize: 11, color: 'var(--admin-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s?.name} · {t?.name?.split(' ').slice(0,2).join(' ')}</div>
                     </div>
                   </div>

@@ -251,7 +251,7 @@ function Field({ label, value, onChange, type = 'text', placeholder, required = 
   return (
     <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
       <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>{label}</span>
-      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} placeholder={placeholder} required={required} min={min} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', borderColor: missing || conAviso ? C.rust : undefined }} />
+      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} placeholder={placeholder} required={required} min={min} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', borderColor: missing || conAviso ? C.rust : undefined }} />
       {missing && <span style={requiredHint}>Campo requerido</span>}
       {!missing && conAviso && <span style={requiredHint}>{aviso}</span>}
     </label>
@@ -286,7 +286,7 @@ function ServiceForm({ draft, setDraft }) {
       <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
       <label style={{ display: 'grid', gap: 6, gridColumn: 'span 2' }}>
         <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>DESCRIPCIÓN</span>
-        <input value={draft.desc || ''} onChange={e => setDraft({ ...draft, desc: e.target.value })} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' }} />
+        <input value={draft.desc || ''} onChange={e => setDraft({ ...draft, desc: e.target.value })} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' }} />
       </label>
       <div style={{ display: 'grid', gap: 8, gridColumn: 'span 2' }}>
         <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>ICONO</div>
@@ -324,7 +324,7 @@ function SelectField({ label, value, onChange, children, required = false, class
   return (
     <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
       <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>{label}</span>
-      <select value={value || ''} onChange={e => onChange(e.target.value)} required={required} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', borderColor: missing ? C.rust : undefined }}>
+      <select value={value || ''} onChange={e => onChange(e.target.value)} required={required} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', borderColor: missing ? C.rust : undefined }}>
         {children}
       </select>
       {ayuda && <span style={campoAyuda}>{ayuda}</span>}
@@ -462,7 +462,7 @@ function OfferForm({ draft, setDraft }) {
       <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>TIPO</span>
       <select className="admin-input" value={draft.kind || 'generic'}
               onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' }}>
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' }}>
         <option value="generic">Informativa — se muestra, no descuenta</option>
         <option value="combo">Combo café + postre — descuenta del total</option>
       </select>
@@ -513,7 +513,7 @@ function BusinessSettings({ settings, setSettings }) {
       </FormGrid>
       <label style={{ display: 'grid', gap: 6, marginTop: 10 }}>
         <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>HORARIOS, UNO POR LINEA</span>
-        <textarea value={draft.hoursText || ''} onChange={event => update('hoursText', event.target.value)} rows={4} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', resize: 'vertical' }} />
+        <textarea value={draft.hoursText || ''} onChange={event => update('hoursText', event.target.value)} rows={4} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', resize: 'vertical' }} />
       </label>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginTop: 14 }}>
         {saved && <span style={{ color: 'var(--admin-accent-text)', fontSize: 12, fontWeight: 800 }}>Guardado</span>}

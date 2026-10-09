@@ -123,7 +123,11 @@ declare
     'expire_stale_booking_requests',
     -- 0037: topes de la reserva publica. Definer porque cuenta citas que
     -- el visitante anonimo no puede leer; solo responde "pasa" o lanza.
-    'check_booking_request_limits'
+    'check_booking_request_limits',
+    -- 0038: rangos ocupados para la reserva publica. Definer porque el
+    -- visitante no lee appointments; devuelve terapeuta, fecha, hora y
+    -- duracion, nunca datos del paciente (lo vigila 0028_minor_bookings).
+    'busy_slots'
   ];
   v_reales text[];
   v_nuevas text[];

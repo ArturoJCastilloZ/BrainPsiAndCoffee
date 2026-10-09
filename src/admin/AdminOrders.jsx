@@ -325,7 +325,7 @@ function CobroPedido({ order, payments, onCobrar }) {
 
 const fieldWrap = { display: 'grid', gap: 6 };
 const fieldLabel = { color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 };
-const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' };
+const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' };
 const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 };
 
 function AdminField({ label, value, onChange, type = 'text', required = false }) {

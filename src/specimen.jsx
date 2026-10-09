@@ -142,7 +142,7 @@ function Especimen() {
   const [citas, setCitas] = useState(CITAS);
   const isDark = theme === 'dark';
   return (
-    <div data-theme={theme} style={{ minHeight: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: "'Outfit', system-ui, sans-serif", ...themeVars(isDark) }}>
+    <div data-theme={theme} style={{ minHeight: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: 'var(--bp-font-text)', ...themeVars(isDark) }}>
       <GlobalStyle />
       <div style={{ position: 'fixed', right: 8, bottom: 8, zIndex: 999, display: LIMPIO ? 'none' : 'block' }}>
         <button onClick={() => setTheme(isDark ? 'light' : 'dark')}

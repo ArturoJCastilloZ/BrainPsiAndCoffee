@@ -648,6 +648,6 @@ const pill = (activo) => ({
   fontFamily: 'inherit', fontSize: 12, fontWeight: 700, minHeight: 36,
 });
 
-const input = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' };
+const input = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' };
 const th = { textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 800, letterSpacing: 1, color: 'var(--admin-row-text)', borderBottom: '1px solid var(--admin-border)' };
 const td = { padding: '8px', color: 'var(--admin-text)', borderBottom: '1px solid var(--admin-border)' };

@@ -1,6 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import '@fontsource-variable/fraunces/opsz.css';
+import '@fontsource-variable/atkinson-hyperlegible-next/wght.css';
 import App from './App.jsx';
 import { installGlobalErrorReporting, reportError } from './monitoring';
 

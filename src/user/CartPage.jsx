@@ -1,22 +1,16 @@
 import React, { useState } from 'react';
-import {
-  Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
-  ChevronRight, ChevronLeft, Plus, Minus, Check, X,
-  ShoppingBag, Settings, BarChart3, Users, Sparkles,
-  Bell, Trash2, ArrowRight, ArrowLeft,
-  CheckCircle2, AlertCircle, MessageCircle, Cake,
-  Home, Menu as MenuIcon, LogOut, TrendingUp, DollarSign,
-  Zap, Gift, Send, RefreshCw, Filter
-} from 'lucide-react';
-import { C } from '../theme';
-import { formatMXN, fullDayLabel, uid, localDate } from '../utils.jsx';
+import { Link } from 'react-router-dom';
+import { X } from 'lucide-react';
+import { fullDayLabel, uid, localDate } from '../utils.jsx';
+import { precio } from './Pizarron';
 import { validateOrder } from '../validation';
 import { activeOffers } from '../offerUtils.mjs';
 import { trackEvent } from '../monitoring';
+import './menu.css';
+import './booking.css';
 
 export default function CartPage({ cart, setCart, orders, setOrders, setPage, linkedBookingId, setLinkedBookingId, bookings, showToast, catalogs }) {
   const linkedBooking = bookings.find(b => b.id === linkedBookingId);
-  const onLightAccent = '#1E1B18';
   const [customer, setCustomer] = useState({
     customerName: linkedBooking?.name || '',
     customerPhone: linkedBooking?.phone || '',
@@ -99,127 +93,95 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
     });
     setCart([]);
     setLinkedBookingId(null);
-    showToast(linkedBookingId ? '¡Pedido recibido! Lo prepararemos cerca de tu cita.' : '¡Pedido enviado! Estará listo pronto.');
+    showToast(linkedBookingId ? 'Pedido enviado. Estará listo 10 minutos antes de tu cita.' : 'Pedido enviado. Te avisamos cuando esté listo.');
     setPage('home');
   };
 
   if (cart.length === 0) {
     return (
-      <div style={{ padding: '60px 20px', textAlign: 'center', maxWidth: 400, margin: '0 auto' }}>
-        <div style={{ width: 80, height: 80, borderRadius: '50%', background: C.creamLight, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <ShoppingBag size={36} color={C.brownLight} strokeWidth={1.5} />
+      <section className="pub-hero">
+        <div className="pub-wrap" style={{ maxWidth: 640 }}>
+          <h1 className="pub-hero-title">Tu pedido está vacío</h1>
+          <p className="pub-hero-lead">Elige algo en la cafetería y aparece aquí.</p>
+          <Link to="/cafeteria" className="pub-btn pub-btn-primary">Ver la cafetería</Link>
         </div>
-        <h2 className="font-display" style={{ fontSize: 24, color: C.brown, margin: '0 0 8px' }}>Tu carrito está vacío</h2>
-        <p style={{ fontSize: 14, color: C.brownMid, margin: '0 0 20px' }}>Explora nuestro menú lleno de bebidas con propósito.</p>
-        <button onClick={() => setPage('menu')} style={{
-          background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', border: 'none', padding: '12px 24px', borderRadius: 999,
-          fontSize: 14, fontWeight: 600, cursor: 'pointer'
-        }}>Ver cafetería</button>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div style={{ padding: '24px 20px 40px', maxWidth: 600, margin: '0 auto' }}>
-      <button onClick={() => setPage('menu')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.brownMid, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16, padding: 0 }}>
-        <ArrowLeft size={14} /> Volver al menú
-      </button>
-
-      <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: C.brown, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Tu pedido</h1>
+    <div className="pub-wrap" style={{ maxWidth: 640, padding: '32px var(--pub-gutter) 56px' }}>
+      <Link to="/cafeteria" className="pub-link" style={{ fontWeight: 400 }}>Seguir viendo el menú</Link>
+      <h1 className="pub-h2" style={{ margin: '12px 0 20px' }}>Tu pedido</h1>
 
       {linkedBooking && (
-        <div style={{ background: C.sagePale, borderRadius: 12, padding: 14, marginBottom: 16, fontSize: 12, color: C.sageDeep, display: 'flex', gap: 10 }}>
-          <CalendarIcon size={16} style={{ flexShrink: 0 }} />
-          <div>
-            <strong>Vinculado a tu cita:</strong> {fullDayLabel(localDate(linkedBooking.date))} a las {linkedBooking.time}. Lo prepararemos cerca de tu horario.
-          </div>
-        </div>
+        <p className="pub-notice" style={{ marginBottom: 16 }}>
+          Ligado a tu cita del {fullDayLabel(localDate(linkedBooking.date))} a las {linkedBooking.time}. Lo preparamos para que esté listo 10 minutos antes.
+        </p>
       )}
 
-      <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 16, padding: 8, marginBottom: 16 }}>
-        {cart.map((item, i) => (
-          <div key={item.cartId} style={{
-            display: 'flex', alignItems: 'center', gap: 12, padding: 14,
-            borderBottom: i < cart.length - 1 ? `1px solid ${C.sagePale}` : 'none'
-          }}>
-            <div style={{ flex: 1 }}>
-              <div className="font-display" style={{ fontSize: 16, fontWeight: 600, color: C.brown }}>{item.name}</div>
-              <div style={{ fontSize: 11, color: C.brownLight, marginTop: 2 }}>
-                {/* Los extras se listan por su nombre: ya no hay un unico
-                    "Shot extra" escrito a mano, cada clinica define los suyos.
-                    Se conserva la lectura de extraShot para los pedidos
-                    viejos, guardados antes de que existieran los addons. */}
-                {item.customizations?.milk && `${item.customizations.milk}`}
-                {item.customizations?.flavor && ` · ${item.customizations.flavor}`}
-                {(item.customizations?.addons || []).map((a) => ` · ${a}`).join('')}
-                {!item.customizations?.addons?.length && item.customizations?.extraShot && ` · Shot extra`}
-                {!item.customizations?.milk && item.sub}
+      <section className="pub-board" aria-label="Productos">
+        <ul className="pub-board-list">
+          {cart.map((item) => (
+            <li key={item.cartId} className="pub-board-item menu-item" style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}>
+              <div className="menu-item-text">
+                <span className="pub-board-name" style={{ fontSize: 19 }}>{item.name}</span>
+                <span className="pub-board-detail">
+                  {/* Los extras se listan por su nombre: cada clinica define
+                      los suyos. Se conserva la lectura de extraShot para los
+                      pedidos viejos, guardados antes de los addons. */}
+                  {item.customizations?.milk && `${item.customizations.milk}`}
+                  {item.customizations?.flavor && ` · ${item.customizations.flavor}`}
+                  {(item.customizations?.addons || []).map((a) => ` · ${a}`).join('')}
+                  {!item.customizations?.addons?.length && item.customizations?.extraShot && ' · Shot extra'}
+                  {!item.customizations?.milk && item.sub}
+                </span>
               </div>
+              <span className="pub-board-price" style={{ fontSize: 19 }}>{precio(item.customizations?.totalPrice || item.price)}</span>
+              <button type="button" className="pub-icon-btn" style={{ color: 'var(--pub-board-text)' }}
+                onClick={() => setCart(cart.filter((c) => c.cartId !== item.cartId))} aria-label={`Quitar ${item.name}`}>
+                <X size={18} />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="pub-board-foot">
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>{precio(subtotal)}</span></div>
+          {comboApplied && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>{comboOffer?.name || 'Combo café + postre'}</span><span>−{precio(comboSavings)}</span>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: C.sageDark }}>{formatMXN(item.customizations?.totalPrice || item.price)}</div>
-            <button onClick={() => setCart(cart.filter(c => c.cartId !== item.cartId))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.brownLight, padding: 4 }}>
-              <Trash2 size={16} />
-            </button>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8, color: 'var(--pub-board-text)' }}>
+            <span>Total</span><span className="pub-board-price" style={{ fontSize: 28 }}>{precio(total)}</span>
           </div>
-        ))}
-      </div>
-
-      <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
-        <h2 style={{ fontSize: 13, color: C.brown, margin: '0 0 12px', letterSpacing: 0.5 }}>DATOS DE CONTACTO</h2>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <OrderField label="Nombre" value={customer.customerName} error={errors.customerName} onChange={(customerName) => {
-            setCustomer({ ...customer, customerName });
-            if (errors.customerName) setErrors({ ...errors, customerName: '' });
-          }} />
-          <OrderField label="Telefono / WhatsApp" value={customer.customerPhone} error={errors.customerPhone} onChange={(customerPhone) => {
-            setCustomer({ ...customer, customerPhone });
-            if (errors.customerPhone) setErrors({ ...errors, customerPhone: '' });
-          }} />
         </div>
-      </div>
-
-      <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14, color: C.brownMid }}>
-          <span>Subtotal</span><span>{formatMXN(subtotal)}</span>
-        </div>
-        {comboApplied && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, color: C.rust, fontWeight: 600 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Gift size={13} /> {comboOffer?.name || 'Combo café + postre'}</span>
-            <span>−{formatMXN(comboSavings)}</span>
-          </div>
-        )}
-        <div style={{ borderTop: `1px solid ${C.sagePale}`, marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <span style={{ fontSize: 14, color: C.brown, fontWeight: 600 }}>Total</span>
-          <span className="font-display" style={{ fontSize: 28, fontWeight: 700, color: C.sageDark }}>{formatMXN(total)}</span>
-        </div>
-      </div>
+      </section>
 
       {/* comboOffer en la condicion, no solo !comboApplied: sin oferta de
-          combo, comboPrice es null y formatMXN hace null.toFixed() — un
-          TypeError que tumba el carrito entero. Y aunque no reventara,
-          "estas cerca del combo" sin combo no dice nada. */}
+          combo, comboPrice es null y "estas cerca del combo" no dice nada. */}
       {comboOffer && !comboApplied && (hasCoffee || hasDessert) && (
-        <div style={{ background: C.caramelLight, border: `1px dashed ${C.caramel}`, borderRadius: 12, padding: 12, marginBottom: 16, fontSize: 12, color: onLightAccent, display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Sparkles size={16} color={onLightAccent} />
-          <div>
-            <strong>¡Estás cerca del combo {formatMXN(comboPrice)}!</strong> Agrega un {hasCoffee ? 'postre' : 'café'} y aprovecha la promoción.
-          </div>
-        </div>
+        <p className="pub-notice" style={{ marginTop: 16 }}>
+          Agrega un {hasCoffee ? 'postre' : 'café'} y se vuelve {comboOffer.name.toLowerCase()} por {precio(comboPrice)}.
+        </p>
       )}
 
-      {errors.submit && (
-        <div role="alert" style={{ background: 'var(--bp-surface-2)', border: `1px solid ${C.rust}`, borderRadius: 14, padding: 14, color: C.rustText, fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
-          {errors.submit}
-        </div>
-      )}
+      <div className="bk-form" style={{ marginTop: 24 }}>
+        <h2 className="pub-h3" style={{ margin: 0 }}>Para avisarte cuando esté listo</h2>
+        <OrderField id="pedido-nombre" label="Nombre" value={customer.customerName} error={errors.customerName} autoComplete="name" onChange={(customerName) => {
+          setCustomer({ ...customer, customerName });
+          if (errors.customerName) setErrors({ ...errors, customerName: '' });
+        }} />
+        <OrderField id="pedido-telefono" label="WhatsApp" type="tel" placeholder="81 1234 5678" value={customer.customerPhone} error={errors.customerPhone} autoComplete="tel" onChange={(customerPhone) => {
+          setCustomer({ ...customer, customerPhone });
+          if (errors.customerPhone) setErrors({ ...errors, customerPhone: '' });
+        }} />
+      </div>
 
-      <button onClick={placeOrder} disabled={saving} aria-busy={saving} style={{
-        width: '100%', background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', border: 'none',
-        padding: '16px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
-        opacity: saving ? 0.7 : 1,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-      }}>
-        <Send size={18} /> {saving ? 'Enviando pedido…' : 'Confirmar pedido'}
+      {errors.submit && <p role="alert" className="pub-error" style={{ margin: '16px 0 0' }}>{errors.submit}</p>}
+
+      <button type="button" className="pub-btn pub-btn-primary bk-submit" onClick={placeOrder} disabled={saving} aria-busy={saving}>
+        {saving ? 'Enviando tu pedido…' : 'Enviar pedido'}
       </button>
     </div>
   );
@@ -232,26 +194,13 @@ function targetReadyAt(booking) {
   return target.toISOString();
 }
 
-function OrderField({ label, value, onChange, error }) {
-  const missing = !String(value || '').trim();
-  const invalid = Boolean(error);
+function OrderField({ id, label, value, onChange, error, type = 'text', placeholder, autoComplete }) {
   return (
-    <label style={{ display: 'grid', gap: 5 }}>
-      <span style={{ fontSize: 11, color: C.brownMid, fontWeight: 800, letterSpacing: 0.7 }}>{label.toUpperCase()}</span>
-      <input value={value} onChange={e => onChange(e.target.value)} style={{
-        width: '100%',
-        boxSizing: 'border-box',
-        padding: '11px 12px',
-        borderRadius: 10,
-        border: `1.5px solid ${invalid ? C.rust : C.sagePale}`,
-        background: C.ivory,
-        color: C.brown,
-        outline: 'none',
-        fontFamily: 'inherit'
-      }} />
-      {invalid && <span style={{ color: C.rust, fontSize: 10, fontWeight: 800 }}>{missing ? 'Campo requerido' : error}</span>}
-    </label>
+    <div className="pub-field">
+      <label className="pub-label" htmlFor={id}>{label}</label>
+      <input id={id} className="pub-input" type={type} value={value} placeholder={placeholder} autoComplete={autoComplete}
+        onChange={(e) => onChange(e.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} />
+      {error && <span id={`${id}-error`} className="pub-error">{error}</span>}
+    </div>
   );
 }
-
-// ============ MY BOOKINGS ============

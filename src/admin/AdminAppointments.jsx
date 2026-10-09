@@ -17,7 +17,7 @@ import { validateAppointment } from '../validation';
 import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
 import { formatMoney } from '../accounting.mjs';
-import { cuentaComoFacturada, solicitudVencida } from '../appointmentStatus.mjs';
+import { cuentaComoFacturada, solicitudVencida, etiquetaPaciente, nombrePaciente } from '../appointmentStatus.mjs';
 
 export default function AdminAppointments({
   bookings, setBookings, catalogs, lockedTherapistId = null,
@@ -370,7 +370,7 @@ export default function AdminAppointments({
       </div>
 
       <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o correo..." className="admin-input" style={{
-        width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none'
+        width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16, fontFamily: 'inherit', boxSizing: 'border-box'
       }} />
 
       {filtered.length === 0 ? (
@@ -449,10 +449,10 @@ export default function AdminAppointments({
                         {/* El nombre del paciente no se trunca sin mas: en
                             contexto clinico una identificacion a medias es
                             un riesgo, asi que lleva title. */}
-                        <div title={b.name} style={{
+                        <div title={etiquetaPaciente(b)} style={{
                           fontSize: 14, color: 'var(--admin-text)', fontWeight: 600,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>{b.name}</div>
+                        }}>{etiquetaPaciente(b)}</div>
                         <div style={{
                           fontSize: 12, color: 'var(--admin-muted)', marginTop: 2,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -473,23 +473,23 @@ export default function AdminAppointments({
                             una cita, y no debe confundirse con otra accion. */}
                         {b.status === 'requested' && (
                           <div style={{ display: 'flex', gap: 4 }}>
-                            <button onClick={() => updateStatus(b.id, 'confirmed')} aria-label={`Confirmar la solicitud de ${b.name}`} style={decisionStyle(true)}>
+                            <button onClick={() => updateStatus(b.id, 'confirmed')} aria-label={`Confirmar la solicitud de ${nombrePaciente(b)}`} style={decisionStyle(true)}>
                               <Check size={13} aria-hidden="true" /> Confirmar
                             </button>
-                            <button onClick={() => updateStatus(b.id, 'cancelled')} aria-label={`Rechazar la solicitud de ${b.name}`} style={decisionStyle(false)}>
+                            <button onClick={() => updateStatus(b.id, 'cancelled')} aria-label={`Rechazar la solicitud de ${nombrePaciente(b)}`} style={decisionStyle(false)}>
                               Rechazar
                             </button>
                           </div>
                         )}
                         {b.status === 'confirmed' && (
                           <div style={{ display: 'flex', gap: 4 }}>
-                            <button onClick={() => startReschedule(b)} title="Reagendar" aria-label={`Reagendar la cita de ${b.name}`} style={accionStyle}>
+                            <button onClick={() => startReschedule(b)} title="Reagendar" aria-label={`Reagendar la cita de ${nombrePaciente(b)}`} style={accionStyle}>
                               <RefreshCw size={14} aria-hidden="true" />
                             </button>
-                            <button onClick={() => updateStatus(b.id, 'completed')} title="Marcar completada" aria-label={`Marcar como completada la cita de ${b.name}`} style={accionStyle}>
+                            <button onClick={() => updateStatus(b.id, 'completed')} title="Marcar completada" aria-label={`Marcar como completada la cita de ${nombrePaciente(b)}`} style={accionStyle}>
                               <Check size={14} aria-hidden="true" />
                             </button>
-                            <button onClick={() => updateStatus(b.id, 'cancelled')} title="Cancelar" aria-label={`Cancelar la cita de ${b.name}`} style={accionStyle}>
+                            <button onClick={() => updateStatus(b.id, 'cancelled')} title="Cancelar" aria-label={`Cancelar la cita de ${nombrePaciente(b)}`} style={accionStyle}>
                               <X size={14} aria-hidden="true" />
                             </button>
                           </div>
@@ -706,7 +706,7 @@ function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, 
 
 const fieldWrap = { display: 'grid', gap: 6 };
 const fieldLabel = { color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 };
-const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, outline: 'none', fontFamily: 'inherit' };
+const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' };
 
 function AdminField({ label, value, onChange, type = 'text', required = false }) {
   const missing = required && String(value || '').trim().length === 0;

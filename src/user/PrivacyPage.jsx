@@ -1,42 +1,41 @@
 import React from 'react';
-import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
-import { C } from '../theme';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
 
+// OJO: esto NO es el aviso de privacidad integral que pide la LFPDPPP.
+// Ese lo redacta un abogado (auditoria, seccion 3 · cumplimiento). Esta
+// pagina dice la verdad sobre lo que el sitio hace hoy mientras tanto.
 export default function PrivacyPage({ settings }) {
   const business = businessFromSettings(settings);
   return (
-    <div style={{ padding: '36px 20px 70px', maxWidth: 880, margin: '0 auto' }}>
-      <span style={{ fontSize: 11, color: C.sageDark, fontWeight: 800, letterSpacing: 2 }}>PRIVACIDAD</span>
-      <h1 className="font-display" style={{ fontSize: 38, color: C.brown, margin: '4px 0 14px', fontWeight: 600 }}>Aviso de privacidad y uso responsable</h1>
-      <p style={{ fontSize: 15, color: C.brownMid, lineHeight: 1.65 }}>
-        Esta version del sitio usa tus datos de contacto solo para responder solicitudes, confirmar citas y dar seguimiento operativo. No compartas detalles clinicos sensibles en formularios publicos.
-      </p>
+    <>
+      <section className="pub-hero">
+        <div className="pub-wrap">
+          <h1 className="pub-hero-title">Aviso de privacidad</h1>
+          <p className="pub-hero-lead">
+            Usamos tus datos de contacto solo para responderte, confirmar tus citas y dar seguimiento a tus pedidos.
+          </p>
+        </div>
+      </section>
 
-      <InfoBlock icon={ShieldCheck} title="Datos que podemos solicitar">
-        Nombre, correo, telefono, servicio de interes, fecha y hora solicitada. Para temas clinicos o de emergencia, utiliza contacto directo con el profesional o servicios de emergencia.
-      </InfoBlock>
-      <InfoBlock icon={AlertTriangle} title="Informacion sensible">
-        Evita escribir diagnosticos, antecedentes, crisis, medicamentos o informacion de terceros en campos libres. El primer contacto puede hacerse por WhatsApp para orientar el siguiente paso.
-      </InfoBlock>
-      <InfoBlock icon={FileText} title="Importante">
-        Este sitio no sustituye atencion psicologica, medica ni servicios de emergencia. Si estas en una situacion de riesgo, contacta a emergencias locales o acude a una unidad de atencion inmediata.
-      </InfoBlock>
+      <section className="pub-section pub-section-alt">
+        <div className="pub-wrap" style={{ maxWidth: 760 }}>
+          <h2 className="pub-h3">Qué datos pedimos</h2>
+          <p>Nombre, correo, teléfono, el servicio que te interesa y la fecha y hora que solicitas. Si la cita es para una niña o un niño, también su nombre.</p>
 
-      <div style={{ marginTop: 22, padding: 18, borderRadius: 16, background: C.sagePale, color: C.sageDeep, fontSize: 13, lineHeight: 1.6 }}>
-        Responsable: {business.legalName}. Para ejercer derechos relacionados con tus datos o solicitar mas informacion, escribe a <a href={`mailto:${business.email}`} style={{ color: C.sageDeep, fontWeight: 800 }}>{business.email}</a> o por <a href={whatsappUrl('Hola, quiero informacion sobre privacidad de mis datos.', business)} style={{ color: C.sageDeep, fontWeight: 800 }}>WhatsApp</a>.
-      </div>
-    </div>
-  );
-}
+          <h2 className="pub-h3" style={{ marginTop: 28 }}>Qué no debes enviarnos por aquí</h2>
+          <p>Diagnósticos, antecedentes, medicamentos, crisis o información de otras personas. Eso se platica en consulta, no en un formulario.</p>
 
-function InfoBlock({ icon: Icon, title, children }) {
-  return (
-    <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 16, padding: 18, marginTop: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8, color: C.brown, fontWeight: 800 }}>
-        <Icon size={18} color={C.sageDark} /> {title}
-      </div>
-      <div style={{ fontSize: 13, color: C.brownMid, lineHeight: 1.6 }}>{children}</div>
-    </div>
+          <h2 className="pub-h3" style={{ marginTop: 28 }}>Emergencias</h2>
+          <p>Este sitio no sustituye la atención psicológica, médica ni de emergencia. Si hay riesgo, llama al 911 o a la Línea de la Vida, 800 911 2000.</p>
+
+          <h2 className="pub-h3" style={{ marginTop: 28 }}>Tus derechos</h2>
+          <p style={{ marginBottom: 0 }}>
+            Responsable: {business.legalName}. Para acceder, corregir o cancelar tus datos, u oponerte a su uso,
+            escribe a <a className="pub-link" href={`mailto:${business.email}`}>{business.email}</a> o por
+            {' '}<a className="pub-link" href={whatsappUrl('Hola, quiero información sobre la privacidad de mis datos.', business)} target="_blank" rel="noreferrer">WhatsApp</a>.
+          </p>
+        </div>
+      </section>
+    </>
   );
 }

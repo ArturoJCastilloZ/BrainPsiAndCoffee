@@ -1,0 +1,39 @@
+/* Cafeteria: el mismo pizarron, con un boton por renglon. */
+
+.menu-board-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.menu-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  column-gap: 16px; row-gap: 8px; padding: 14px 0;
+}
+@media (min-width: 560px) { .menu-item { grid-template-columns: minmax(0, 1fr) auto auto; } }
+.menu-item-text { display: grid; gap: 2px; }
+.menu-add {
+  grid-column: 1 / -1; justify-self: start;
+  min-height: 40px; padding: 0 16px; border-radius: var(--bp-radius-pill);
+  background: transparent; color: var(--pub-board-text); border: 1.5px solid var(--pub-board-muted);
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+@media (min-width: 560px) { .menu-add { grid-column: auto; } }
+.menu-add:hover { background: var(--pub-board-text); color: var(--pub-board); }
+
+/* Dialogo nativo */
+.menu-dialog {
+  border: none; padding: 0; background: transparent; color: var(--bp-brown);
+  width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
+}
+.menu-dialog::backdrop { background: rgba(30, 27, 24, 0.6); }
+.menu-dialog-box {
+  display: flex; flex-direction: column; max-height: calc(100dvh - 32px);
+  background: var(--bp-surface); border-radius: var(--bp-radius-lg);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28); overflow: hidden;
+}
+.menu-dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 20px 8px; }
+.menu-dialog-body { padding: 4px 20px 12px; overflow: auto; display: grid; gap: 18px; }
+.menu-dialog-foot { padding: 14px 20px 20px; border-top: 1px solid var(--bp-sage-pale); }
+.menu-fieldset { border: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.menu-check {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px;
+  border: 1px solid var(--bp-sage-pale); border-radius: var(--bp-radius-md); cursor: pointer;
+}
+.menu-check input { width: 18px; height: 18px; accent-color: var(--bp-primary); }
+.menu-check-price { margin-left: auto; font-weight: 700; color: var(--bp-sage-text); font-variant-numeric: tabular-nums; }

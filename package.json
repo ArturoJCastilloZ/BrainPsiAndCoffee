@@ -16,6 +16,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
+    "@fontsource-variable/fraunces": "5.3.0",
     "@supabase/supabase-js": "^2.107.0",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
