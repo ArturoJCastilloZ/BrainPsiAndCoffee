@@ -108,7 +108,7 @@ export const canAccessAdminPage = (role, page) => {
   if (page === 'general-business') return canManageBusinessSettings(role);
   if (page === 'general-access') return canManageAccess(role);
   if (page === 'general-arco') return canManageArco(role);
-  if (page === 'general-security') return canManageOwnSecurity(role);
+  if (page === 'cuenta-seguridad') return canManageOwnSecurity(role);
   if (page === 'clinic-schedules') return canManageSchedules(role);
   if (page === 'cafe-orders') return canManageOrders(role);
   if (page === 'general-accounting') return canViewAccounting(role);

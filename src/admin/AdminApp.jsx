@@ -73,7 +73,6 @@ export default function AdminApp({ switchToUser, logout }) {
                 canViewAccounting(role) && { id: 'general-accounting', label: 'Contabilidad', icon: Wallet },
                 canManageAccess(role) && { id: 'general-access', label: 'Accesos', icon: KeyRound },
                 canManageArco(role) && { id: 'general-arco', label: 'Derechos ARCO', icon: ShieldCheck },
-                canManageOwnSecurity(role) && { id: 'general-security', label: 'Seguridad', icon: LockKeyhole },
             ].filter(Boolean)
         },
         {
@@ -95,6 +94,16 @@ export default function AdminApp({ switchToUser, logout }) {
                 canManageClinicCatalog(role) && { id: 'clinic-therapists', label: 'Especialistas', icon: Users },
                 canManageClinicCatalog(role) && { id: 'clinic-specialties', label: 'Especialidades', icon: Sparkles },
                 canManageSchedules(role) && { id: 'clinic-schedules', label: 'Horarios', icon: Clock },
+            ].filter(Boolean)
+        },
+        // La seguridad de la PROPIA cuenta va aparte: es de todos, tambien
+        // del barista. Dentro de "Administracion general" le mostraba al
+        // barista una seccion de administracion que no le corresponde.
+        {
+            contexto: 'cuenta', corto: 'Mi cuenta',
+            label: 'Mi cuenta',
+            items: [
+                canManageOwnSecurity(role) && { id: 'cuenta-seguridad', label: 'Seguridad', icon: LockKeyhole },
             ].filter(Boolean)
         }
     ].filter((section) => section.items.length)), [role]);
@@ -288,7 +297,7 @@ export default function AdminApp({ switchToUser, logout }) {
                         {page === 'general-accounting' && canViewAccounting(role) && <AdminAccounting bookings={bookings} orders={orders} catalogs={catalogs} session={session} contabilidad={contabilidad} />}
                         {page === 'general-access' && canManageAccess(role) && <AdminAccess />}
                         {page === 'general-arco' && canManageArco(role) && <AdminArco />}
-                        {page === 'general-security' && canManageOwnSecurity(role) && <SecurityPanel session={session} puedeExigir={canRequireClinicalMfa(role)} />}
+                        {page === 'cuenta-seguridad' && canManageOwnSecurity(role) && <SecurityPanel session={session} puedeExigir={canRequireClinicalMfa(role)} />}
                         {page === 'general-business' && canManageBusinessSettings(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="business" lockedTab heading="Negocio" description="Administra información general del negocio, contacto, redes, mapa y horarios." />}
                         {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} payments={contabilidad.datos.payments} canRecordPayments={canRecordPayment(role, 'pedido')} onRegistrarCobro={contabilidad.registrarCobro} />}
                         {page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}
