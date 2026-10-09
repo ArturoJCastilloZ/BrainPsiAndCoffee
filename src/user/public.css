@@ -275,6 +275,17 @@ a.pub-board-row:hover .pub-board-name { text-decoration: underline; text-underli
   animation: pubEntrada 0.25s ease-out both;
 }
 .pub-toast-error { background: var(--bp-rust-text); color: #fff; }
+.pub-toast > span { flex: 1; }
+.pub-toast-action {
+  flex: none; display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px;
+  border-radius: 999px; background: var(--bp-caramel-light); color: #1E1B18;
+  font-weight: 700; font-size: 14px; text-decoration: none; white-space: nowrap;
+}
+.pub-toast-action:focus-visible, .pub-toast-close:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.pub-toast-close {
+  flex: none; display: inline-grid; place-items: center; width: 36px; height: 36px; margin-right: -6px;
+  border: none; border-radius: 999px; background: transparent; color: inherit; cursor: pointer;
+}
 
 /* ---------- Ticket de la solicitud ---------- */
 .pub-ticket {

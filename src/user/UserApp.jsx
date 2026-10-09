@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, CalendarCheck, Coffee, Home, MessageCircle, Moon, ShoppingBag, Sun } from 'lucide-react';
+import { Brain, CalendarCheck, Coffee, Home, MessageCircle, Moon, ShoppingBag, Sun, X } from 'lucide-react';
 import { uid } from '../utils.jsx';
 import BrandMark from '../components/BrandMark';
 import { businessFromSettings, BUSINESS, whatsappUrl } from '../businessInfo';
@@ -83,15 +83,20 @@ export default function UserApp() {
 
   const setPage = useCallback((page) => navigate(PAGE_PATHS[page] || '/'), [navigate]);
 
-  const showToast = useCallback((msg, type = 'success') => {
+  // `accion` ({ to, label }) agrega un enlace al aviso; con enlace dura
+  // mas, para que de tiempo de leerlo y tocarlo.
+  const showToast = useCallback((msg, type = 'success', accion = null) => {
     window.clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+    setToast({ msg, type, accion });
+    toastTimer.current = window.setTimeout(() => setToast(null), accion ? 7000 : 3500);
   }, []);
 
+  // Agregar no saca a la persona del menu (puede querer algo mas), pero le
+  // dice donde quedo y como pagar: antes solo cambiaba el numerito de la
+  // bolsa y parecia que no habia pasado nada.
   const addToCart = (item, customizations = {}) => {
     setCart((prev) => [...prev, { ...item, qty: 1, customizations, cartId: uid() }]);
-    showToast(`${item.name} está en tu pedido`);
+    showToast(`${item.name} se agregó a tu pedido.`, 'success', { to: '/carrito', label: 'Ver pedido y pagar' });
   };
 
   const comunes = { catalogs, setPage, showToast, dataLoading };
@@ -213,7 +218,17 @@ export default function UserApp() {
       </nav>
 
       <div aria-live="polite" role="status">
-        {toast && <div className={`pub-toast${toast.type === 'error' ? ' pub-toast-error' : ''}`}>{toast.msg}</div>}
+        {toast && (
+          <div className={`pub-toast${toast.type === 'error' ? ' pub-toast-error' : ''}`}>
+            <span>{toast.msg}</span>
+            {toast.accion && (
+              <Link to={toast.accion.to} className="pub-toast-action" onClick={() => setToast(null)}>{toast.accion.label}</Link>
+            )}
+            <button type="button" className="pub-toast-close" aria-label="Cerrar aviso" onClick={() => setToast(null)}>
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
