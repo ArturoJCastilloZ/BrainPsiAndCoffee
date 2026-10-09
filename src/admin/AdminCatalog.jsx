@@ -81,7 +81,7 @@ export default function AdminCatalog({ catalogs, catalogActions, session, initia
 
       {tab === 'products' && <ProductsManager menu={catalogs.menu} setMenu={catalogActions.setMenu} />}
       {tab === 'services' && <ListManager title="Servicios" items={catalogs.services} setItems={catalogActions.setServices} emptyItem={emptyService} renderForm={ServiceForm} summary={(item) => `${item.duration} min · $${item.price} · ${item.for}`} />}
-      {tab === 'therapists' && <ListManager title="Especialistas" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || []} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}`} />}
+      {tab === 'therapists' && <ListManager title="Especialistas" items={catalogs.therapists} setItems={catalogActions.setTherapists} emptyItem={emptyTherapist} renderForm={(props) => <TherapistForm {...props} services={catalogs.services} specialties={catalogs.specialties || []} />} summary={(item) => `${item.specialty || 'Sin especialidad'} · ${item.sessionDuration || 50} min · ${item.email || 'sin correo'} · Céd. ${item.cedula || 'pendiente'}${sinServicioActivo(item, catalogs.services) ? ' · Sin servicios activos: nadie puede agendarle' : ''}`} />}
       {tab === 'specialties' && <ListManager title="Especialidades" items={catalogs.specialties || []} setItems={catalogActions.setSpecialties} emptyItem={emptySpecialty} renderForm={SpecialtyForm} summary={(item) => item.active === false ? 'Inactiva' : 'Activa'} />}
       {tab === 'options' && <OptionsManager options={catalogs.productOptions || []} setOptions={catalogActions.setProductOptions} />}
       {tab === 'offers' && <ListManager title="Ofertas" items={catalogs.offers} setItems={catalogActions.setOffers} emptyItem={emptyOffer} renderForm={OfferForm} summary={(item) => `$${item.price} · ${item.desc}${offerWindowLabel(item)}`} />}
@@ -422,6 +422,10 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {services.map(service => {
           const checked = draft.services?.includes(service.id);
+          // Un servicio desactivado no aparece en la web: marcarlo no le da
+          // citas a nadie. Asi quedo una especialista ligada solo a dos
+          // servicios del catalogo viejo, sin que nada lo dijera.
+          const apagado = service.active === false;
           return (
             <button key={service.id} onClick={() => setDraft({ ...draft, services: checked ? draft.services.filter(id => id !== service.id) : [...(draft.services || []), service.id] })} style={{
               border: `1px solid ${checked ? selectedPill.border : 'var(--admin-border)'}`,
@@ -432,11 +436,16 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
               cursor: 'pointer',
               fontSize: 11,
               fontFamily: 'inherit'
-            }}>{service.name}</button>
+            }}>{service.name}{apagado ? ' (desactivado)' : ''}</button>
           );
         })}
       </div>
       {!(draft.services || []).length && <span style={{ ...requiredHint, display: 'block', marginTop: 6 }}>Campo requerido</span>}
+      {(draft.services || []).length > 0 && sinServicioActivo(draft, services) && (
+        <span style={{ ...requiredHint, display: 'block', marginTop: 6 }}>
+          Solo tiene servicios desactivados: en la web nadie puede agendarle. Marca al menos uno activo.
+        </span>
+      )}
     </div>
   </>;
 }
@@ -551,7 +560,13 @@ function adminButton(kind) {
 
 const campoAyuda = { color: 'var(--admin-muted)', fontSize: 11, lineHeight: 1.45, fontWeight: 400, letterSpacing: 0 };
 
-const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 };
+const requiredHint = { color: C.rustText, fontSize: 12.5, fontWeight: 700 };
+
+// true si el especialista no atiende NINGUN servicio activo del catalogo.
+const sinServicioActivo = (therapist, services = []) => {
+  const activos = new Set(services.filter((sv) => sv.active !== false).map((sv) => sv.id));
+  return !(therapist.services || []).some((id) => activos.has(id));
+};
 
 function isDraftValid(draft) {
   const hasText = (value) => String(value || '').trim().length > 0;

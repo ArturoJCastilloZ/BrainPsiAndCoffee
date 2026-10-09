@@ -47,7 +47,7 @@ const llenarDatos = async (user, { menor = false } = {}) => {
   await user.type(screen.getByLabelText(menor ? 'Tu nombre completo' : 'Nombre completo'), 'Marta Pérez');
   await user.type(screen.getByLabelText('Correo electrónico'), 'marta@ejemplo.mx');
   await user.type(screen.getByLabelText('WhatsApp'), '81 1234 5678');
-  await user.click(screen.getByRole('checkbox', { name: /Acepto que me contacten/ }));
+  await user.click(screen.getByRole('checkbox', { name: /He leído y acepto el aviso de privacidad/ }));
 };
 
 describe('BookingFlow', () => {
@@ -58,6 +58,16 @@ describe('BookingFlow', () => {
     expect(screen.getByRole('button', { name: '10:00 horas' }).getAttribute('aria-pressed')).toBe('true');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Tus datos' })).toBeTruthy();
+  });
+
+  it('un servicio que nadie atiende lo dice en el paso 1 y no lleva a un calendario vacio', () => {
+    render(<MemoryRouter initialEntries={['/reservar?servicio=sv']}><BookingFlow
+      setPage={vi.fn()} bookings={[]} setBookings={vi.fn()} setLinkedBookingId={vi.fn()} dataLoading={false}
+      catalogs={{ ...catalogs, therapists: [{ ...catalogs.therapists[0], services: ['otro-servicio'] }] }} /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Elige el servicio' })).toBeTruthy();
+    expect(screen.getByText(/Por ahora no se puede agendar en línea/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Psicología infantil/ })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Pídela por WhatsApp' })).toBeTruthy();
   });
 
   it('una hora que ya se ocupo no deja continuar, y lo dice', () => {

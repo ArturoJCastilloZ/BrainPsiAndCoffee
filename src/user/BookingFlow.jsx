@@ -53,7 +53,8 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
     if (aplicado.current || services.length === 0) return;
     aplicado.current = true;
     const servicio = services.find((s) => s.id === params.get('servicio'));
-    if (!servicio) return;
+    // Un servicio que nadie atiende se queda en el paso 1, donde se explica.
+    if (!servicio || !therapists.some((t) => t.services?.includes(servicio.id))) return;
     const fecha = params.get('fecha');
     const hora = params.get('hora');
     if (FECHA.test(fecha || '') && HORA.test(hora || '')) {
@@ -63,7 +64,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
       setData((prev) => ({ ...prev, serviceId: servicio.id }));
       setStep(2);
     }
-  }, [params, services]);
+  }, [params, services, therapists]);
 
   // Cada paso es una pantalla nueva: el foco va a su titulo para que el
   // lector de pantalla la anuncie, y la vista vuelve arriba.
@@ -78,7 +79,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
     const e = validateAppointment(data);
     // Solo los campos de ESTE paso; servicio y horario ya se eligieron.
     const propios = Object.fromEntries(Object.entries(e).filter(([k]) => ['name', 'email', 'phone', 'patientName'].includes(k)));
-    if (!data.privacyAccepted) propios.privacyAccepted = 'Necesitamos tu permiso para contactarte y confirmar la cita.';
+    if (!data.privacyAccepted) propios.privacyAccepted = 'Para enviar tu solicitud, acepta el aviso de privacidad.';
     return propios;
   };
 
@@ -233,16 +234,33 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
           </p>
         ) : (
           <ul className="bk-options">
-            {services.map((s) => (
-              <li key={s.id}>
-                <button type="button" className="bk-option" aria-pressed={data.serviceId === s.id}
-                  onClick={() => { update('serviceId', s.id); setStep(2); }}>
-                  <span className="bk-option-name">{s.name}</span>
-                  <span className="bk-option-price">{precio(s.price)}</span>
-                  <span className="bk-option-meta">{s.duration} min{s.for ? ` · ${s.for}` : ''}{s.desc ? `. ${s.desc}` : ''}</span>
-                </button>
-              </li>
-            ))}
+            {services.map((s) => {
+              // Sin especialista que lo atienda no hay horarios: se dice
+              // AQUI, no tres pasos despues en un calendario vacio.
+              const conEspecialista = therapists.some((t) => t.services?.includes(s.id));
+              return (
+                <li key={s.id}>
+                  {conEspecialista ? (
+                    <button type="button" className="bk-option" aria-pressed={data.serviceId === s.id}
+                      onClick={() => { update('serviceId', s.id); setStep(2); }}>
+                      <span className="bk-option-name">{s.name}</span>
+                      <span className="bk-option-price">{precio(s.price)}</span>
+                      <span className="bk-option-meta">{s.duration} min{s.for ? ` · ${s.for}` : ''}{s.desc ? `. ${s.desc}` : ''}</span>
+                    </button>
+                  ) : (
+                    <div className="bk-option" style={{ cursor: 'default', opacity: 0.85 }}>
+                      <span className="bk-option-name">{s.name}</span>
+                      <span className="bk-option-price">{precio(s.price)}</span>
+                      <span className="bk-option-meta">
+                        Por ahora no se puede agendar en línea.{' '}
+                        <a className="pub-link" target="_blank" rel="noreferrer"
+                          href={whatsappUrl(`Hola, quiero una cita de ${s.name}.`, business)}>Pídela por WhatsApp</a>.
+                      </span>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )
       )}
@@ -304,7 +322,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
             onChange={(v) => update('email', v)} error={errors.email} autoComplete="email" inputMode="email" />
           <Field id="bk-phone" label="WhatsApp" type="tel" value={data.phone} placeholder="81 1234 5678"
             onChange={(v) => update('phone', v)} error={errors.phone} autoComplete="tel" inputMode="tel"
-            hint="Por aquí te confirmamos la cita." />
+            hint="Obligatorio: por aquí te confirmamos la cita." />
 
           <p className="pub-notice">
             Para cuidar tu privacidad, no pedimos motivos de consulta, diagnósticos ni antecedentes. Eso se platica en persona.
@@ -327,7 +345,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
                 onChange={(e) => update('privacyAccepted', e.target.checked)}
                 aria-invalid={Boolean(errors.privacyAccepted)} aria-describedby={errors.privacyAccepted ? 'bk-privacyAccepted-error' : undefined} />
               <span>
-                Acepto que me contacten por WhatsApp o correo para confirmar la cita, y el{' '}
+                He leído y acepto el{' '}
                 <Link className="pub-link" to="/privacidad" target="_blank">aviso de privacidad</Link>.
               </span>
             </label>

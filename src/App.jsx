@@ -213,7 +213,14 @@ export default function App() {
           borderRadius: 14, padding: '10px 12px 10px 16px',
           fontSize: 14, lineHeight: 1.4, boxShadow: '0 10px 30px rgba(0,0,0,0.18)'
         }}>
-          <span>No pudimos conectar con el servidor. Algunos datos pueden no estar al día.</span>
+          {/* Al paciente, una frase simple. Al PERSONAL, la causa: "no
+              pudimos conectar" salia tambien cuando la base RECHAZABA un
+              guardado, y sin el motivo no habia forma de corregirlo. */}
+          <span>
+            {session
+              ? `No se pudo guardar o cargar: ${mensajeDeError(dataError)}`
+              : 'No pudimos conectar con el servidor. Algunos datos pueden no estar al día.'}
+          </span>
           <button type="button" onClick={() => { setErrorCerrado(dataError); reloadData(); }} style={bannerButton}>
             Reintentar
           </button>
@@ -280,6 +287,13 @@ function Marco({ theme, isDark, children }) {
       {children}
     </div>
   );
+}
+
+// El motivo legible de un error de Supabase/PostgREST o de la app.
+function mensajeDeError(error) {
+  const base = error?.message || error?.error_description || 'error desconocido';
+  const detalle = error?.details || error?.hint || error?.cause?.message || '';
+  return detalle && !base.includes(detalle) ? `${base} (${detalle})` : base;
 }
 
 const bannerButton = {

@@ -165,7 +165,17 @@ const syncDoctorAccess = async (therapists) => {
   if (result.error) {
     // Antes esto solo hacia console.warn y el guardado seguia como si nada:
     // un doctor podia quedarse sin acceso sin que nadie se enterara.
-    const error = new Error('Los especialistas se guardaron, pero no se pudo sincronizar su acceso al sistema. Revisa la lista de accesos e intenta de nuevo.');
+    //
+    // supabase-js solo dice "non-2xx status code"; el MOTIVO viene en el
+    // cuerpo de la respuesta de la funcion ({ error: '...' }).
+    let motivo = '';
+    try {
+      const cuerpo = await result.error.context?.json?.();
+      motivo = cuerpo?.error || '';
+    } catch {
+      // Sin cuerpo legible: queda el mensaje general.
+    }
+    const error = new Error(`Los especialistas se guardaron, pero no se pudo sincronizar su acceso al sistema${motivo ? `: ${motivo}` : '. Revisa la lista de accesos e intenta de nuevo.'}`);
     error.cause = result.error;
     throw error;
   }
