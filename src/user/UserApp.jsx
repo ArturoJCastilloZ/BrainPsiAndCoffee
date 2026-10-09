@@ -3,7 +3,7 @@ import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from
 import { Brain, CalendarCheck, Coffee, Home, MessageCircle, Moon, ShoppingBag, Sun, X } from 'lucide-react';
 import { uid } from '../utils.jsx';
 import BrandMark from '../components/BrandMark';
-import { businessFromSettings, BUSINESS_PLACEHOLDERS, whatsappUrl } from '../businessInfo';
+import { businessFromSettings, BUSINESS_PLACEHOLDERS, hayWhatsapp, tieneDato, whatsappUrl } from '../businessInfo';
 import { LEGACY_REDIRECTS, NAV_LINKS } from '../seo/routes.mjs';
 import { useJsonLd } from '../seo/useRouteHead';
 import { useAppData, useTheme } from '../context/AppContext';
@@ -169,8 +169,8 @@ export default function UserApp() {
           <div className="pub-footer-grid">
             <div>
               <h2>Brainpsi Coffee</h2>
-              <p>{business.address}</p>
-              <p>{business.city}</p>
+              {tieneDato(business.address) && <p>{business.address}</p>}
+              {tieneDato(business.city) && <p>{business.city}</p>}
               <ul aria-label="Horario">
                 {business.hours.map((h) => <li key={h}>{h}</li>)}
               </ul>
@@ -189,8 +189,8 @@ export default function UserApp() {
             <div>
               <h2>Escríbenos</h2>
               <ul>
-                <li><a href={whatsappUrl('Hola, quiero información de Brainpsi Coffee.', business)} target="_blank" rel="noreferrer">WhatsApp</a></li>
-                <li><a href={`mailto:${business.email}`}>{business.email}</a></li>
+                {hayWhatsapp(business) && <li><a href={whatsappUrl('Hola, quiero información de Brainpsi Coffee.', business)} target="_blank" rel="noreferrer">WhatsApp</a></li>}
+                {tieneDato(business.email) && <li><a href={`mailto:${business.email}`}>{business.email}</a></li>}
                 <li><Link to="/contacto">Cómo llegar</Link></li>
               </ul>
             </div>

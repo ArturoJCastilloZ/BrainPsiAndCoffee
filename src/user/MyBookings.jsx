@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { businessFromSettings, whatsappUrl } from '../businessInfo';
+import { businessFromSettings, hayWhatsapp, whatsappUrl } from '../businessInfo';
 import { fullDayLabel, localDate } from '../utils.jsx';
 import { solicitudVencida } from '../appointmentStatus.mjs';
 
@@ -27,6 +27,7 @@ export default function MyBookings({ bookings, misCitas = [], catalogs }) {
   const services = catalogs?.services || [];
   const therapists = catalogs?.therapists || [];
   const business = businessFromSettings(catalogs?.settings);
+  const conWhatsapp = hayWhatsapp(business);
   const mias = (bookings || [])
     .filter((b) => misCitas.includes(b.id))
     .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
@@ -38,7 +39,7 @@ export default function MyBookings({ bookings, misCitas = [], catalogs }) {
           <h1 className="pub-hero-title">Mis citas</h1>
           <p className="pub-hero-lead">
             Aquí ves las solicitudes que hiciste desde este dispositivo mientras la página esté abierta.
-            Para cambiar o cancelar una cita, escríbenos por WhatsApp.
+            Para cambiar o cancelar una cita, {conWhatsapp ? 'escríbenos por WhatsApp' : <Link className="pub-link" to="/contacto">contáctanos</Link>}.
           </p>
         </div>
       </section>
@@ -49,10 +50,12 @@ export default function MyBookings({ bookings, misCitas = [], catalogs }) {
             <p style={{ margin: '0 0 16px' }}>No hay solicitudes en esta visita.</p>
             <div className="pub-actions" style={{ justifyContent: 'center' }}>
               <Link to="/reservar" className="pub-btn pub-btn-primary">Solicitar una cita</Link>
-              <a className="pub-btn pub-btn-ghost" target="_blank" rel="noreferrer"
-                href={whatsappUrl('Hola, quiero consultar mi cita.', business)}>
-                Consultar por WhatsApp
-              </a>
+              {conWhatsapp && (
+                <a className="pub-btn pub-btn-ghost" target="_blank" rel="noreferrer"
+                  href={whatsappUrl('Hola, quiero consultar mi cita.', business)}>
+                  Consultar por WhatsApp
+                </a>
+              )}
             </div>
           </div>
         ) : (
@@ -75,7 +78,7 @@ export default function MyBookings({ bookings, misCitas = [], catalogs }) {
                     <dt>Hora</dt><dd>{b.time} h</dd>
                     <dt>Con</dt><dd>{therapist?.name || 'Por asignar'}</dd>
                   </dl>
-                  {!isPast && b.status !== 'cancelled' && (
+                  {conWhatsapp && !isPast && b.status !== 'cancelled' && (
                     <p style={{ margin: '14px 0 0' }}>
                       <a className="pub-link" target="_blank" rel="noreferrer"
                         href={whatsappUrl(`Hola, quiero cambiar o cancelar la cita de ${service?.name || 'terapia'}${b.forMinor ? ` de ${para}` : ''} del ${dia} a las ${b.time}.`, business)}>

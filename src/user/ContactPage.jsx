@@ -1,5 +1,5 @@
 import React from 'react';
-import { businessFromSettings, whatsappUrl } from '../businessInfo';
+import { businessFromSettings, hayWhatsapp, tieneDato, usuarioInstagram, whatsappUrl } from '../businessInfo';
 import { esExterna, hrefSeguro } from '../safeUrl.mjs';
 import { trackEvent } from '../monitoring';
 import ResenasGoogle from './ResenasGoogle';
@@ -15,12 +15,14 @@ export default function ContactPage({ settings }) {
     // 'mailto:' y el de WhatsApp el esquema esta FIJO en el codigo y lo
     // del admin va detras, asi que no puede introducir uno nuevo. Marcar
     // todo por igual escondaria cual es el que de verdad decide.
-    { label: 'WhatsApp', value: 'Dudas, citas y pedidos de la cafetería.', href: whatsappUrl('Hola, quiero información de Brainpsi Coffee.', business) },
-    { label: 'Dirección', value: business.address, href: hrefSeguro(business.mapsUrl), accion: 'Abrir en el mapa' },
-    { label: 'Teléfono', value: business.phone, href: `tel:${business.phone}` },
-    { label: 'Correo', value: business.email, href: `mailto:${business.email}` },
-    { label: 'Instagram', value: '@brainpsicoffee', href: hrefSeguro(business.instagram) },
-  ];
+    hayWhatsapp(business) && { label: 'WhatsApp', value: 'Dudas, citas y pedidos de la cafetería.', href: whatsappUrl('Hola, quiero información de Brainpsi Coffee.', business) },
+    tieneDato(business.address) && { label: 'Dirección', value: business.address, href: hrefSeguro(business.mapsUrl), accion: 'Abrir en el mapa' },
+    tieneDato(business.phone) && { label: 'Teléfono', value: business.phone, href: `tel:${business.phone}` },
+    tieneDato(business.email) && { label: 'Correo', value: business.email, href: `mailto:${business.email}` },
+    tieneDato(business.instagram) && { label: 'Instagram', value: usuarioInstagram(business.instagram) || 'Instagram', href: hrefSeguro(business.instagram) },
+    // Solo lo que el negocio capturo: un "Telefono" sin numero se veia
+    // como un hueco en la pagina.
+  ].filter(Boolean);
 
   return (
     <>
@@ -45,7 +47,7 @@ export default function ContactPage({ settings }) {
         </div>
       </section>
 
-      <section className="pub-section pub-section-alt">
+      {canales.length > 0 && <section className="pub-section pub-section-alt">
         <div className="pub-wrap">
           <h2 className="pub-h2">Dónde encontrarnos</h2>
           <ul className="pub-facts">
@@ -67,7 +69,7 @@ export default function ContactPage({ settings }) {
             ))}
           </ul>
         </div>
-      </section>
+      </section>}
 
       <ResenasGoogle settings={settings} />
     </>

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { businessFromSettings, whatsappUrl } from '../businessInfo';
+import { businessFromSettings, hayWhatsapp, whatsappUrl } from '../businessInfo';
 import { activeOffers } from '../offerUtils.mjs';
 import { enlaceReserva, proximosHorarios } from '../nextSlots.mjs';
 import { localDate } from '../utils.jsx';
@@ -42,11 +42,13 @@ export default function UserHome({ catalogs, dataLoading }) {
             </p>
             <div className="pub-actions">
               <Link to="/reservar" className="pub-btn pub-btn-primary">Ver horarios disponibles</Link>
-              <a className="pub-btn pub-btn-ghost" target="_blank" rel="noreferrer"
-                href={whatsappUrl('Hola, quiero información para agendar una cita.', business)}
-                onClick={() => trackEvent('whatsapp_click', { source: 'home_hero' })}>
-                Prefiero escribir por WhatsApp
-              </a>
+              {hayWhatsapp(business) && (
+                <a className="pub-btn pub-btn-ghost" target="_blank" rel="noreferrer"
+                  href={whatsappUrl('Hola, quiero información para agendar una cita.', business)}
+                  onClick={() => trackEvent('whatsapp_click', { source: 'home_hero' })}>
+                  Prefiero escribir por WhatsApp
+                </a>
+              )}
             </div>
 
             {horarios.length > 0 && (
@@ -78,7 +80,7 @@ export default function UserHome({ catalogs, dataLoading }) {
               detalle: s.desc,
               href: enlaceReserva({ serviceId: s.id }),
             }))}
-            vacio={cargando ? 'Cargando el pizarrón…' : 'Todavía no hay servicios publicados. Escríbenos por WhatsApp y te contamos.'}
+            vacio={cargando ? 'Cargando el pizarrón…' : `Todavía no hay servicios publicados.${hayWhatsapp(business) ? ' Escríbenos por WhatsApp y te contamos.' : ''}`}
             pie="Pagas en el consultorio el día de tu cita. Sin cobros en línea."
           />
         </div>

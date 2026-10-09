@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { businessFromSettings, whatsappUrl } from '../businessInfo';
+import { businessFromSettings, hayWhatsapp, whatsappUrl } from '../businessInfo';
 import { enlaceReserva } from '../nextSlots.mjs';
 import { initials } from '../utils.jsx';
 import Pizarron, { precio } from './Pizarron';
@@ -26,10 +26,12 @@ export default function TherapyPage({ catalogs, dataLoading }) {
             </p>
             <div className="pub-actions">
               <Link to="/reservar" className="pub-btn pub-btn-primary">Ver horarios disponibles</Link>
-              <a className="pub-btn pub-btn-ghost" target="_blank" rel="noreferrer"
-                href={whatsappUrl('Hola, quiero información sobre terapia.', business)}>
-                Preguntar por WhatsApp
-              </a>
+              {hayWhatsapp(business) && (
+                <a className="pub-btn pub-btn-ghost" target="_blank" rel="noreferrer"
+                  href={whatsappUrl('Hola, quiero información sobre terapia.', business)}>
+                  Preguntar por WhatsApp
+                </a>
+              )}
             </div>
           </div>
           <Pizarron
@@ -43,7 +45,7 @@ export default function TherapyPage({ catalogs, dataLoading }) {
               detalle: [s.for, s.desc].filter(Boolean).join(' · '),
               href: enlaceReserva({ serviceId: s.id }),
             }))}
-            vacio={cargando ? 'Cargando el pizarrón…' : 'Todavía no hay servicios publicados. Escríbenos por WhatsApp y te contamos qué hay disponible.'}
+            vacio={cargando ? 'Cargando el pizarrón…' : `Todavía no hay servicios publicados.${hayWhatsapp(business) ? ' Escríbenos por WhatsApp y te contamos qué hay disponible.' : ''}`}
             pie="Pagas en el consultorio el día de tu cita."
           />
         </div>

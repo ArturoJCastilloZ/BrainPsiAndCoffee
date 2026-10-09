@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { addDays, fullDayLabel, initials, uid, localDate, localISO } from '../utils.jsx';
 import { activeOffers } from '../offerUtils.mjs';
 import { validateAppointment } from '../validation';
-import { businessFromSettings, whatsappUrl } from '../businessInfo';
+import { businessFromSettings, hayWhatsapp, whatsappUrl } from '../businessInfo';
 import { trackEvent } from '../monitoring';
 import { poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
 import { precio } from './Pizarron';
@@ -24,6 +24,9 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
   // el choque aparecia hasta el final.
   const ocupadas = useMemo(() => [...(bookings || []), ...(catalogs?.busy || [])], [bookings, catalogs?.busy]);
   const business = businessFromSettings(catalogs?.settings);
+  // Sin numero no se ofrece WhatsApp: el enlace abriria un chat sin
+  // destinatario. Se manda a Contacto, que muestra lo que si hay.
+  const conWhatsapp = hayWhatsapp(business);
   // El precio del combo sale de la promocion VIGENTE, no de un texto.
   const comboOffer = activeOffers(catalogs?.offers || []).find((o) => o.kind === 'combo');
 
@@ -157,7 +160,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
         setErrors({ submit: result.error.message });
         return;
       }
-      setErrors({ submit: 'No pudimos enviar tu solicitud. Revisa tu conexión e inténtalo de nuevo, o escríbenos por WhatsApp.' });
+      setErrors({ submit: `No pudimos enviar tu solicitud. Revisa tu conexión e inténtalo de nuevo${conWhatsapp ? ', o escríbenos por WhatsApp' : ''}.` });
       return;
     }
     setLinkedBookingId(newBooking.id);
@@ -179,7 +182,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
       <div className="bk bk-done">
         <h1 className="bk-title" ref={tituloRef} tabIndex={-1} style={{ outline: 'none' }}>Solicitud enviada</h1>
         <p className="pub-lead" style={{ margin: '0 auto 24px' }}>
-          Te apartamos el horario 24 horas. El consultorio te confirma por WhatsApp; si quieres, escríbenos tú primero.
+          Te apartamos el horario 24 horas. El consultorio te confirma por WhatsApp{conWhatsapp ? '; si quieres, escríbenos tú primero' : ''}.
         </p>
 
         {/* El cierre como una comanda: lo que importa, grande. */}
@@ -204,10 +207,12 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
         </div>
 
         <div className="pub-actions">
-          <a className="pub-btn pub-btn-primary" href={whatsappUrl(mensajeWhatsApp, business)} target="_blank" rel="noreferrer"
-            onClick={() => trackEvent('whatsapp_confirm_click', { source: 'booking_success' })}>
-            Confirmar por WhatsApp
-          </a>
+          {conWhatsapp && (
+            <a className="pub-btn pub-btn-primary" href={whatsappUrl(mensajeWhatsApp, business)} target="_blank" rel="noreferrer"
+              onClick={() => trackEvent('whatsapp_confirm_click', { source: 'booking_success' })}>
+              Confirmar por WhatsApp
+            </a>
+          )}
           {data.wantsCoffee && <Link className="pub-btn pub-btn-ghost" to="/cafeteria">Pedir mi café</Link>}
           <Link className="pub-btn pub-btn-ghost" to="/mis-citas">Ver mis citas</Link>
         </div>
@@ -230,7 +235,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
         services.length === 0 ? (
           // "Cargando" y "no hay" son cosas distintas (auditoria M2).
           <p className="bk-empty" aria-live="polite">
-            {dataLoading ? 'Cargando los servicios…' : 'Todavía no hay servicios publicados. Escríbenos por WhatsApp y te agendamos.'}
+            {dataLoading ? 'Cargando los servicios…' : `Todavía no hay servicios publicados.${conWhatsapp ? ' Escríbenos por WhatsApp y te agendamos.' : ''}`}
           </p>
         ) : (
           <ul className="bk-options">
@@ -253,8 +258,12 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
                       <span className="bk-option-price">{precio(s.price)}</span>
                       <span className="bk-option-meta">
                         Por ahora no se puede agendar en línea.{' '}
-                        <a className="pub-link" target="_blank" rel="noreferrer"
-                          href={whatsappUrl(`Hola, quiero una cita de ${s.name}.`, business)}>Pídela por WhatsApp</a>.
+                        {conWhatsapp ? (
+                          <><a className="pub-link" target="_blank" rel="noreferrer"
+                            href={whatsappUrl(`Hola, quiero una cita de ${s.name}.`, business)}>Pídela por WhatsApp</a>.</>
+                        ) : (
+                          <><Link className="pub-link" to="/contacto">Contáctanos</Link> para pedirla.</>
+                        )}
                       </span>
                     </div>
                   )}
@@ -478,8 +487,9 @@ function DateTimePicker({ data, update, error, onContinue, bookings, therapists,
               el consultorio no atienda ese dia. */}
           {delDia.length === 0 && (
             <p className="bk-empty">
-              Ese día no hay horarios. Prueba con otro, o{' '}
-              <a className="pub-link" href={whatsappUrl('Hola, busco un horario para una cita.', business)} target="_blank" rel="noreferrer">escríbenos por WhatsApp</a>.
+              Ese día no hay horarios. Prueba con otro{hayWhatsapp(business) ? (
+                <>, o{' '}<a className="pub-link" href={whatsappUrl('Hola, busco un horario para una cita.', business)} target="_blank" rel="noreferrer">escríbenos por WhatsApp</a></>
+              ) : null}.
             </p>
           )}
           <div className="bk-times" role="group" aria-label="Hora">

@@ -32,6 +32,21 @@ export const businessFromSettings = (settings) => ({
   hours: Array.isArray(settings?.hours) && settings.hours.length ? settings.hours : BUSINESS.hours,
 });
 
+// ¿El negocio capturo este dato? Un campo que se guardo vacio en Negocio
+// no se muestra: un "Telefono" sin numero o un enlace mailto: vacio solo
+// estorba.
+export const tieneDato = (valor) => String(valor ?? '').trim() !== '';
+
+// ¿Hay un WhatsApp al que escribir? Sin numero, wa.me abre WhatsApp SIN
+// destinatario y el mensaje no le llega a nadie: mejor no ofrecer el boton.
+export const hayWhatsapp = (business) => String(business?.whatsapp ?? '').replace(/\D/g, '').length >= 10;
+
+// "@usuario" desde la URL de Instagram; null si no se puede leer.
+export const usuarioInstagram = (url) => {
+  const m = String(url || '').match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  return m ? `@${m[1]}` : null;
+};
+
 export const whatsappUrl = (message = 'Hola, quiero información de Brainpsi Coffee.', business = BUSINESS) => (
   `https://wa.me/${business.whatsapp}?text=${encodeURIComponent(message)}`
 );
