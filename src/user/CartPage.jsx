@@ -11,7 +11,7 @@ import {
 import { C } from '../theme';
 import { formatMXN, fullDayLabel, uid, localDate } from '../utils.jsx';
 import { validateOrder } from '../validation';
-import { activeOffers } from '../offerUtils';
+import { activeOffers } from '../offerUtils.mjs';
 import { trackEvent } from '../monitoring';
 
 export default function CartPage({ cart, setCart, orders, setOrders, setPage, linkedBookingId, setLinkedBookingId, bookings, showToast, catalogs }) {
@@ -22,6 +22,7 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
     customerPhone: linkedBooking?.phone || '',
   });
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
 
   // Calculate combo
   // Por CATEGORIA, no por el prefijo del id. El trigger de 0023 usa
@@ -59,7 +60,8 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
   }
   const total = subtotal - comboSavings;
 
-  const placeOrder = () => {
+  const placeOrder = async () => {
+    if (saving) return;
     const nextErrors = validateOrder(customer);
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
@@ -79,7 +81,17 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
       operationalNotes: linkedBookingId ? 'Pedido ligado a cita. Preparar cerca de la hora objetivo.' : '',
       createdAt: new Date().toISOString()
     };
-    setOrders([...orders, order]);
+    // El carrito se vacia y se dice "enviado" SOLO si la base acepto el
+    // pedido. Antes se vaciaba primero: si el guardado fallaba, el cliente
+    // perdia su carrito y la barra nunca recibia el pedido.
+    setSaving(true);
+    setErrors({});
+    const result = await setOrders([...orders, order]);
+    setSaving(false);
+    if (!result?.ok) {
+      setErrors({ submit: 'No pudimos enviar tu pedido. Revisa tu conexión e inténtalo de nuevo.' });
+      return;
+    }
     trackEvent('coffee_order_created', {
       itemCount: cart.length,
       total,
@@ -195,12 +207,19 @@ export default function CartPage({ cart, setCart, orders, setOrders, setPage, li
         </div>
       )}
 
-      <button onClick={placeOrder} style={{
+      {errors.submit && (
+        <div role="alert" style={{ background: 'var(--bp-surface-2)', border: `1px solid ${C.rust}`, borderRadius: 14, padding: 14, color: C.rustText, fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
+          {errors.submit}
+        </div>
+      )}
+
+      <button onClick={placeOrder} disabled={saving} aria-busy={saving} style={{
         width: '100%', background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', border: 'none',
-        padding: '16px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+        padding: '16px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
+        opacity: saving ? 0.7 : 1,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
       }}>
-        <Send size={18} /> Confirmar pedido
+        <Send size={18} /> {saving ? 'Enviando pedido…' : 'Confirmar pedido'}
       </button>
     </div>
   );

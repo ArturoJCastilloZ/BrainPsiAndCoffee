@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   loadAppointments,
   loadCatalogs,
@@ -19,22 +19,51 @@ import { canManageAppointments, canManageOrders, isSuperAdmin } from '../auth/pe
 
 const resolveNext = (value, next) => (typeof next === 'function' ? next(value) : next);
 
+// Estado local que se guarda en la base.
+//
+// Antes el guardado se lanzaba DENTRO del updater de setState (impuro: con
+// StrictMode se guardaria dos veces), y si fallaba la pantalla conservaba
+// el cambio: decia "listo" sobre algo que la base habia rechazado. Tampoco
+// se usaba lo que la base devolvia (el patient_id que pone el trigger), y
+// un error se quedaba en pantalla para siempre aunque el siguiente
+// guardado saliera bien.
+//
+// Ahora setAndSave devuelve una promesa con { ok, value | error }:
+//   · aplica el cambio en pantalla de inmediato (la UI no espera a la red),
+//   · si la base lo rechaza, lo DESHACE — salvo que la lista ya haya vuelto
+//     a cambiar, en cuyo caso deshacer pisaria un cambio posterior,
+//   · si sale bien, adopta lo que la base guardo y limpia el error.
+// Quien necesite saber si se guardo (la reserva, el carrito) hace await.
 const useRemoteState = (initialValue, saveRemote) => {
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState(null);
+  const valueRef = useRef(initialValue);
 
-  const setAndSave = useCallback((next) => {
-    setValue((current) => {
-      const resolved = resolveNext(current, next);
-      saveRemote(resolved, current).catch((err) => {
-        console.error(err);
-        setError(err);
-      });
-      return resolved;
-    });
-  }, [saveRemote]);
+  const commit = useCallback((next) => {
+    valueRef.current = next;
+    setValue(next);
+  }, []);
 
-  return [value, setValue, setAndSave, error];
+  const setLocal = useCallback((next) => commit(resolveNext(valueRef.current, next)), [commit]);
+
+  const setAndSave = useCallback(async (next) => {
+    const previous = valueRef.current;
+    const resolved = resolveNext(previous, next);
+    commit(resolved);
+    try {
+      const saved = await saveRemote(resolved, previous);
+      if (saved !== undefined && valueRef.current === resolved) commit(saved);
+      setError(null);
+      return { ok: true, value: saved };
+    } catch (err) {
+      console.error(err);
+      if (valueRef.current === resolved) commit(previous);
+      setError(err);
+      return { ok: false, error: err };
+    }
+  }, [commit, saveRemote]);
+
+  return [value, setLocal, setAndSave, error];
 };
 
 export const useSupabaseCrud = (session) => {

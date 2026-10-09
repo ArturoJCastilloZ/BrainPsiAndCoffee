@@ -11,7 +11,7 @@ import {
 import { C } from '../theme';
 import { formatMXN } from '../utils.jsx';
 import { SectionTitle, ServiceCard } from '../components/Cards';
-import { activeOffers } from '../offerUtils';
+import { activeOffers } from '../offerUtils.mjs';
 
 export default function UserHome({ setPage, bookings, catalogs, theme }) {
   const services = (catalogs?.services || []).filter(item => item.active !== false);

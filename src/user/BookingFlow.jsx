@@ -9,7 +9,8 @@ import {
   Zap, Gift, Send, RefreshCw, Filter
 } from 'lucide-react';
 import { C } from '../theme';
-import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, todayISO, uid, localDate, localISO } from '../utils.jsx';
+import { addDays, dayLabel, formatMXN, fullDayLabel, getServiceIcon, initials, todayISO, uid, localDate, localISO } from '../utils.jsx';
+import { activeOffers } from '../offerUtils.mjs';
 import { validateAppointment } from '../validation';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
 import { trackEvent } from '../monitoring';
@@ -25,6 +26,9 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
   const schedules = catalogs?.schedules || [];
   const business = businessFromSettings(catalogs?.settings);
   const onLightAccent = '#1E1B18';
+  // El precio del combo sale de la promocion VIGENTE, no de un texto: estaba
+  // escrito "$99" a mano mientras el menu cobraba otra cifra.
+  const comboOffer = activeOffers(catalogs?.offers || []).find((o) => o.kind === 'combo');
   const formNoticeStyle = {
     background: 'var(--bp-surface-2)',
     border: `1px solid ${C.sagePale}`,
@@ -47,6 +51,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
     name: '', email: '', phone: '', notes: '', wantsCoffee: false, privacyAccepted: false
   });
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const update = (k, v) => {
     setData({ ...data, [k]: v });
@@ -56,7 +61,8 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
   const therapist = therapists.find(t => t.id === data.therapistId);
   const avatarTextColor = (color) => (color === C.brownMid || color === C.rust ? C.cream : onLightAccent);
 
-  const confirmBooking = () => {
+  const confirmBooking = async () => {
+    if (saving) return;
     const nextErrors = validateAppointment(data);
     if (!data.privacyAccepted) nextErrors.privacyAccepted = 'Acepta el aviso de privacidad para continuar.';
     if (Object.keys(nextErrors).length) {
@@ -94,7 +100,24 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
       createdAt: new Date().toISOString(),
       reminderSent: false
     };
-    setBookings([...bookings, newBooking]);
+    // Se avanza SOLO cuando la base acepto la cita. Antes la pantalla de
+    // exito salia antes de saber: si el guardado fallaba, el paciente se
+    // iba creyendo que tenia cita y la clinica no sabia nada de el.
+    setSaving(true);
+    setErrors({});
+    const result = await setBookings([...bookings, newBooking]);
+    setSaving(false);
+    if (!result?.ok) {
+      // 23P01: la restriccion de exclusion de la base — otra persona tomo
+      // ese horario mientras este paciente llenaba sus datos.
+      if (result?.error?.code === '23P01') {
+        setErrors({ time: 'Ese horario se acaba de ocupar. Elige otro, por favor.' });
+        setStep(3);
+        return;
+      }
+      setErrors({ submit: 'No pudimos guardar tu cita. Revisa tu conexión e inténtalo de nuevo, o escríbenos por WhatsApp.' });
+      return;
+    }
     setLinkedBookingId(newBooking.id);
     trackEvent('appointment_requested', {
       serviceId: newBooking.serviceId,
@@ -182,7 +205,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
                     display: 'flex', alignItems: 'center', gap: 14
                   }}>
                     <div style={{ width: 44, height: 44, borderRadius: 999, background: t.color, color: avatarTextColor(t.color), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 }}>
-                      {t.name.split(' ')[1][0]}{t.name.split(' ')[2]?.[0] || ''}
+                      {initials(t.name)}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div className="font-display" style={{ fontSize: 16, fontWeight: 600, color: C.brown }}>{t.name}</div>
@@ -220,7 +243,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
                         <Coffee size={14} color={C.caramel} />
                         <span style={{ fontWeight: 700, fontSize: 14, color: C.brown }}>Quiero un café antes/después de mi sesión</span>
                       </div>
-                      <div style={{ fontSize: 12, color: C.brownMid, lineHeight: 1.5, fontWeight: 500 }}>Te llevaremos al menú al confirmar. Disfruta del combo café + postre por solo $99.</div>
+                      <div style={{ fontSize: 12, color: C.brownMid, lineHeight: 1.5, fontWeight: 500 }}>Te llevaremos al menú al confirmar.{comboOffer ? ` Disfruta del combo café + postre por ${formatMXN(Number(comboOffer.price))}.` : ''}</div>
                     </label>
                   </div>
                 </div>
@@ -283,12 +306,19 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
                 </div>
               </div>
 
-              <button onClick={confirmBooking} style={{
+              {errors.submit && (
+                <div role="alert" style={{ ...formNoticeStyle, borderColor: C.rust, color: C.rustText, marginBottom: 12 }}>
+                  {errors.submit}
+                </div>
+              )}
+
+              <button onClick={confirmBooking} disabled={saving} aria-busy={saving} style={{
                 width: '100%', background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', border: 'none',
-                padding: '16px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                padding: '16px', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
+                opacity: saving ? 0.7 : 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
               }}>
-                <Check size={18} /> Confirmar reservación
+                <Check size={18} /> {saving ? 'Guardando tu cita…' : 'Confirmar reservación'}
               </button>
             </div>
           )}
@@ -442,7 +472,7 @@ function DateTimePicker({ data, update, onContinue, bookings, therapists, servic
       {/* Days */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 24 }}>
         {days.map(d => {
-          const iso = d.toISOString().split('T')[0];
+          const iso = localISO(d);
           const selected = data.date === iso;
           const isPast = d < new Date(new Date().setHours(0,0,0,0));
           return (

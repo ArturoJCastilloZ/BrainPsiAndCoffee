@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, Minus, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
 import { C } from '../theme';
+import { todayISO } from '../localDay.mjs';
 import { useConfirm } from '../components/ConfirmDialog';
 import { accountingAreas, recordablePaymentKinds } from '../auth/permissions';
 import PaymentDialog from '../components/PaymentDialog';
@@ -515,7 +516,7 @@ function Gastos({ filas, areas, onGuardar, onBorrar }) {
   const areasGasto = areas.includes('todo') ? ['consultorio', 'cafeteria', 'compartido'] : areas;
   const [draft, setDraft] = useState(null);
 
-  const nuevo = () => setDraft({ area: areasGasto[0], category: '', amount: '', spentAt: new Date().toISOString().slice(0, 10), method: '' });
+  const nuevo = () => setDraft({ area: areasGasto[0], category: '', amount: '', spentAt: todayISO(), method: '' });
 
   return (
     <div className="admin-card" style={{ borderRadius: 16, padding: 16, marginTop: 14 }}>

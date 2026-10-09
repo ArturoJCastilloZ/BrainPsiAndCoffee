@@ -1,5 +1,6 @@
 import { menuVacio } from '../menuCategorias.mjs';
 import { cambiosDePedidos } from '../orderDiff.mjs';
+import { cambiosDeLista, productosDelMenu, opcionesConPosicion } from '../listDiff.mjs';
 import { getSelectedTenant } from './tenant';
 import { supabase, assertSupabaseConfigured } from './supabaseClient';
 import { validateAppointment, validateOrder } from '../validation';
@@ -646,17 +647,29 @@ export const addNoteAddendum = async (noteId, content, session) => {
 // expediente 5 años desde el ultimo acto medico: borrar una nota clinica
 // no es una funcion que falte, es una que no debe existir.
 
-export const saveServices = async (items) => {
+// Todos los guardados de listas siguen la misma regla (ver listDiff.mjs):
+// se escribe lo que cambio y se borra solo lo que el usuario quito. Nunca
+// "todo lo que no este en la lista": esa lista es una foto de cuando se
+// cargo la pantalla, y lo que llego despues se perdia.
+const guardarLista = async (table, items, previousItems, toDb, idDe) => {
+  const cambios = cambiosDeLista(items, previousItems, idDe);
+  if (cambios.aPersistir.length) {
+    throwIfError(await supabase.from(table).upsert(cambios.aPersistir.map(toDb)));
+  }
+  await deleteRemoved(table, cambios.eliminados);
+  return cambios;
+};
+
+export const saveServices = async (items, previousItems = []) => {
   assertSupabaseConfigured();
-  if (items.length) throwIfError(await supabase.from('therapy_services').upsert(items.map(mapServiceToDb)));
-  await deleteMissing('therapy_services', items.map((item) => item.id));
+  await guardarLista('therapy_services', items, previousItems, mapServiceToDb);
   return items;
 };
 
-export const saveTherapists = async (items) => {
+export const saveTherapists = async (items, previousItems = []) => {
   assertSupabaseConfigured();
-  if (items.length) throwIfError(await supabase.from('therapists').upsert(items.map(mapTherapistToDb)));
-  await deleteMissing('therapists', items.map((item) => item.id));
+  const cambios = await guardarLista('therapists', items, previousItems, mapTherapistToDb);
+  if (!cambios.aPersistir.length && !cambios.eliminados.length) return items;
 
   throwIfError(await supabase.from('therapist_services').delete().not('therapist_id', 'is', null));
   const links = items.flatMap((item) => (item.services || []).map((serviceId) => ({ therapist_id: item.id, service_id: serviceId })));
@@ -665,33 +678,37 @@ export const saveTherapists = async (items) => {
   return items;
 };
 
-export const saveSpecialties = async (items) => {
+export const saveSpecialties = async (items, previousItems = []) => {
   assertSupabaseConfigured();
-  if (items.length) throwIfError(await supabase.from('specialties').upsert(items.map(mapSpecialtyToDb)));
-  await deleteMissing('specialties', items.map((item) => item.id));
+  await guardarLista('specialties', items, previousItems, mapSpecialtyToDb);
   return items;
 };
 
-export const saveProductOptions = async (options) => {
+export const saveProductOptions = async (options, previousOptions = []) => {
   assertSupabaseConfigured();
-  const rows = (options || []).map(mapProductOptionToDb);
-  if (rows.length) throwIfError(await supabase.from('product_options').upsert(rows));
-  await deleteMissing('product_options', rows.map((row) => row.id));
+  await guardarLista(
+    'product_options',
+    opcionesConPosicion(options),
+    opcionesConPosicion(previousOptions),
+    ({ item, index }) => mapProductOptionToDb(item, index),
+  );
   return options;
 };
 
-export const saveMenu = async (menu) => {
+export const saveMenu = async (menu, previousMenu = {}) => {
   assertSupabaseConfigured();
-  const products = Object.entries(menu).flatMap(([category, section]) => (section.items || []).map((item, index) => mapProductToDb(category, item, index)));
-  if (products.length) throwIfError(await supabase.from('products').upsert(products));
-  await deleteMissing('products', products.map((item) => item.id));
+  await guardarLista(
+    'products',
+    productosDelMenu(menu),
+    productosDelMenu(previousMenu),
+    ({ category, item, index }) => mapProductToDb(category, item, index),
+  );
   return menu;
 };
 
-export const saveOffers = async (items) => {
+export const saveOffers = async (items, previousItems = []) => {
   assertSupabaseConfigured();
-  if (items.length) throwIfError(await supabase.from('offers').upsert(items.map(mapOfferToDb)));
-  await deleteMissing('offers', items.map((item) => item.id));
+  await guardarLista('offers', items, previousItems, mapOfferToDb);
   return items;
 };
 
@@ -728,21 +745,36 @@ export const saveAppointments = async (items, previousItems = []) => {
     // descartaba y el estado local se quedaba con el paciente vacio: la
     // cita aparecia en la agenda pero el paciente no salia en "Pacientes y
     // notas" hasta recargar la pagina entera.
-    if (items.length) {
+    //
+    // Y solo se escribe lo que CAMBIO. Reescribir la lista entera pisaba
+    // con datos viejos lo que otra persona hubiera editado, y cada fila
+    // reescrita volvia a disparar el trigger de pacientes.
+    const cambios = cambiosDeLista(items, previousItems);
+    let porId = new Map();
+    if (cambios.aPersistir.length) {
       const guardado = await supabase
         .from('appointments')
-        .upsert(items.map(mapAppointmentToDb))
+        .upsert(cambios.aPersistir.map(mapAppointmentToDb))
         .select();
       throwIfError(guardado);
-      await deleteMissing('appointments', items.map((item) => item.id));
-      return (guardado.data || []).map(mapAppointmentFromDb);
+      porId = new Map((guardado.data || []).map((row) => [row.id, mapAppointmentFromDb(row)]));
     }
-    await deleteMissing('appointments', items.map((item) => item.id));
-    return items;
+    await deleteRemoved('appointments', cambios.eliminados);
+    return items.map((item) => porId.get(item.id) || item);
   }
 
-  const previousIds = new Set(previousItems.map((item) => item.id));
-  const newItems = items.filter((item) => !previousIds.has(item.id));
+  // Sin sesion solo se pueden CREAR citas: la base no deja a un visitante
+  // modificar ni borrar ninguna. Antes esto se ignoraba en silencio y "Mis
+  // citas" le decia al paciente "Cita cancelada" mientras la clinica lo
+  // seguia esperando. Ahora se dice la verdad y la pantalla deshace el
+  // cambio.
+  const publicos = cambiosDeLista(items, previousItems);
+  if (publicos.modificados.length || publicos.eliminados.length) {
+    const error = new Error('Para cambiar o cancelar tu cita, escríbenos por WhatsApp.');
+    error.code = 'PUBLIC_EDIT_NOT_ALLOWED';
+    throw error;
+  }
+  const newItems = publicos.nuevos;
   if (newItems.length) {
     // Igual en el alta publica: la fila guardada trae el patient_id que
     // puso el trigger.
@@ -812,7 +844,7 @@ export const saveOrders = async (items, previousItems = []) => {
       ? await supabase.from('orders').upsert(rows)
       : await supabase.from('orders').insert(rows));
   }
-  if (authenticated) await deleteMissing('orders', items.map((item) => item.id));
+  if (authenticated) await deleteRemoved('orders', cambiosDeLista(items, previousItems).eliminados);
 
   // Solo los pedidos cuyas LINEAS cambiaron. Para los demas no se toca
   // order_items, ni siquiera para reinsertar lo mismo.
@@ -848,17 +880,12 @@ export const saveOrders = async (items, previousItems = []) => {
   return items;
 };
 
-const deleteMissing = async (table, ids) => {
-  if (ids.length === 0) {
-    throwIfError(await supabase.from(table).delete().not('id', 'is', null));
-    return;
-  }
-
-  // Antes se interpolaban los ids dentro del string de filtro de PostgREST.
-  // .not() usa el valor tal cual y no escapa nada, asi que un id con comillas
-  // o comas rompia el filtro. notIn() recibe el arreglo y escapa los
-  // caracteres reservados por su cuenta.
-  throwIfError(await supabase.from(table).delete().notIn('id', ids));
+// Borra por id EXPLICITO, los que el usuario quito. Sin ids no hay
+// borrado: nunca un filtro que abarque filas que la pantalla no vio.
+// in() recibe el arreglo y escapa los caracteres reservados por su cuenta.
+const deleteRemoved = async (table, ids) => {
+  if (!ids?.length) return;
+  throwIfError(await supabase.from(table).delete().in('id', ids));
 };
 
 const syncDoctorAccess = async (therapists) => {

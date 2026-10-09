@@ -12,7 +12,7 @@ import {
 import { C } from '../theme';
 import { MENU_CATEGORIAS } from '../menuCategorias.mjs';
 import { formatMXN } from '../utils.jsx';
-import { activeOffers } from '../offerUtils';
+import { activeOffers } from '../offerUtils.mjs';
 import { groupOptions, optionsTotal } from '../menuOptions.mjs';
 
 export default function MenuPage({ addToCart, catalogs, theme }) {

@@ -21,7 +21,7 @@
 
 // JSON estable: sin esto, {a:1,b:2} y {b:2,a:1} darian huellas distintas y
 // se reescribirian lineas identicas.
-const estable = (valor) => {
+export const estable = (valor) => {
   if (Array.isArray(valor)) return `[${valor.map(estable).join(',')}]`;
   if (valor && typeof valor === 'object') {
     return `{${Object.keys(valor).sort().map((k) => `${JSON.stringify(k)}:${estable(valor[k])}`).join(',')}}`;

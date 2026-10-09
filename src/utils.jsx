@@ -2,7 +2,8 @@ import React from 'react';
 import { Brain, Heart, Sparkles } from 'lucide-react';
 
 export const formatMXN = (n) => `$${n.toFixed(0)}`;
-export const todayISO = () => new Date().toISOString().split('T')[0];
+// Ver localDay.mjs: el dia siempre en hora local, nunca de toISOString().
+export { localISO, todayISO } from './localDay.mjs';
 export const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 // Una fecha 'YYYY-MM-DD' leida en HORA LOCAL.
 //
@@ -19,16 +20,18 @@ export const localDate = (iso) => {
   return new Date(year, month - 1, day, 12, 0, 0);
 };
 
-// La inversa de localDate: de Date a 'YYYY-MM-DD' en hora LOCAL.
-//
-// toISOString() daria el dia en UTC, que al oeste de Greenwich es el
-// anterior a partir de las 18:00. Estaba copiada en AdminAppointments y
-// en MyBookings; su inversa ya vivia aqui.
-export const localISO = (date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export const dayLabel = (d) => d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
 export const fullDayLabel = (d) => d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+// Iniciales para el avatar. Se saltan los titulos ("Psic.", "Dra.") y no
+// truena con un nombre de una sola palabra: antes BookingFlow leia
+// name.split(' ')[1][0] y una especialista llamada "Ana" tumbaba el paso 2
+// de la reserva.
+export const initials = (name = '') => {
+  const palabras = String(name).trim().split(/\s+/).filter(Boolean);
+  const sinTitulo = palabras.filter((p) => !p.endsWith('.'));
+  return (sinTitulo.length ? sinTitulo : palabras).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+};
 export const uid = () => Math.random().toString(36).slice(2, 9);
 
 export const getServiceIcon = (icon, size = 20) => {

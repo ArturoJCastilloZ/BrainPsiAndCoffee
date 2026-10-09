@@ -48,10 +48,10 @@ const TERAPEUTAS_PRUEBA = [
   { id: 't3', name: 'Lic. Ana Martínez',    cedula: 'PSI-5526', specialty: 'Psicología infantil',           sessionDuration: 45, services: ['psi-infantil'] },
   { id: 't4', name: 'Dra. Sofía Hernández', cedula: 'PSI-7104', specialty: 'Pareja y familia',              sessionDuration: 50, services: ['pareja', 'psi-adultos'] },
 ];
-import { todayISO, addDays } from './utils.jsx';
+import { todayISO, addDays, localISO } from './utils.jsx';
 
 // addDays devuelve un Date, no una cadena ISO: las citas guardan 'YYYY-MM-DD'.
-const dia = (n) => (n === 0 ? todayISO() : addDays(todayISO(), n).toISOString().split('T')[0]);
+const dia = (n) => (n === 0 ? todayISO() : localISO(addDays(new Date(), n)));
 
 const hoy = todayISO();
 // Citas con nombres y correos LARGOS a proposito: lo que desborda una fila no

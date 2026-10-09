@@ -3,3 +3,10 @@
 *.sh text eol=lf
 docker/* text eol=lf
 Dockerfile text eol=lf
+
+# Las migraciones SIEMPRE en LF. scripts/migrate.sh compara el checksum
+# del archivo con el que guardo al aplicarlo; en Windows git las sacaba en
+# CRLF, el checksum cambiaba y las 33 migraciones aparecian como DRIFT
+# aunque nadie las hubiera tocado. Las pruebas SQL tambien se leen con
+# psql dentro de un contenedor Linux.
+*.sql text eol=lf

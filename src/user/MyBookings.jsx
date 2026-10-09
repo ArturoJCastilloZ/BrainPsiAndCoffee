@@ -23,19 +23,25 @@ export default function MyBookings({ bookings, setBookings, setPage, showToast, 
   const upcoming = bookings.filter(b => b.status !== 'cancelled' && new Date(b.date + 'T' + b.time) >= new Date()).sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
   const past = bookings.filter(b => b.status === 'cancelled' || new Date(b.date + 'T' + b.time) < new Date()).sort((a, b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time));
 
-  const cancelBooking = (id) => {
-    setBookings(bookings.map(b => b.id === id ? { ...b, status: 'cancelled' } : b));
-    showToast('Cita cancelada');
+  // El aviso sale DESPUES de que la base responde. Antes "Cita cancelada"
+  // salia siempre, aunque sin sesion el cambio nunca se guardaba.
+  const avisoDeError = (result) => (result?.error?.code === 'PUBLIC_EDIT_NOT_ALLOWED'
+    ? result.error.message
+    : 'No pudimos guardar el cambio. Inténtalo de nuevo o escríbenos por WhatsApp.');
+
+  const cancelBooking = async (id) => {
+    const result = await setBookings(bookings.map(b => b.id === id ? { ...b, status: 'cancelled' } : b));
+    showToast(result?.ok ? 'Cita cancelada' : avisoDeError(result));
   };
   const startReschedule = (booking) => {
     setReschedulingId(booking.id);
     setRescheduleDraft({ date: booking.date, time: booking.time });
   };
-  const saveReschedule = (booking) => {
+  const saveReschedule = async (booking) => {
     if (!rescheduleDraft.date || !rescheduleDraft.time) return;
-    setBookings(bookings.map(b => b.id === booking.id ? { ...b, date: rescheduleDraft.date, time: rescheduleDraft.time } : b));
+    const result = await setBookings(bookings.map(b => b.id === booking.id ? { ...b, date: rescheduleDraft.date, time: rescheduleDraft.time } : b));
     setReschedulingId(null);
-    showToast('Cita reagendada');
+    showToast(result?.ok ? 'Cita reagendada' : avisoDeError(result));
   };
 
   return (

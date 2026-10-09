@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { C } from '../theme';
 import { formatMoney } from '../accounting.mjs';
+import { todayISO } from '../localDay.mjs';
 import {
   PAYMENT_METHODS, METHOD_LABEL,
   paymentStatus, validatePayment, toPaymentRow,
@@ -41,7 +42,7 @@ export default function PaymentDialog({
     // valor puesto se registraria por inercia el que trajera el formulario
     // en vez del que de verdad se cobro.
     method: '',
-    paidAt: new Date().toISOString().slice(0, 10),
+    paidAt: todayISO(),
     reference: '',
     notes: '',
   }));

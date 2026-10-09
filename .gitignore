@@ -38,3 +38,7 @@ supabase/.temp/
 
 # Respaldos del .env: contienen llaves.
 .env.backup-*
+
+# Cadena de conexion a la base para scripts/migrate.sh: lleva la contraseña
+# de produccion. Nunca al repo.
+.env.migrate
