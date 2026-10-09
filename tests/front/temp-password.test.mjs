@@ -156,4 +156,20 @@ test('con la temporal todavia vigente no se administra nada', () => {
   }
 });
 
+// Alta por CORREO: la cuenta nace igual de encerrada que con temporal.
+// inviteUserByEmail no acepta app_metadata, asi que se pone despues; sin
+// eso la cuenta invitada entraria sin flag y sin pedir contraseña.
+{
+  const fuente = readFileSync(new URL('../../supabase/functions/invite-staff/index.ts', import.meta.url), 'utf8');
+  const correo = fuente.slice(fuente.indexOf("if (metodo === 'correo') {"), fuente.indexOf('} else {', fuente.indexOf("if (metodo === 'correo') {")));
+  assert.ok(correo.includes('inviteUserByEmail'), 'el alta por correo debe usar inviteUserByEmail');
+  assert.ok(/updateUserById\(nuevoId, \{ app_metadata: metadatos \}\)/.test(correo), 'el alta por correo debe poner metadatosDeAlta (flag must_change_password)');
+  assert.ok(correo.includes('deleteUser(nuevoId)'), 'si no se pudo encerrar la cuenta invitada, se deshace');
+  assert.ok(/const metadatos = metadatosDeAlta\(/.test(fuente), 'los dos metodos comparten metadatosDeAlta');
+  // Plan B sobre alguien invitado por correo que nunca abrio el enlace: sin
+  // confirmar el correo, Supabase no la deja entrar con la temporal.
+  const regenera = fuente.slice(fuente.indexOf("if (accion === 'temporal') {"), fuente.indexOf('if (existente) {'));
+  assert.ok(regenera.includes('email_confirm: true'), 'regenerar la temporal debe confirmar el correo');
+}
+
 console.log('temp-password: la temporal no es el eslabon debil, y la cuenta nace encerrada');

@@ -56,7 +56,7 @@ export const setTenantMemberRole = async (email, role, therapistId = null) => {
 // Las tres RPC cuelgan de auth.uid() y NO de la clinica activa: quien
 // tiene una invitacion puede no tener ninguna clinica todavia, asi que no
 // hay tenant del que colgarse.
-// Alta de personal con contraseña temporal (0033 + invite-staff).
+// Alta de personal por correo o con contraseña temporal (0033 + invite-staff).
 //
 // El correo de invitacion de Supabase no llega —su SMTP por defecto esta
 // limitado a unos pocos envios por hora— asi que el dueño entrega la
@@ -65,10 +65,12 @@ export const setTenantMemberRole = async (email, role, therapistId = null) => {
 //
 // Si el correo YA tiene cuenta no se crea nada: se cae en la invitacion
 // pendiente de 0032, que si pide consentimiento.
-export const inviteStaff = async (email, role, therapistId = null) => {
+// metodo: 'correo' (le llega una invitacion) o 'temporal' (contraseña que
+// se entrega en mano). Solo cuenta para quien no tiene cuenta todavia.
+export const inviteStaff = async (email, role, therapistId = null, metodo = 'correo') => {
   const supabase = await conCliente();
   const { data, error } = await supabase.functions.invoke('invite-staff', {
-    body: { email, role, therapistId },
+    body: { email, role, therapistId, metodo, redirectTo: `${window.location.origin}/set-password` },
   });
   if (error) {
     // El cuerpo del error trae el motivo real (rol invalido, ficha

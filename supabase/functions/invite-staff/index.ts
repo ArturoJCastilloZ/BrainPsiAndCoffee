@@ -25,13 +25,13 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 
-// Alta de personal con contraseña temporal.
+// Alta de personal: por CORREO de invitacion (lo normal) o con contraseña
+// temporal entregada en mano (plan B).
 //
-// Existe porque el correo de invitacion de Supabase no llega: su SMTP por
-// defecto esta limitado a unos pocos envios por hora. Sin esto, el unico
-// modo de dar de alta a un admin de cafeteria era crear la cuenta a mano
-// en el panel de Supabase — el dueño de una clinica necesitando la
-// consola del proveedor.
+// La temporal existe porque el correo de Supabase no llegaba (su SMTP por
+// defecto solo envia a miembros del equipo del proyecto). Con SMTP propio
+// el correo es el camino normal; la temporal queda para cuando el correo
+// no llega o la persona no tiene acceso a el.
 //
 // Va APARTE de sync-doctor-access: esa ya sincroniza fichas, concede y
 // revoca, y ha sido la fuente de tres hallazgos de seguridad. Meterle un
@@ -147,7 +147,7 @@ const manejar = async (req: Request): Promise<Response> => {
     return json({ error: 'Solo el dueño de la clinica puede dar de alta personal.' }, 403);
   }
 
-  let body: { email?: string; role?: string; therapistId?: string; accion?: string };
+  let body: { email?: string; role?: string; therapistId?: string; accion?: string; metodo?: string; redirectTo?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -161,6 +161,8 @@ const manejar = async (req: Request): Promise<Response> => {
   // clinica le creo la cuenta y que la perdio antes de entrar. Ver la
   // rama de abajo y puedeRegenerarTemporal.
   const accion = String(body.accion ?? 'alta');
+  // Solo para cuentas NUEVAS: 'correo' (por defecto) o 'temporal'.
+  const metodo = body.metodo === 'temporal' ? 'temporal' : 'correo';
 
   // En la accion 'temporal' el rol y la ficha NO vienen del cuerpo: salen
   // de la membresia que ya existe en esta clinica. Validar aqui lo que el
@@ -265,6 +267,12 @@ const manejar = async (req: Request): Promise<Response> => {
 
     const { error: claveError } = await adminClient.auth.admin.updateUserById(existente.id, {
       password: temporalNueva,
+      // Si se le invito por correo y nunca abrio el enlace, su correo sigue
+      // sin confirmar y Supabase no la dejaria entrar con la temporal. Es
+      // una cuenta que esta clinica creo y nadie ha usado
+      // (puedeRegenerarTemporal): confirmarla es lo que hacia el alta con
+      // temporal desde el principio.
+      email_confirm: true,
       app_metadata: {
         ...metaPrevio,
         memberships: membresias,
@@ -288,25 +296,59 @@ const manejar = async (req: Request): Promise<Response> => {
     return json({ estado: 'invitado' });
   }
 
-  // Cuenta nueva. email_confirm: true porque el correo NO participa en
-  // este flujo — la contraseña se entrega en mano. Sin esto la cuenta
-  // quedaria esperando una confirmacion que nadie va a mandar.
-  const temporal = generarTemporal();
+  // Cuenta nueva.
+  //
+  // Los dos metodos dejan el MISMO app_metadata (metadatosDeAlta): la
+  // cuenta nace encerrada (must_change_password) hasta que su titular
+  // pone contraseña. Por correo eso importa doble: si el enlace aterriza
+  // en la portada y no en /set-password (sin ALLOWED_REDIRECT_ORIGINS se
+  // usa el Site URL), App ve el flag y abre "Crear contraseña" igual.
+  // Y deja created_by_tenant, asi que si el correo no llega el dueño
+  // puede pasar al plan B (puedeRegenerarTemporal) mientras no haya
+  // entrado.
   const caducidad = caducidadTemporal();
+  const metadatos = metadatosDeAlta({ tenantId, role, therapistId, caducidad });
+  let temporal: string | null = null;
+  let nuevoId: string | undefined;
 
-  const { data: creado, error: crearError } = await adminClient.auth.admin.createUser({
-    email,
-    password: temporal,
-    email_confirm: true,
-    app_metadata: metadatosDeAlta({ tenantId, role, therapistId, caducidad }),
-  });
-  if (crearError) return json({ error: crearError.message }, 400);
-  const nuevoId = creado?.user?.id;
-  if (!nuevoId) return json({ error: 'No se pudo crear la cuenta.' }, 500);
+  if (metodo === 'correo') {
+    const destino = destinoPermitido(body.redirectTo);
+    if (destino.error) return json({ error: destino.error }, 400);
+    const { data: invitado, error: invitarError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+      redirectTo: destino.url,
+    });
+    if (invitarError) {
+      return json({ error: `No se pudo enviar el correo de invitacion: ${invitarError.message}. Prueba con la contraseña temporal.` }, 400);
+    }
+    nuevoId = invitado?.user?.id;
+    if (!nuevoId) return json({ error: 'No se pudo crear la cuenta.' }, 500);
+    // inviteUserByEmail no acepta app_metadata: se pone enseguida. Si
+    // fallara, la cuenta se deshace — sin membresias ni flag seria una
+    // cuenta suelta que ademas bloquea el correo.
+    const { error: metaError } = await adminClient.auth.admin.updateUserById(nuevoId, { app_metadata: metadatos });
+    if (metaError) {
+      await adminClient.auth.admin.deleteUser(nuevoId);
+      return json({ error: metaError.message }, 400);
+    }
+  } else {
+    // email_confirm: true porque el correo NO participa en este metodo —
+    // la contraseña se entrega en mano. Sin esto la cuenta quedaria
+    // esperando una confirmacion que nadie va a mandar.
+    temporal = generarTemporal();
+    const { data: creado, error: crearError } = await adminClient.auth.admin.createUser({
+      email,
+      password: temporal,
+      email_confirm: true,
+      app_metadata: metadatos,
+    });
+    if (crearError) return json({ error: crearError.message }, 400);
+    nuevoId = creado?.user?.id;
+    if (!nuevoId) return json({ error: 'No se pudo crear la cuenta.' }, 500);
+  }
 
   // La membresia nace ACTIVA: la cuenta existe porque esta clinica la
-  // creo y la contraseña se entrega en mano, asi que no hay a quien
-  // pedirle consentimiento. Lo que la contiene es el flag, no el active.
+  // creo (por correo o con temporal), asi que no hay a quien pedirle
+  // consentimiento. Lo que la contiene es el flag, no el active.
   const { error: membresiaError } = await adminClient.from('tenant_members').insert({
     tenant_id: tenantId,
     user_id: nuevoId,
@@ -330,9 +372,30 @@ const manejar = async (req: Request): Promise<Response> => {
     if (fichaError) throw fichaError;
   }
 
+  if (metodo === 'correo') return json({ estado: 'correo', email });
+
   // La temporal viaja UNA vez, aqui. No se guarda en ningun sitio ni se
   // vuelve a poder consultar: si se pierde, se regenera.
   return json({ estado: 'creado', email, temporal, caduca: caducidad });
+};
+
+// A donde manda el boton del correo. Misma regla que sync-doctor-access:
+// sin ALLOWED_REDIRECT_ORIGINS se falla CERRADO (se ignora lo que mande el
+// cliente y Supabase usa el Site URL); con lista, solo esos origenes.
+const destinoPermitido = (crudo: unknown): { url?: string; error?: string } => {
+  if (crudo === undefined || crudo === null || crudo === '') return {};
+  if (typeof crudo !== 'string') return { error: 'redirectTo invalido.' };
+  const permitidos = (Deno.env.get('ALLOWED_REDIRECT_ORIGINS') ?? '')
+    .split(',').map((v) => v.trim()).filter(Boolean);
+  let url: URL;
+  try {
+    url = new URL(crudo);
+  } catch {
+    return { error: 'redirectTo no es una URL valida.' };
+  }
+  if (!permitidos.length) return {};
+  if (!permitidos.includes(url.origin)) return { error: 'redirectTo no esta permitido.' };
+  return { url: url.toString() };
 };
 
 // Todo error acaba en una respuesta JSON, no en un throw suelto.

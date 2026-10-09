@@ -174,6 +174,16 @@ class AuthService {
     return this.setSession(data.session);
   }
 
+  // Con la verificacion en dos pasos activa, Supabase no deja cambiar la
+  // contraseña desde una sesion aal1 — justo la que abre el enlace de
+  // "recuperar contraseña". SetPassword lo pregunta para pedir el codigo
+  // ANTES de intentar, en vez de fallar con "AAL2 session is required".
+  async faltaSegundoFactor() {
+    const supabase = await this.cliente();
+    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    return data?.nextLevel === 'aal2' && data?.currentLevel !== 'aal2';
+  }
+
   async desactivarSegundoFactor(factorId) {
     const supabase = await this.cliente();
     const { error } = await supabase.auth.mfa.unenroll({ factorId });
@@ -194,6 +204,7 @@ class AuthService {
     if (error) {
       const fallo = new Error(`No se pudo guardar la contraseña: ${error.message}`);
       fallo.cause = error;
+      if (error.code === 'insufficient_aal' || /AAL2/i.test(error.message || '')) fallo.code = 'FALTA_SEGUNDO_FACTOR';
       throw fallo;
     }
     return data.user;

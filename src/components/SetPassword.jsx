@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Save } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Eye, EyeOff, KeyRound, Lock, Save } from 'lucide-react';
 import { C } from '../theme';
 import { authService } from '../auth/authService';
 import BrandMark from './BrandMark';
@@ -10,13 +10,25 @@ export default function SetPassword({ session, onComplete, theme, toggleTheme })
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Con la verificacion en dos pasos activa, cambiar la contraseña pide
+  // el codigo de la app primero (Supabase exige sesion aal2).
+  const [pideCodigo, setPideCodigo] = useState(false);
+  const [codigo, setCodigo] = useState('');
+
+  useEffect(() => {
+    if (!session) return undefined;
+    let vigente = true;
+    authService.faltaSegundoFactor().then((falta) => { if (vigente && falta) setPideCodigo(true); }).catch(() => {});
+    return () => { vigente = false; };
+  }, [session]);
 
   const isDark = theme === 'dark';
   const passwordMissing = password.length === 0;
   const confirmMissing = confirmPassword.length === 0;
   const passwordTooShort = password.length > 0 && password.length < 8;
   const passwordsDiffer = confirmPassword.length > 0 && password !== confirmPassword;
-  const canSubmit = Boolean(session) && !passwordMissing && !confirmMissing && !passwordTooShort && !passwordsDiffer && !loading;
+  const codigoIncompleto = pideCodigo && codigo.replace(/\s/g, '').length !== 6;
+  const canSubmit = Boolean(session) && !passwordMissing && !confirmMissing && !passwordTooShort && !passwordsDiffer && !codigoIncompleto && !loading;
 
   const submit = async (event) => {
     event.preventDefault();
@@ -24,11 +36,21 @@ export default function SetPassword({ session, onComplete, theme, toggleTheme })
 
     setLoading(true);
     try {
+      if (pideCodigo && await authService.faltaSegundoFactor()) {
+        await authService.verificarSegundoFactor(codigo);
+      }
       await authService.updatePassword(password);
       setError('');
       onComplete();
     } catch (nextError) {
-      setError(nextError.message);
+      // Por si el nivel no se pudo leer al abrir: el error de Supabase
+      // tambien lo dice, y entonces se pide el codigo.
+      if (nextError.code === 'FALTA_SEGUNDO_FACTOR') {
+        setPideCodigo(true);
+        setError('Tienes activa la verificación en dos pasos: escribe el código de tu app para guardar la contraseña.');
+      } else {
+        setError(nextError.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -91,7 +113,21 @@ export default function SetPassword({ session, onComplete, theme, toggleTheme })
         {confirmMissing && <RequiredHint />}
         {passwordsDiffer && <Hint>Las contraseñas no coinciden.</Hint>}
 
-        {error && <div style={{ color: C.rust, fontSize: 12, fontWeight: 600, marginBottom: 14 }}>{error}</div>}
+        {pideCodigo && (
+          <>
+            <label htmlFor="sp-codigo" style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>CÓDIGO DE VERIFICACIÓN</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, border: `1px solid ${isDark ? '#2A332A' : C.sagePale}`, marginBottom: 6, background: isDark ? '#0F1410' : C.ivory }}>
+              <KeyRound size={16} aria-hidden="true" />
+              <input id="sp-codigo" value={codigo} onChange={(event) => setCodigo(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={7}
+                placeholder="123 456" style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit', letterSpacing: 2 }} />
+            </div>
+            <div style={{ fontSize: 11, color: isDark ? C.sageLight : C.brownMid, margin: '0 0 14px' }}>
+              Tienes activa la verificación en dos pasos: escribe los 6 dígitos que muestra tu app de autenticación.
+            </div>
+          </>
+        )}
+
+        {error && <div role="alert" style={{ color: C.rust, fontSize: 12, fontWeight: 600, marginBottom: 14 }}>{error}</div>}
 
         <button type="submit" disabled={!canSubmit} style={{
           width: '100%',

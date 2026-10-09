@@ -28,6 +28,9 @@ export default function AdminAccess() {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('admin_consultorio');
   const [therapistId, setTherapistId] = useState('');
+  // Como entra la primera vez quien no tiene cuenta: por correo (normal) o
+  // con contraseña temporal entregada en mano (plan B).
+  const [metodo, setMetodo] = useState('correo');
   // La contraseña temporal viaja UNA vez, en la respuesta del alta. No se
   // guarda en ningun sitio ni se puede volver a consultar: si se pierde,
   // se regenera dando de alta otra vez.
@@ -79,8 +82,9 @@ export default function AdminAccess() {
   // Un solo boton para los dos casos, porque para el dueño es una sola
   // cosa: "dale acceso a esta persona". Quien decide es la funcion:
   //
-  //   sin cuenta  -> la crea con una contraseña temporal, que se muestra
-  //                  aqui una vez. No hay correo de por medio.
+  //   sin cuenta  -> la crea y le manda un correo para crear su
+  //                  contraseña, o (plan B) le genera una temporal que se
+  //                  muestra aqui una vez.
   //   con cuenta  -> la INVITA (0032) y no le toca nada hasta que acepte.
   const grant = async (event) => {
     event.preventDefault();
@@ -92,10 +96,12 @@ export default function AdminAccess() {
     setNotice('');
     setTemporal(null);
     try {
-      const r = await inviteStaff(correo, role, role === 'doctor' ? therapistId : null);
+      const r = await inviteStaff(correo, role, role === 'doctor' ? therapistId : null, metodo);
       if (r?.estado === 'creado') {
         setTemporal({ email: r.email, clave: r.temporal, caduca: r.caduca });
         setCopiado(false);
+      } else if (r?.estado === 'correo') {
+        setNotice(`Le mandamos a ${correo} un correo para crear su contraseña. Si no le llega en unos minutos, que revise spam; si aun asi no aparece, usa "Generar nueva contraseña temporal" en su fila.`);
       } else {
         setNotice(`${correo} ya tenia cuenta, asi que se le envio una invitacion. Entra en vigor cuando la acepte.`);
       }
@@ -208,9 +214,19 @@ export default function AdminAccess() {
             pidele que se registre" — y no habia ningun sitio donde
             registrarse: ni ruta, ni signUp en todo el codigo. Mandaba a un
             paso que no existia. */}
+        <fieldset style={{ border: 'none', padding: 0, margin: '12px 0 0', display: 'grid', gap: 6 }}>
+          <legend style={{ fontSize: 12, fontWeight: 700, color: 'var(--admin-text)', marginBottom: 4 }}>Si todavía no tiene cuenta, ¿cómo entra la primera vez?</legend>
+          {[
+            ['correo', 'Le llega un correo para crear su contraseña (recomendado)'],
+            ['temporal', 'Le doy una contraseña temporal en persona'],
+          ].map(([id, texto]) => (
+            <label key={id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--admin-text)', cursor: 'pointer' }}>
+              <input type="radio" name="acc-metodo" checked={metodo === id} onChange={() => setMetodo(id)} /> {texto}
+            </label>
+          ))}
+        </fieldset>
         <p style={{ fontSize: 12, color: 'var(--admin-muted)', margin: '6px 0 0' }}>
-          Si no tiene cuenta, se le crea aqui con una contraseña temporal que tendra que cambiar al entrar.
-          Si ya tiene, se le envia una invitacion y decide ella.
+          Si ya tiene cuenta, se le envía una invitación dentro del panel y decide ella.
         </p>
       </form>
 
