@@ -286,6 +286,16 @@ export default function AdminAccess() {
                     // en vez de dejar que la base lo rechace despues, y se
                     // ofrece la lista real en vez de pedir un id escrito.
                     let ficha = null;
+                    if (nuevo === 'doctor' && !m.therapistId && therapists.length === 0) {
+                      // Sin fichas, la lista saldria vacia y no habria nada
+                      // que elegir. Se dice que falta y donde se crea.
+                      await confirmar({
+                        titulo: 'Primero crea la ficha del especialista',
+                        mensaje: 'Todavía no hay fichas de especialistas en este consultorio. Créala en Consultorio → Especialistas (nombre, especialidad, cédula y servicios) y vuelve aquí para darle el rol.',
+                        aceptar: 'Entendido',
+                      });
+                      return;
+                    }
                     if (nuevo === 'doctor') {
                       ficha = m.therapistId || await confirmar({
                         titulo: 'Ficha de terapeuta',
