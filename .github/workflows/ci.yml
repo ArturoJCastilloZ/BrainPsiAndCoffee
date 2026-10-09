@@ -45,3 +45,8 @@ jobs:
       # casos. El plan pide que esta prueba se quede en CI para siempre.
       - name: Aislamiento entre clinicas
         run: ./tests/tenancy/run.sh
+
+      # Construye la imagen de produccion sin publicarla: si el Dockerfile
+      # se rompe, se entera el PR y no el dia del despliegue.
+      - name: Imagen Docker
+        run: docker build --target runtime -t brainpsi-web:ci .

@@ -1,0 +1,53 @@
+# Brainpsi en Docker.
+#
+#   docker compose --profile dev up        Vite con recarga en caliente  -> http://localhost:5173
+#   docker compose --profile prod up -d    imagen de produccion (nginx)  -> http://localhost:8080
+#
+# Las dos leen la configuracion de .env.development (o el archivo que
+# indique BRAINPSI_ENV_FILE). La base de datos es el Supabase alojado:
+# aqui solo corre el front.
+
+name: brainpsi
+
+services:
+  web:
+    profiles: ["prod"]
+    build:
+      context: .
+      target: runtime
+    image: brainpsi-web:${BRAINPSI_TAG:-local}
+    env_file:
+      - ${BRAINPSI_ENV_FILE:-.env.development}
+    ports:
+      - "${BRAINPSI_PORT:-8080}:8080"
+    # Sistema de archivos de solo lectura: lo unico escribible es /tmp
+    # (pid de nginx y env-config.js) y la cache de nginx.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    env_file:
+      - ${BRAINPSI_ENV_FILE:-.env.development}
+    environment:
+      # Las carpetas montadas desde Windows no emiten eventos de archivo:
+      # sin sondeo, Vite no veria los cambios.
+      VITE_USE_POLLING: "true"
+    ports:
+      - "${BRAINPSI_DEV_PORT:-5173}:5173"
+    volumes:
+      - .:/app
+      # node_modules del contenedor (Linux), no los del host (Windows).
+      - dev-node-modules:/app/node_modules
+
+volumes:
+  dev-node-modules:

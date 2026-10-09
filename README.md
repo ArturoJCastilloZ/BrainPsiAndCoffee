@@ -77,6 +77,44 @@ npm run verify
 
 Ejecuta QA basico y build de produccion. Usalo antes de desplegar.
 
+## Docker
+
+Requiere Docker Desktop (o Docker Engine con Compose v2). La configuracion
+sale de `.env.development`; para otro archivo usa `BRAINPSI_ENV_FILE`.
+
+```bash
+docker compose --profile dev up
+```
+
+Desarrollo con recarga en caliente en http://localhost:5173. El codigo se
+monta desde tu carpeta; `node_modules` vive en un volumen del contenedor.
+
+```bash
+docker compose --profile prod up -d --build
+```
+
+Imagen de produccion (nginx sin root, solo lectura) en http://localhost:8080,
+con `GET /healthz` para healthchecks.
+
+### Una imagen, cualquier clinica o entorno
+
+Las variables `VITE_*` publicas no se compilan dentro de la imagen: el
+contenedor escribe `/env-config.js` al arrancar (`docker/40-env-config.sh`)
+y `src/config/env.js` lo lee antes que `import.meta.env`. La misma imagen
+sirve a otra clinica cambiando solo el entorno:
+
+```bash
+docker run -d -p 8080:8080 --read-only --tmpfs /tmp --tmpfs /var/cache/nginx -e VITE_SUPABASE_URL=https://xxx.supabase.co -e VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx -e VITE_TENANT_ID=otra-clinica brainpsi-web:local
+```
+
+Solo se publican las variables listadas en `docker/40-env-config.sh`. Todo lo
+que esta ahi lo descarga cualquier visitante: nunca agregues una llave
+secreta (service role, `VITE_SUPABASE_SECRET_KEY`).
+
+Archivos: `Dockerfile` (etapas `deps`, `dev`, `build`, `runtime`),
+`docker-compose.yml`, `docker/nginx.conf` (fallback de React Router, cache
+inmutable de `/assets`, cabeceras de seguridad, gzip) y `.dockerignore`.
+
 ## Acceso admin demo
 
 En modo local/demo, las credenciales del admin son:

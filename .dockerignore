@@ -1,0 +1,26 @@
+# Todo lo que no hace falta para compilar el front. Menos contexto = builds
+# mas rapidos, y nada de secretos dentro de la imagen.
+.git
+.github
+node_modules
+dist
+coverage
+.vite
+*.log
+
+# Variables de entorno: la config entra al arrancar el contenedor, nunca
+# en una capa de la imagen.
+.env
+.env.*
+
+# No forman parte del bundle.
+supabase
+migrations
+scripts/*.sql
+scripts/legacy
+tests
+REDESIGN_PLAN.md
+README.md
+Dockerfile
+docker-compose*.yml
+.dockerignore

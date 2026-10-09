@@ -1,0 +1,5 @@
+# Los scripts que corren dentro de contenedores Linux deben tener LF: con
+# CRLF, /bin/sh falla con "not found" al leer la primera linea.
+*.sh text eol=lf
+docker/* text eol=lf
+Dockerfile text eol=lf
