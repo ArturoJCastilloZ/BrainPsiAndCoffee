@@ -1,6 +1,7 @@
 import React from 'react';
 import { Coffee, Calendar as CalendarIcon, Users, Bell, ArrowRight, DollarSign } from 'lucide-react';
 import { C } from '../theme';
+import StatusBadge from './OrderStatusBadge';
 import { fullDayLabel, todayISO } from '../utils.jsx';
 import { solicitudVencida, etiquetaPaciente } from '../appointmentStatus.mjs';
 import {
@@ -139,10 +140,10 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
                 <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'var(--admin-surface-soft)', borderRadius: 10 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: o.status === 'received' ? C.rust : C.caramel }} className="animate-pulse-slow" />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: 'var(--admin-text)', fontWeight: 500 }}>#{o.id.slice(0,5).toUpperCase()} · {o.items.length} items</div>
+                    <div style={{ fontSize: 13, color: 'var(--admin-text)', fontWeight: 500 }}>#{o.id.slice(0,5).toUpperCase()} · {cuantosProductos(o)}</div>
                     <div style={{ fontSize: 11, color: 'var(--admin-muted)' }}>{new Date(o.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} · ${o.total}</div>
                   </div>
-                  <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 999, background: 'var(--admin-surface)', color: 'var(--admin-accent-text)', fontWeight: 600 }}>{o.status.toUpperCase()}</span>
+                  <StatusBadge status={o.status} />
                 </div>
               ))}
             </div>
@@ -187,3 +188,9 @@ function Cambio({ variacion, etiqueta }) {
 }
 
 // ============ ADMIN APPOINTMENTS ============
+
+// "1 producto", "3 productos": cuenta piezas (cantidad), no renglones.
+function cuantosProductos(order) {
+  const n = (order.items || []).reduce((suma, item) => suma + (Number(item.qty) || 1), 0);
+  return `${n} ${n === 1 ? 'producto' : 'productos'}`;
+}

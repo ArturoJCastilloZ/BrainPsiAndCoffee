@@ -7,6 +7,7 @@ import { canCreateOrders } from '../auth/permissions';
 import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
 import { formatMoney } from '../accounting.mjs';
+import StatusBadge from './OrderStatusBadge';
 
 const actionText = '#1E1B18';
 
@@ -377,31 +378,6 @@ function isLate(order) {
     order.targetReadyAt &&
     !['ready', 'delivered', 'cancelled'].includes(order.status) &&
     new Date(order.targetReadyAt).getTime() < Date.now()
-  );
-}
-
-function StatusBadge({ status }) {
-  // Frase normal, no MAYUSCULAS, y color de TEXTO que pasa contraste: el
-  // rust y el caramelo crudos daban 2.6-3.2:1 sobre la tarjeta.
-  const config = {
-    received: { label: 'Nuevo', background: C.rustAlpha20, color: C.rustText },
-    pending_appointment: { label: 'Espera la cita', background: C.caramelLightAlpha30, color: 'var(--admin-text)' },
-    preparing: { label: 'Preparando', background: C.caramelLightAlpha30, color: 'var(--admin-text)' },
-    ready: { label: 'Listo', background: C.sageDarkAlpha50, color: 'var(--admin-text)' },
-    delivered: { label: 'Entregado', background: 'var(--admin-border)', color: 'var(--admin-muted)' },
-    cancelled: { label: 'Cancelado', background: C.rustAlpha20, color: C.rustText },
-  }[status] || { label: String(status || ''), background: 'var(--admin-border)', color: 'var(--admin-muted)' };
-
-  return (
-    <span style={{
-      fontSize: 13,
-      padding: '4px 10px',
-      borderRadius: 999,
-      fontWeight: 700,
-      background: config.background,
-      color: config.color,
-      whiteSpace: 'nowrap'
-    }}>{config.label}</span>
   );
 }
 
