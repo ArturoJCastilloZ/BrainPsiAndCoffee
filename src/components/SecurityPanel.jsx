@@ -82,7 +82,7 @@ export default function SecurityPanel({ session, puedeExigir = false, modo = 'aj
       </h1>
       <p style={{ fontSize: 15, color: 'var(--admin-muted)', margin: '8px 0 20px', lineHeight: 1.55 }}>
         {modo === 'exigido'
-          ? 'Para abrir expedientes clínicos necesitas, además de tu contraseña, un código de tu app de autenticación (Google Authenticator, Microsoft Authenticator, 1Password…).'
+          ? 'Para abrir expedientes clínicos necesitas, además de tu contraseña, un código de tu app de autenticación (Google Authenticator, Microsoft Authenticator, la app Contraseñas del iPhone, 1Password…).'
           : 'Con la verificación en dos pasos, alguien que adivine o robe tu contraseña no puede entrar sin tu teléfono.'}
       </p>
 
@@ -152,7 +152,7 @@ export default function SecurityPanel({ session, puedeExigir = false, modo = 'aj
         </section>
       )}
 
-      {modo === 'exigido' && (
+      {modo === 'exigido' && onLogout && (
         <button type="button" style={{ ...botonSecundario, marginTop: 16 }} onClick={onLogout}>Cerrar sesión</button>
       )}
     </div>

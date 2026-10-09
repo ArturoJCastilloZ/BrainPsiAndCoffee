@@ -33,6 +33,7 @@ import AdminSchedules from './AdminSchedules';
 import AdminArco from './AdminArco';
 import SecurityPanel from '../components/SecurityPanel';
 import { useMfaExigida } from '../components/useMfaExigida';
+import MfaAviso from '../components/MfaAviso';
 import { useAccountingData } from './useAccountingData';
 import { useAppData, useTheme } from '../context/AppContext';
 import {
@@ -127,7 +128,8 @@ export default function AdminApp({ switchToUser, logout }) {
     );
 
     // La clinica exige verificacion en dos pasos y esta sesion entro solo
-    // con contraseña: antes que nada, verificarse (0039).
+    // con contraseña. El panel de administracion no abre expedientes (eso
+    // vive en el portal del especialista), asi que no se bloquea: se avisa.
     const mfaPendiente = useMfaExigida(session);
 
     useEffect(() => {
@@ -135,16 +137,6 @@ export default function AdminApp({ switchToUser, logout }) {
             setPage(firstAllowedAdminPage(role) || 'cafe-orders');
         }
     }, [page, role]);
-
-    if (mfaPendiente) {
-        return (
-            <div data-contexto="clinic" style={{ background: 'var(--admin-bg)', minHeight: '100vh', padding: '40px 20px', boxSizing: 'border-box', color: 'var(--admin-text)' }}>
-                <div style={{ maxWidth: 640, margin: '0 auto' }}>
-                    <SecurityPanel session={session} modo="exigido" onLogout={logout} />
-                </div>
-            </div>
-        );
-    }
 
     return (
         // data-contexto pinta el acento del area: caramelo en Cafeteria,
@@ -293,6 +285,7 @@ export default function AdminApp({ switchToUser, logout }) {
                         el ancho disponible y ese ancho nunca bajaba. Estaban
                         escritas para ser fluidas y no servian de nada. */}
                     <div>
+                        {mfaPendiente && page !== 'cuenta-seguridad' && <MfaAviso onActivar={() => setPage('cuenta-seguridad')} />}
                         {page === 'general-dashboard' && canViewDashboard(role) && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} contabilidad={contabilidad} />}
                         {page === 'general-accounting' && canViewAccounting(role) && <AdminAccounting bookings={bookings} orders={orders} catalogs={catalogs} session={session} contabilidad={contabilidad} />}
                         {page === 'general-access' && canManageAccess(role) && <AdminAccess />}

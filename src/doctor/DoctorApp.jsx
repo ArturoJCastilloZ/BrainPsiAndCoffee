@@ -18,6 +18,7 @@ import { useConfirm } from '../components/ConfirmDialog';
 import { useAppData, useTheme } from '../context/AppContext';
 import SecurityPanel from '../components/SecurityPanel';
 import { useMfaExigida } from '../components/useMfaExigida';
+import MfaAviso from '../components/MfaAviso';
 import ConsentimientoClinico from './ConsentimientoClinico';
 import {
   addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes, logClinicalNoteAccess,
@@ -97,7 +98,10 @@ export default function DoctorApp({ logout }) {
     //
     // Se observa la CANTIDAD y no el arreglo: bookings se recrea en cada
     // render y usarlo directo dispararia la consulta sin parar.
-  }, [doctorBookings.length]);
+    // Y del nivel de la sesion: con la exigencia activa, lo que se cargo
+    // antes de verificarse vino vacio (RLS), y tras el codigo hay que
+    // volver a pedirlo.
+  }, [doctorBookings.length, session?.aal]);
 
   const reloadClinicalData = async () => {
     setNotesLoading(true);
@@ -115,18 +119,6 @@ export default function DoctorApp({ logout }) {
       setNotesLoading(false);
     }
   };
-
-  // La clinica exige verificacion en dos pasos y esta sesion entro solo
-  // con contraseña: antes que nada, verificarse (0039).
-  if (mfaPendiente) {
-    return (
-      <div data-contexto="clinic" style={{ background: 'var(--admin-bg)', minHeight: '100vh', padding: '40px 20px', boxSizing: 'border-box', color: 'var(--admin-text)' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
-          <SecurityPanel session={session} modo="exigido" onLogout={logout} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     // El panel del especialista es Consultorio: acento sage.
@@ -220,6 +212,10 @@ export default function DoctorApp({ logout }) {
           </nav>
         </div>
 
+        {/* La exigencia de la clinica es para EXPEDIENTES: la agenda y los
+            horarios se usan sin ella. Antes se bloqueaba el portal entero y
+            quien recien entraba no podia ni ver sus citas. */}
+        {mfaPendiente && page !== 'patients' && page !== 'security' && <MfaAviso onActivar={() => setPage('patients')} />}
         {page === 'appointments' && (
           <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} lockedTherapistId={therapistId} embedded />
         )}
@@ -227,7 +223,8 @@ export default function DoctorApp({ logout }) {
           <AdminSchedules catalogs={catalogs} lockedTherapistId={therapistId} reload={catalogActions?.reload} embedded />
         )}
         {page === 'security' && <SecurityPanel session={session} />}
-        {page === 'patients' && (
+        {page === 'patients' && mfaPendiente && <SecurityPanel session={session} modo="exigido" />}
+        {page === 'patients' && !mfaPendiente && (
           <DoctorPatients
             appointments={doctorBookings}
             patients={visiblePatients}

@@ -106,6 +106,25 @@ export const generateTempPassword = async (email) => {
   return data;
 };
 
+// Reiniciar la verificacion en dos pasos de alguien del personal que
+// perdio o cambio de celular. La Edge Function decide a quien
+// (puedeReiniciarMfa): no a uno mismo, ni a otro dueño, ni a quien
+// trabaja tambien en otra clinica.
+export const resetStaffMfa = async (email) => {
+  const supabase = await conCliente();
+  const { data, error } = await supabase.functions.invoke('invite-staff', {
+    body: { email, accion: 'reiniciar_mfa' },
+  });
+  if (error) {
+    let detalle = '';
+    try { detalle = (await error.context?.json())?.error || ''; } catch { /* sin cuerpo */ }
+    const fallo = new Error(detalle || 'No se pudo reiniciar la verificación en dos pasos.');
+    fallo.cause = error;
+    throw fallo;
+  }
+  return data;
+};
+
 export const myPendingInvitations = async () => {
   const supabase = await conCliente();
   const { data, error } = await supabase.rpc('my_pending_invitations');

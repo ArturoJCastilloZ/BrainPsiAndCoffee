@@ -17,6 +17,7 @@ import {
   validarAlta,
   LARGO_TEMPORAL,
   HORAS_VIGENCIA,
+  puedeReiniciarMfa,
 } from '../../supabase/functions/invite-staff/password.mjs';
 
 test('no trae caracteres que se confundan al dictarla', () => {
@@ -171,5 +172,16 @@ test('con la temporal todavia vigente no se administra nada', () => {
   const regenera = fuente.slice(fuente.indexOf("if (accion === 'temporal') {"), fuente.indexOf('if (existente) {'));
   assert.ok(regenera.includes('email_confirm: true'), 'regenerar la temporal debe confirmar el correo');
 }
+
+test('reiniciar la verificacion: solo personal de esta clinica, no dueños, no uno mismo, no compartido', () => {
+  const base = { esMiembroAqui: true, rolAqui: 'barista', esElMismo: false, otrasClinicas: [] };
+  assert.equal(puedeReiniciarMfa(base), true);
+  assert.equal(puedeReiniciarMfa({ ...base, esMiembroAqui: false }), false, 'alguien de fuera');
+  assert.equal(puedeReiniciarMfa({ ...base, esElMismo: true }), false, 'uno mismo');
+  assert.equal(puedeReiniciarMfa({ ...base, rolAqui: 'owner' }), false, 'otro dueño');
+  assert.equal(puedeReiniciarMfa({ ...base, otrasClinicas: ['otra'] }), false, 'cuenta compartida con otra clinica');
+  assert.equal(puedeReiniciarMfa({ ...base, otrasClinicas: undefined }), false, 'sin datos: falla cerrado');
+  assert.equal(puedeReiniciarMfa({ ...base, esElMismo: undefined }), false, 'sin datos: falla cerrado');
+});
 
 console.log('temp-password: la temporal no es el eslabon debil, y la cuenta nace encerrada');

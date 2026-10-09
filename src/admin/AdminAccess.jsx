@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { KeyRound, RefreshCw, ShieldCheck, ShieldOff, Trash2, UserPlus } from 'lucide-react';
 import { C } from '../theme';
 // setTenantMemberRole faltaba: cambiar el rol de un miembro fallaba siempre
 // con un ReferenceError (lo encontro el linter, 2026-10-09).
-import { listTenantMembers, revokeTenantMember, inviteStaff, generateTempPassword, setTenantMemberRole } from '../api/supabaseData';
+import { listTenantMembers, revokeTenantMember, inviteStaff, generateTempPassword, resetStaffMfa, setTenantMemberRole } from '../api/supabaseData';
 import { getSupabase } from '../api/supabaseClient';
 import { useConfirm } from '../components/ConfirmDialog';
 import TempPasswordPanel from './TempPasswordPanel';
@@ -138,6 +138,32 @@ export default function AdminAccess() {
       await load();
     } catch (err) {
       setError(err.message || 'No se pudo generar la contraseña temporal.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Para quien perdio o cambio de celular y ya no puede generar codigos.
+  // La Edge Function vuelve a decidir (puedeReiniciarMfa); aqui solo se
+  // ofrece a quien tiene sentido.
+  const reiniciarMfa = async (correo) => {
+    const ok = await confirmar({
+      titulo: 'Reiniciar verificación en dos pasos',
+      mensaje: `Se le quita a ${correo} la verificación en dos pasos que tenga configurada. Úsalo solo si perdió o cambió de celular y tú confirmaste que es esa persona. Podrá entrar solo con su contraseña y deberá configurarla de nuevo en Mi cuenta → Seguridad.`,
+      aceptar: 'Reiniciar',
+      destructivo: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const r = await resetStaffMfa(correo);
+      setNotice(r?.factores
+        ? `Listo: ${correo} ya puede entrar con su contraseña y configurar su verificación de nuevo.`
+        : `${correo} no tenía verificación en dos pasos configurada: no hubo nada que reiniciar.`);
+    } catch (err) {
+      setError(err.message || 'No se pudo reiniciar la verificación en dos pasos.');
     } finally {
       setBusy(false);
     }
@@ -285,6 +311,18 @@ export default function AdminAccess() {
                   style={{ ...boton('ghost', busy), marginTop: 4 }}
                 >
                   <KeyRound size={13} /> Generar nueva contraseña temporal
+                </button>
+              )}
+              {/* No a uno mismo (eso es Mi cuenta → Seguridad) ni a otro
+                  dueño: la funcion lo negaria igual (puedeReiniciarMfa). */}
+              {!m.isSelf && m.role !== 'owner' && !m.invitedAt && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => reiniciarMfa(m.email)}
+                  style={{ ...boton('ghost', busy), marginTop: 4 }}
+                >
+                  <ShieldOff size={13} /> Reiniciar verificación en dos pasos
                 </button>
               )}
             </div>

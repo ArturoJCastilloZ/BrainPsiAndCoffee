@@ -9,6 +9,8 @@ import {
   puedeRegenerarTemporal,
   MENSAJE_TEMPORAL_NEGADA,
   debeCambiarClave,
+  puedeReiniciarMfa,
+  MENSAJE_MFA_NEGADO,
 } from './password.mjs';
 
 const corsHeaders = {
@@ -217,6 +219,38 @@ const manejar = async (req: Request): Promise<Response> => {
   // ver puedeRegenerarTemporal. Toda negativa responde lo mismo, para no
   // revelar si un correo tiene cuenta (S10).
   // ------------------------------------------------------------
+  // ------------------------------------------------------------
+  // Reiniciar la verificacion en dos pasos (perdio o cambio de celular).
+  // Borra sus factores; al entrar de nuevo la configura otra vez. Toda
+  // negativa responde lo mismo (S10). Ver puedeReiniciarMfa.
+  // ------------------------------------------------------------
+  if (accion === 'reiniciar_mfa') {
+    const negada = () => json({ error: MENSAJE_MFA_NEGADO }, 400);
+    if (!existente) return negada();
+    const { data: aqui, error: aquiError } = await adminClient
+      .from('tenant_members')
+      .select('role')
+      .eq('tenant_id', tenantId)
+      .eq('user_id', existente.id)
+      .maybeSingle();
+    if (aquiError) throw aquiError;
+    const otras = await otrasClinicasDe(adminClient, existente.id, tenantId);
+    if (!puedeReiniciarMfa({
+      esMiembroAqui: Boolean(aqui), rolAqui: aqui?.role, esElMismo: existente.id === callerData.user.id, otrasClinicas: otras,
+    })) {
+      return negada();
+    }
+
+    const { data: lista, error: listaError } = await adminClient.auth.admin.mfa.listFactors({ userId: existente.id });
+    if (listaError) return json({ error: listaError.message }, 400);
+    const factores = lista?.factors ?? [];
+    for (const f of factores) {
+      const { error: borrarError } = await adminClient.auth.admin.mfa.deleteFactor({ id: f.id, userId: existente.id });
+      if (borrarError) return json({ error: borrarError.message }, 400);
+    }
+    return json({ estado: 'mfa_reiniciado', email, factores: factores.length });
+  }
+
   if (accion === 'temporal') {
     const negada = () => json({ error: MENSAJE_TEMPORAL_NEGADA }, 400);
     if (!existente) return negada();

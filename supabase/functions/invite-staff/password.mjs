@@ -127,3 +127,24 @@ export const MENSAJE_TEMPORAL_NEGADA =
 // Quien todavia debe cambiar su contraseña temporal no administra nada:
 // la contraseña la conoce quien se la dio.
 export const debeCambiarClave = (user) => user?.app_metadata?.must_change_password === true;
+
+// ¿Puede el dueño de ESTA clinica reiniciarle a alguien la verificacion
+// en dos pasos? Es para quien perdio o cambio de celular y ya no puede
+// generar codigos.
+//
+// Quitar el segundo factor no da acceso (sigue haciendo falta la
+// contraseña), pero debilita la cuenta. Por eso, igual que la temporal:
+//   · solo a un miembro de esta clinica, y no a uno mismo (para eso esta
+//     Mi cuenta → Seguridad),
+//   · no a otro dueño,
+//   · y no a quien tambien pertenece a otra clinica: su cuenta no es solo
+//     de esta, y aqui no se puede decidir por las demas.
+// Falla cerrado ante cualquier dato que falte.
+export const puedeReiniciarMfa = ({ esMiembroAqui, rolAqui, esElMismo, otrasClinicas }) => {
+  if (esMiembroAqui !== true || esElMismo !== false) return false;
+  if (!rolAqui || rolAqui === 'owner') return false;
+  return Array.isArray(otrasClinicas) && otrasClinicas.length === 0;
+};
+
+export const MENSAJE_MFA_NEGADO =
+  'No se puede reiniciar la verificación en dos pasos de ese correo desde aquí. Solo se puede con personal de esta clínica que no sea dueño ni trabaje también en otra clínica.';
