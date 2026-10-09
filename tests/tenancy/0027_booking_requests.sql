@@ -144,3 +144,33 @@ begin
   reset role;
   raise notice 'ok · el tope tambien cuenta por telefono (solo digitos)';
 end $$;
+
+-- Alta publica tal como la hace la pagina (src/api/appointments.js): la
+-- cita SIN RETURNING y luego su consentimiento del aviso. Con RETURNING
+-- (.insert().select()) fallaba con 42501: anon no puede LEER citas, y
+-- RETURNING exige poder leer la fila. Aqui se fija que RETURNING sigue
+-- prohibido (no se abre lectura a anon) y que el camino sin el funciona.
+do $$
+declare v_dummy text;
+begin
+  set local role anon;
+  perform set_config('request.jwt.claims','', true);
+  perform set_config('request.tenant','t_a', true);
+  begin
+    insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
+      appointment_time,customer_name,customer_email,customer_phone,duration_minutes,status)
+    values ('t_a','ret-0','sv','tt', pg_temp.fecha() + 7,'11:00','Con Returning','returning@ex.mx','8133333333',50,'requested')
+    returning id into strict v_dummy;
+    raise exception 'FUGA: anon pudo leer la cita que creo (RETURNING)';
+  exception when insufficient_privilege then null;
+  end;
+  insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
+    appointment_time,customer_name,customer_email,customer_phone,duration_minutes,status)
+  values ('t_a','ret-1','sv','tt', pg_temp.fecha() + 7,'12:00','Sin Returning','sinreturning@ex.mx','8144444444',50,'requested');
+  insert into public.consents (tenant_id, appointment_id, subject_email, consent_type, document_version, document_hash, evidence)
+  values ('t_a','ret-1','sinreturning@ex.mx','privacy_notice','2026-10-borrador-2', repeat('a',64), '{"source":"booking_flow"}');
+  reset role;
+  -- Que no cuente para los topes de las pruebas siguientes.
+  update public.appointments set status = 'cancelled' where id = 'ret-1';
+  raise notice 'ok · reserva publica + consentimiento sin RETURNING; con RETURNING sigue cerrada';
+end $$;

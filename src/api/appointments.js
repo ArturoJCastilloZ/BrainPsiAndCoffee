@@ -62,16 +62,13 @@ export const saveAppointments = async (items, previousItems = []) => {
   }
   const newItems = publicos.nuevos;
   if (newItems.length) {
-    // Igual en el alta publica: la fila guardada trae el patient_id que
-    // puso el trigger.
-    const creado = await supabase
-      .from('appointments')
-      .insert(newItems.map(mapAppointmentToDb))
-      .select();
-    throwIfError(creado);
+    // SIN .select(): un visitante no puede LEER citas (con razon), y
+    // .select() pide la fila de vuelta (INSERT ... RETURNING), que exige
+    // leerla. Con el, TODA reserva publica fallaba con 42501 aunque la
+    // policy de alta la aceptara. tests/tenancy/0027 lo cubre.
+    throwIfError(await supabase.from('appointments').insert(newItems.map(mapAppointmentToDb)));
     await recordPrivacyConsents(newItems);
-    const porId = new Map((creado.data || []).map((row) => [row.id, mapAppointmentFromDb(row)]));
-    return items.map((item) => porId.get(item.id) || item);
+    return items;
   }
   return items;
 };

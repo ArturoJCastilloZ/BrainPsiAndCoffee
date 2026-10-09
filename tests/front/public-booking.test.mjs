@@ -118,3 +118,13 @@ assert.equal(enlaceReserva(), '/reservar');
 }
 
 console.log('public-booking: ok');
+
+// La reserva SIN sesion no pide la fila de vuelta. .select() despues del
+// insert es INSERT ... RETURNING, que exige poder LEER la cita; un
+// visitante no puede (y no debe), asi que toda reserva publica fallaba.
+{
+  const fuente = leer('api/appointments.js');
+  const publico = fuente.slice(fuente.indexOf('const publicos = cambiosDeLista'), fuente.indexOf('const recordPrivacyConsents'));
+  assert.ok(publico.includes(".from('appointments')"), 'no se encontro el alta publica de citas');
+  assert.ok(!publico.includes('.select('), 'el alta publica de citas no puede usar .select(): anon no lee citas (42501)');
+}
