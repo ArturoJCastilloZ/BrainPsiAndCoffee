@@ -936,6 +936,9 @@ export const listTenantMembers = async () => {
     // invitada y todavia no acepta, asi que no tiene acceso a nada.
     invitedAt: row.invited_at,
     expiraEl: row.expira_el,
+    // 0035: a quien esta clinica creo y no ha entrado se le puede volver a
+    // generar la temporal. A nadie mas.
+    puedeRegenerarTemporal: row.puede_regenerar_temporal === true,
   }));
 };
 
@@ -990,12 +993,12 @@ export const inviteStaff = async (email, role, therapistId = null) => {
   return data;
 };
 
-// Contraseña temporal para una invitacion PENDIENTE (opcion C).
+// Volver a generar la contraseña temporal de alguien a quien ESTA clinica
+// le creo la cuenta y que la perdio antes de entrar.
 //
-// Es un acto deliberado del dueño y no un efecto lateral de invitar: la
-// pantalla solo ofrece el boton en filas pendientes. La funcion ademas se
-// niega si esa cuenta se usa en otra clinica — reescribirle la contraseña
-// seria tomarle el acceso alla.
+// La Edge Function decide (puedeRegenerarTemporal) y la lista de miembros
+// ya dice a quien se le puede ofrecer (0035). A una cuenta que ya existia
+// no se le toca la contraseña: su titular acepta la invitacion.
 export const generateTempPassword = async (email) => {
   assertSupabaseConfigured();
   const { data, error } = await supabase.functions.invoke('invite-staff', {

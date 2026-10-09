@@ -73,10 +73,8 @@ export const buildIdentityUpdate = ({ user, tenantId, therapist, matchedBy, othe
     update.user_metadata = { ...(user.user_metadata ?? {}), name: therapist.name };
   }
 
-  if (canRewriteLoginEmail({ matchedBy, otherTenants })) {
-    update.email = normalizeEmail(therapist.email);
-  }
-
+  // El CORREO DE LOGIN ya no se escribe aqui, en ningun caso. Ver la nota
+  // de abajo, donde vivia canRewriteLoginEmail.
   return update;
 };
 
@@ -113,11 +111,19 @@ export const canRewriteProfileName = ({ otherTenants }) => {
   return otherTenants.length === 0;
 };
 
-export const canRewriteLoginEmail = ({ matchedBy, otherTenants }) => {
-  if (matchedBy !== 'therapist_id') return false;
-  if (!Array.isArray(otherTenants)) return false;
-  return otherTenants.length === 0;
-};
+// canRewriteLoginEmail ya no existe (auditoria 2026-10-09, S2).
+//
+// Permitia que la clinica reescribiera el correo de login de un doctor que
+// solo trabajaba aqui. Pero ese correo ES la cuenta: "recuperar
+// contraseña" va a esa direccion. Quien editaba el correo de la ficha en
+// el catalogo —admin_consultorio u owner— podia ponerle uno suyo y
+// quedarse con la cuenta del especialista, y con ella su expediente
+// clinico, que por diseño esos roles no ven.
+//
+// El correo de login lo cambia SOLO su titular, con el flujo verificado
+// de Supabase. Si el correo de la ficha y el de la cuenta difieren, la
+// ficha sigue ligada a la persona por su id; el correo del catalogo es un
+// dato de contacto, no una identidad.
 
 // Si esta clinica puede BORRAR Y RECREAR una cuenta sin confirmar.
 //

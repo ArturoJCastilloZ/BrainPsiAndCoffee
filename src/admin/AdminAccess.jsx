@@ -105,13 +105,14 @@ export default function AdminAccess() {
     }
   };
 
-  // Solo en filas PENDIENTES. Para un miembro que ya entra, esto seria
-  // "cambiale la contraseña a quien quieras", que es otro flujo y no
-  // este. La funcion ademas se niega si la cuenta se usa en otra clinica.
+  // Solo para quien esta clinica creo y todavia no ha entrado
+  // (m.puedeRegenerarTemporal, misma regla que la Edge Function). A
+  // cualquier otro, reescribirle la contraseña seria entrar como esa
+  // persona: es como se podia tomar la cuenta de un especialista.
   const generarTemporal = async (correo) => {
     const ok = await confirmar({
       titulo: 'Generar contraseña temporal',
-      mensaje: `Se le va a cambiar la contraseña a ${correo} y tendra que ponerse una nueva al entrar. Solo hazlo si vas a entregarsela en persona.`,
+      mensaje: `${correo} todavia no ha entrado. Se le genera una contraseña temporal nueva y la anterior deja de servir. Tendra que cambiarla al entrar. Entregasela en persona.`,
       aceptar: 'Generar',
       destructivo: true,
     });
@@ -252,18 +253,20 @@ export default function AdminAccess() {
                       ? 'Invitacion caducada · vuelve a invitar'
                       : `Invitacion pendiente · caduca en ${diasParaCaducar(m.expiraEl)} d`}
                   </span>
-                  {/* Solo aqui. En una fila que ya entra, un boton que
-                      reescribe la contraseña es una herramienta para
-                      entrar como otro. */}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => generarTemporal(m.email)}
-                    style={boton('ghost', busy)}
-                  >
-                    <KeyRound size={13} /> Generar contraseña temporal
-                  </button>
                 </div>
+              )}
+              {/* Solo para cuentas que esta clinica creo y que nadie ha
+                  estrenado. Una invitacion pendiente es de alguien que ya
+                  tiene su contraseña: la acepta al entrar. */}
+              {m.puedeRegenerarTemporal && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => generarTemporal(m.email)}
+                  style={{ ...boton('ghost', busy), marginTop: 4 }}
+                >
+                  <KeyRound size={13} /> Generar nueva contraseña temporal
+                </button>
               )}
             </div>
 

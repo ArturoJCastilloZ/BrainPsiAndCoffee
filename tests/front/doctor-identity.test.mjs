@@ -16,7 +16,6 @@ import assert from 'node:assert/strict';
 import {
   matchDoctorUser,
   buildIdentityUpdate,
-  canRewriteLoginEmail,
   canRecreateUnconfirmedUser,
   invitedUserFrom,
   otherTenantsOf,
@@ -77,9 +76,11 @@ const doctoresDeA = [drX, drSolo];
     'la sincronizacion de A no puede tocar la ficha de B');
 }
 
-// --- Lo que SI debe seguir funcionando -------------------------------
-// Corregir el correo de un doctor que solo trabaja aqui: nadie mas
-// depende de esa identidad.
+// --- El correo de login ya no es de la clinica (auditoria S2) -------
+// Antes se permitia "corregir" el correo de un doctor que solo trabaja
+// aqui. Pero ese correo ES la cuenta: quien edita la ficha en el catalogo
+// le ponia el suyo y se quedaba con la cuenta y con su expediente. Ni
+// siquiera en el caso sin otras clinicas se escribe ya.
 {
   const fichaCorregida = { id: 'psq-9', name: 'Dr Solo', email: 'solo.nuevo@clinica.mx' };
   const { user, matchedBy } = matchDoctorUser(doctoresDeA, fichaCorregida, 'clinica_a');
@@ -92,8 +93,8 @@ const doctoresDeA = [drX, drSolo];
     otherTenants: [],
   });
 
-  assert.equal(update.email, 'solo.nuevo@clinica.mx',
-    'corregir el correo de alguien que solo trabaja en esta clinica debe seguir funcionando');
+  assert.equal(update.email, undefined,
+    'SECUESTRO: la clinica reescribio el correo de login de un especialista; ese correo es su cuenta');
 }
 
 // Emparejar por correo no renombra nada: ya son el mismo.
@@ -153,21 +154,18 @@ console.log('doctor-identity: la clinica no reescribe la identidad global de un 
 // Sin dato sobre otras clinicas se falla CERRADO: no saberlo no es
 // permiso.
 {
-  assert.equal(
-    canRewriteLoginEmail({ matchedBy: 'therapist_id', otherTenants: undefined }),
-    false,
-    'sin lista de clinicas no se puede reescribir la identidad',
-  );
-  assert.equal(
-    canRewriteLoginEmail({ matchedBy: 'therapist_id', otherTenants: [] }),
-    true,
-    'sin otras clinicas, corregir el correo sigue permitido',
-  );
-  assert.equal(
-    canRewriteLoginEmail({ matchedBy: 'email', otherTenants: [] }),
-    false,
-    'emparejado por correo no hay nada que reescribir',
-  );
+  for (const otherTenants of [undefined, [], ['otra']]) {
+    for (const matchedBy of ['therapist_id', 'email']) {
+      const update = buildIdentityUpdate({
+        user: { id: 'u', email: 'real@clinica.mx', app_metadata: {} },
+        tenantId: 'clinica_a',
+        therapist: { id: 'psq-1', name: 'X', email: 'atacante@ex.mx' },
+        matchedBy, otherTenants,
+      });
+      assert.equal(update.email, undefined,
+        `SECUESTRO: se escribio el correo de login (matchedBy=${matchedBy}, otras=${JSON.stringify(otherTenants)})`);
+    }
+  }
 }
 
 console.log('doctor-identity: la decision sale de tenant_members y falla cerrado');

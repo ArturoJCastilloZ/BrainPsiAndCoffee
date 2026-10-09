@@ -32,6 +32,14 @@ insert into public.therapy_services (tenant_id,id,name,duration_minutes,price) v
   ('t_pid','sv-pid','Consulta',50,700);
 insert into public.therapists (tenant_id,id,name,active) values
   ('t_pid','psq-pid','Dra Identidad',true);
+-- Cada actor es un miembro REAL: desde 0035 el rol sale de tenant_members
+-- y no basta con que el claim lo diga.
+insert into auth.users (id,email) values
+  ('e1000000-0000-0000-0000-0000000000a1','recepcion.pid@ex.mx'),
+  ('e1000000-0000-0000-0000-0000000000d1','doctora.pid@ex.mx');
+insert into public.tenant_members (tenant_id,user_id,role,therapist_id) values
+  ('t_pid','e1000000-0000-0000-0000-0000000000a1','admin_consultorio',null),
+  ('t_pid','e1000000-0000-0000-0000-0000000000d1','doctor',null);
 
 create or replace function pg_temp.como(p_rol text) returns void language plpgsql as $$
 begin
@@ -39,7 +47,8 @@ begin
     perform set_config('request.jwt.claims', '', false);
   else
     perform set_config('request.jwt.claims',
-      json_build_object('sub','e1000000-0000-0000-0000-0000000000aa',
+      json_build_object('sub', case p_rol when 'doctor' then 'e1000000-0000-0000-0000-0000000000d1'
+                                          else 'e1000000-0000-0000-0000-0000000000a1' end,
         'app_metadata', json_build_object('memberships', json_build_object('t_pid', p_rol)))::text, false);
   end if;
   perform set_config('request.tenant','t_pid', false);

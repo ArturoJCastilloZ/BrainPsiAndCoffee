@@ -6,6 +6,9 @@ import {
   caducidadTemporal,
   metadatosDeAlta,
   validarAlta,
+  puedeRegenerarTemporal,
+  MENSAJE_TEMPORAL_NEGADA,
+  debeCambiarClave,
 } from './password.mjs';
 
 const corsHeaders = {
@@ -43,14 +46,14 @@ const json = (body: unknown, status = 200) =>
 const buscarUsuario = async (
   adminClient: ReturnType<typeof createClient>,
   email: string,
-): Promise<{ id: string; app_metadata?: Record<string, unknown> } | null> => {
+): Promise<{ id: string; app_metadata?: Record<string, unknown>; last_sign_in_at?: string | null } | null> => {
   const porPagina = 200;
   for (let page = 1; page <= 100; page += 1) {
     const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: porPagina });
     if (error) throw error;
     const usuarios = data?.users ?? [];
     const hallado = usuarios.find((u) => (u.email || '').toLowerCase() === email);
-    if (hallado) return hallado as { id: string; app_metadata?: Record<string, unknown> };
+    if (hallado) return hallado as { id: string; app_metadata?: Record<string, unknown>; last_sign_in_at?: string | null };
     if (usuarios.length < porPagina) return null;
   }
   // 20 000 usuarios sin encontrarlo: se falla CERRADO. Seguir y crear la
@@ -58,12 +61,16 @@ const buscarUsuario = async (
   throw new Error('No se pudo comprobar si el correo ya tiene cuenta.');
 };
 
-// Las OTRAS clinicas activas de esa persona, segun tenant_members.
+// Las OTRAS clinicas de esa persona, segun tenant_members.
 //
 // Decide si esta clinica puede reescribirle la contraseña. Sale de la
 // TABLA y no del claim: el claim es su cache y puede quedarse corta, y
-// decidir con ella reabre el secuestro de cuenta que cerro 8.3. Misma
-// doctrina que canRewriteLoginEmail en sync-doctor-access.
+// decidir con ella reabre el secuestro de cuenta que cerro 8.3.
+//
+// SIN filtrar por active: una invitacion pendiente en otra clinica ya es
+// una relacion con esa clinica. Filtrando, la temporal le abria a esta
+// clinica la cuenta de alguien a quien otra acababa de invitar. Misma
+// doctrina que otherTenantsFromDb en sync-doctor-access.
 const otrasClinicasDe = async (
   adminClient: ReturnType<typeof createClient>,
   userId: string,
@@ -73,7 +80,6 @@ const otrasClinicasDe = async (
     .from('tenant_members')
     .select('tenant_id')
     .eq('user_id', userId)
-    .eq('active', true)
     .neq('tenant_id', tenantId);
   if (error) throw error;
   return (data ?? []).map((r) => r.tenant_id as string);
@@ -115,6 +121,13 @@ const manejar = async (req: Request): Promise<Response> => {
     return json({ error: 'No autenticado.' }, 401);
   }
 
+  // Quien aun debe cambiar su contraseña temporal no administra nada: esa
+  // contraseña la conoce quien se la dio, asi que actuar con ella seria
+  // actuar como otra persona.
+  if (debeCambiarClave(callerData.user)) {
+    return json({ error: 'Cambia tu contraseña temporal antes de administrar accesos.' }, 403);
+  }
+
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
   // La autorizacion se comprueba contra tenant_members, NO contra el
@@ -144,12 +157,13 @@ const manejar = async (req: Request): Promise<Response> => {
   const email = String(body.email ?? '').trim().toLowerCase();
   const role = String(body.role ?? '');
   const therapistId = String(body.therapistId ?? '').trim() || null;
-  // 'temporal' = el dueño pide explicitamente una contraseña temporal para
-  // una invitacion que sigue pendiente, en vez de esperar a que la acepte.
+  // 'temporal' = volver a generar la temporal de alguien a quien esta
+  // clinica le creo la cuenta y que la perdio antes de entrar. Ver la
+  // rama de abajo y puedeRegenerarTemporal.
   const accion = String(body.accion ?? 'alta');
 
   // En la accion 'temporal' el rol y la ficha NO vienen del cuerpo: salen
-  // de la invitacion pendiente que ya existe. Validar aqui lo que el
+  // de la membresia que ya existe en esta clinica. Validar aqui lo que el
   // cliente mando obligaria a la pantalla a reenviarlos, y entonces el
   // cliente podria cambiarlos de paso.
   if (accion === 'alta') {
@@ -190,84 +204,78 @@ const manejar = async (req: Request): Promise<Response> => {
   const existente = await buscarUsuario(adminClient, email);
 
   // ------------------------------------------------------------
-  // Contraseña temporal para una invitacion PENDIENTE.
+  // Volver a generar una contraseña temporal.
   //
-  // Es un acto deliberado del dueño, no un efecto lateral de invitar: la
-  // pantalla solo ofrece el boton en filas pendientes. Reescribirle la
-  // contraseña a alguien es tomarle la cuenta, asi que hay dos candados:
+  // Reescribirle la contraseña a alguien es tomarle la cuenta. Antes
+  // bastaba una invitacion pendiente y que no tuviera otra clinica activa,
+  // y el dueño podia fabricar esa invitacion para cualquier correo: era
+  // la via para quedarse con la cuenta de un especialista (auditoria S1).
   //
-  //   1. Tiene que haber una invitacion PENDIENTE suya en esta clinica.
-  //      Sin eso, esto seria un "cambiale la contraseña a cualquiera".
-  //   2. No puede pertenecer a NINGUNA otra clinica. Un doctor que
-  //      atiende en otro consultorio entra alli con esa misma cuenta, y
-  //      quien controla su contraseña controla su acceso alla. Es el
-  //      secuestro que cerro 8.3, y la condicion es la misma que usa
-  //      canRewriteLoginEmail.
+  // Ahora solo procede para quien ESTA clinica creo y nunca ha entrado:
+  // ver puedeRegenerarTemporal. Toda negativa responde lo mismo, para no
+  // revelar si un correo tiene cuenta (S10).
   // ------------------------------------------------------------
   if (accion === 'temporal') {
-    if (!existente) {
-      return json({ error: 'Ese correo no tiene cuenta. Dale de alta en vez de generar una temporal.' }, 400);
-    }
+    const negada = () => json({ error: MENSAJE_TEMPORAL_NEGADA }, 400);
+    if (!existente) return negada();
 
-    const { data: pendiente, error: pendienteError } = await adminClient
+    const { data: aqui, error: aquiError } = await adminClient
       .from('tenant_members')
-      .select('role, therapist_id, invited_at')
+      .select('role, therapist_id')
       .eq('tenant_id', tenantId)
       .eq('user_id', existente.id)
-      .eq('active', false)
       .maybeSingle();
-    if (pendienteError) throw pendienteError;
-    if (!pendiente || !pendiente.invited_at) {
-      return json({ error: 'Esa persona no tiene una invitacion pendiente en esta clinica.' }, 400);
-    }
+    if (aquiError) throw aquiError;
 
     const otras = await otrasClinicasDe(adminClient, existente.id, tenantId);
-    if (otras.length > 0) {
-      return json({
-        error: 'Esa cuenta tambien se usa en otra clinica, asi que esta no puede cambiarle la contraseña. Tiene que aceptar la invitacion ella misma.',
-      }, 403);
+    if (!puedeRegenerarTemporal({
+      user: existente, tenantId, otrasClinicas: otras, esMiembroAqui: Boolean(aqui),
+    })) {
+      return negada();
     }
 
-    const temporalPendiente = generarTemporal();
-    const caducaPendiente = caducidadTemporal();
-
-    // app_metadata se REEMPLAZA, no se fusiona, asi que se parte del que
-    // el usuario ya tiene. Fabricar uno nuevo le borraria sus otras
-    // claves — el mismo defecto que qa-check vigila en sync-doctor-access.
-    const metaPrevio = (existente.app_metadata ?? {}) as Record<string, unknown>;
-    const membresias = { ...((metaPrevio.memberships ?? {}) as Record<string, string>), [tenantId]: pendiente.role };
-    const fichas = { ...((metaPrevio.therapist_ids ?? {}) as Record<string, string>) };
-    if (pendiente.therapist_id) fichas[tenantId] = pendiente.therapist_id;
-
-    const { error: claveError } = await adminClient.auth.admin.updateUserById(existente.id, {
-      password: temporalPendiente,
-      app_metadata: {
-        ...metaPrevio,
-        memberships: membresias,
-        therapist_ids: fichas,
-        must_change_password: true,
-        temp_expires_at: caducaPendiente,
-      },
-    });
-    if (claveError) return json({ error: claveError.message }, 400);
-
+    // Primero la membresia: si la base la rechaza (por ejemplo, la ficha
+    // tiene expediente de otra persona, 0035), no se toca la contraseña.
     const { error: activarError } = await adminClient
       .from('tenant_members')
       .update({ active: true, invited_at: null, updated_at: new Date().toISOString() })
       .eq('tenant_id', tenantId)
       .eq('user_id', existente.id);
-    if (activarError) throw activarError;
+    if (activarError) return json({ error: activarError.message }, 400);
 
-    if (pendiente.therapist_id) {
+    if (aqui!.therapist_id) {
       const { error: fichaError } = await adminClient
         .from('therapists')
         .update({ user_id: existente.id, updated_at: new Date().toISOString() })
         .eq('tenant_id', tenantId)
-        .eq('id', pendiente.therapist_id);
-      if (fichaError) throw fichaError;
+        .eq('id', aqui!.therapist_id);
+      if (fichaError) return json({ error: fichaError.message }, 400);
     }
 
-    return json({ estado: 'temporal', email, temporal: temporalPendiente, caduca: caducaPendiente });
+    const temporalNueva = generarTemporal();
+    const caducaNueva = caducidadTemporal();
+
+    // app_metadata se REEMPLAZA, no se fusiona, asi que se parte del que
+    // el usuario ya tiene. Fabricar uno nuevo le borraria sus otras
+    // claves — el mismo defecto que qa-check vigila en sync-doctor-access.
+    const metaPrevio = (existente.app_metadata ?? {}) as Record<string, unknown>;
+    const membresias = { ...((metaPrevio.memberships ?? {}) as Record<string, string>), [tenantId]: aqui!.role };
+    const fichas = { ...((metaPrevio.therapist_ids ?? {}) as Record<string, string>) };
+    if (aqui!.therapist_id) fichas[tenantId] = aqui!.therapist_id;
+
+    const { error: claveError } = await adminClient.auth.admin.updateUserById(existente.id, {
+      password: temporalNueva,
+      app_metadata: {
+        ...metaPrevio,
+        memberships: membresias,
+        therapist_ids: fichas,
+        must_change_password: true,
+        temp_expires_at: caducaNueva,
+      },
+    });
+    if (claveError) return json({ error: claveError.message }, 400);
+
+    return json({ estado: 'temporal', email, temporal: temporalNueva, caduca: caducaNueva });
   }
 
   if (existente) {

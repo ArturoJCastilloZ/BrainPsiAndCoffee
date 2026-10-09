@@ -31,7 +31,11 @@ create table if not exists auth.users (
   -- de produccion con information_schema. El stub la necesita porque 0033
   -- cuelga un trigger de que ESTA columna cambie: sin ella el trigger no
   -- se podria ejercitar, y un guard que no se puede ver fallar no vale.
-  encrypted_password text
+  encrypted_password text,
+  -- Tambien real (confirmada el 2026-10-09 con information_schema). 0035
+  -- la usa para saber si alguien ya entro: a quien ya entro, la clinica
+  -- no le puede regenerar la temporal.
+  last_sign_in_at timestamptz
 );
 
 -- OJO: replica la forma REAL de GoTrue, que hace coalesce del claim

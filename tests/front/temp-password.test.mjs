@@ -4,12 +4,16 @@
 // persona hasta que la cambie. Lo que hace tolerable esa ventana esta en
 // 0033 (la sesion no puede hacer nada hasta cambiarla); lo que se prueba
 // aqui es que la contraseña en si no sea el eslabon debil.
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   generarTemporal,
   caducidadTemporal,
   metadatosDeAlta,
+  puedeRegenerarTemporal,
+  MENSAJE_TEMPORAL_NEGADA,
+  debeCambiarClave,
   validarAlta,
   LARGO_TEMPORAL,
   HORAS_VIGENCIA,
@@ -80,6 +84,9 @@ test('la cuenta nace encerrada', () => {
   // dependen de el dejan entrar con la contraseña que el dueño conoce.
   assert.equal(meta.must_change_password, true);
   assert.equal(meta.memberships.t1, 'admin_cafe');
+  // Sin la marca de origen, despues no se podria distinguir una cuenta
+  // creada aqui de una ajena, y regenerarle la temporal seria a ciegas.
+  assert.equal(meta.created_by_tenant, 't1');
   assert.equal(meta.temp_expires_at, '2026-03-04T12:00:00.000Z');
   assert.ok(!('therapist_ids' in meta), 'un admin_cafe no lleva ficha de terapeuta');
 });
@@ -100,6 +107,53 @@ test('el alta rechaza lo que la base rechazaria despues', () => {
   assert.match(validarAlta({ email: 'a@b.com', role: 'doctor' }), /necesita una ficha/);
   assert.equal(validarAlta({ email: 'a@b.com', role: 'doctor', therapistId: 'psq-1' }), null);
   assert.equal(validarAlta({ email: 'a@b.com', role: 'barista' }), null);
+});
+
+// Regenerar la temporal: solo para quien ESTA clinica creo y nunca entro
+// (auditoria S1). Antes bastaba una invitacion pendiente, que el dueño
+// podia fabricar para cualquier correo: era tomarle la cuenta a otro.
+test('la temporal solo se regenera para cuentas propias que nunca entraron', () => {
+  const propia = { id: 'u1', app_metadata: { created_by_tenant: 't1' }, last_sign_in_at: null };
+  const base = { tenantId: 't1', otrasClinicas: [], esMiembroAqui: true };
+  assert.equal(puedeRegenerarTemporal({ ...base, user: propia }), true, 'el caso legitimo dejo de funcionar');
+
+  const casos = [
+    [{ ...propia, app_metadata: {} }, 'una cuenta que ya existia (sin marca de origen)'],
+    [{ ...propia, app_metadata: { created_by_tenant: 'otra' } }, 'una cuenta creada por OTRA clinica'],
+    [{ ...propia, last_sign_in_at: '2026-10-01T10:00:00Z' }, 'una cuenta cuyo titular ya entro'],
+  ];
+  for (const [user, que] of casos) {
+    assert.equal(puedeRegenerarTemporal({ ...base, user }), false, `SECUESTRO: se permitio con ${que}`);
+  }
+  assert.equal(puedeRegenerarTemporal({ ...base, user: propia, otrasClinicas: ['t2'] }), false,
+    'SECUESTRO: la cuenta tiene relacion con otra clinica');
+  assert.equal(puedeRegenerarTemporal({ ...base, user: propia, otrasClinicas: undefined }), false,
+    'sin saber sus otras clinicas se debe fallar cerrado');
+  assert.equal(puedeRegenerarTemporal({ ...base, user: propia, esMiembroAqui: false }), false,
+    'no es miembro de esta clinica');
+  assert.equal(puedeRegenerarTemporal({ ...base, user: null }), false);
+});
+
+test('toda negativa responde igual, sin revelar si el correo tiene cuenta', () => {
+  const fuente = readFileSync(new URL('../../supabase/functions/invite-staff/index.ts', import.meta.url), 'utf8');
+  const rama = fuente.slice(fuente.indexOf("if (accion === 'temporal')"), fuente.indexOf('if (existente) {'));
+  assert.ok(rama.includes('MENSAJE_TEMPORAL_NEGADA'), 'la rama temporal debe usar el mensaje unico');
+  assert.ok(!/no tiene cuenta|no tiene una invitacion/i.test(rama),
+    'ORACULO: la rama temporal distingue "no tiene cuenta" de "no tiene invitacion"');
+  assert.ok(/puedeRegenerarTemporal\(/.test(rama), 'la rama temporal debe decidir con puedeRegenerarTemporal');
+  assert.ok(MENSAJE_TEMPORAL_NEGADA.length > 20);
+});
+
+test('con la temporal todavia vigente no se administra nada', () => {
+  assert.equal(debeCambiarClave({ app_metadata: { must_change_password: true } }), true);
+  assert.equal(debeCambiarClave({ app_metadata: {} }), false);
+  for (const fn of ['invite-staff', 'sync-doctor-access']) {
+    const fuente = readFileSync(new URL(`../../supabase/functions/${fn}/index.ts`, import.meta.url), 'utf8');
+    const chequeo = fuente.search(/if \(debeCambiarClave\(callerData\.user\)\)|callerData\.user\.app_metadata\?\.must_change_password === true/);
+    const permisos = fuente.indexOf("eq('user_id', callerData.user.id)");
+    assert.ok(chequeo > 0 && permisos > 0 && chequeo < permisos,
+      `${fn} debe rechazar al llamante con contraseña temporal ANTES de consultar permisos`);
+  }
 });
 
 console.log('temp-password: la temporal no es el eslabon debil, y la cuenta nace encerrada');

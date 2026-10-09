@@ -47,15 +47,36 @@ Deno.serve(async (req) => {
     return json({ error: 'No autenticado.' }, 401);
   }
 
+  // Quien aun debe cambiar su contraseña temporal no administra nada: esa
+  // contraseña la conoce quien se la dio.
+  if (callerData.user.app_metadata?.must_change_password === true) {
+    return json({ error: 'Cambia tu contraseña temporal antes de administrar accesos.' }, 403);
+  }
+
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
   // La clinica sobre la que se opera la manda el cliente, pero no se le
   // cree: tiene que ser una membresia real del llamante, con rol de
   // administracion. Sin esto, un admin de una clinica podria dar de alta
   // doctores en otra.
+  //
+  // Se pregunta a tenant_members, NO al claim. El claim es su cache y
+  // sobrevive hasta que el token expira: a un admin al que le quitaron el
+  // rol le seguia sirviendo para conceder y revocar accesos clinicos
+  // durante una hora (auditoria L1). invite-staff ya lo hacia asi.
   const tenantId = req.headers.get('x-tenant-id') || '';
-  const memberships = (callerData.user.app_metadata?.memberships || {}) as Record<string, string>;
-  const callerRole = memberships[tenantId];
-
-  if (!tenantId || !['owner', 'admin_consultorio'].includes(callerRole)) {
+  if (!tenantId) {
+    return json({ error: 'No tienes permisos de administracion en esa clinica.' }, 403);
+  }
+  const { data: callerMember, error: callerMemberError } = await adminClient
+    .from('tenant_members')
+    .select('role')
+    .eq('tenant_id', tenantId)
+    .eq('user_id', callerData.user.id)
+    .eq('active', true)
+    .maybeSingle();
+  if (callerMemberError) throw callerMemberError;
+  if (!callerMember || !['owner', 'admin_consultorio'].includes(callerMember.role)) {
     return json({ error: 'No tienes permisos de administracion en esa clinica.' }, 403);
   }
 
@@ -97,8 +118,38 @@ Deno.serve(async (req) => {
     therapists.push({ id, name, email, active: entry.active !== false });
   }
 
+  // El payload dice QUE fichas sincronizar; lo que cada ficha ES (correo,
+  // si esta activa) sale de la BASE. Antes el id y el correo eran lo que
+  // mandara el cliente: con { id: ficha_ajena, email: el_suyo } una
+  // peticion hecha a mano ligaba una cuenta cualquiera a la ficha de otro
+  // especialista (auditoria S2). La pantalla guarda el catalogo y despues
+  // llama aqui, asi que para el uso legitimo la base y el payload
+  // coinciden; para el otro, manda la base.
+  if (therapists.length) {
+    const { data: fichasDb, error: fichasError } = await adminClient
+      .from('therapists')
+      .select('id, name, email, active')
+      .eq('tenant_id', tenantId)
+      .in('id', therapists.map((item) => item.id));
+    if (fichasError) throw fichasError;
+    const porId = new Map((fichasDb ?? []).map((row) => [row.id, row]));
+    for (const therapist of therapists) {
+      const ficha = porId.get(therapist.id);
+      if (!ficha) {
+        return json({ error: `No existe la ficha "${therapist.id}" en esta clinica.` }, 400);
+      }
+      therapist.email = normalizeEmail(ficha.email ?? '');
+      therapist.active = ficha.active !== false;
+      therapist.name = ficha.name || therapist.name;
+    }
+  }
+
   // redirectTo se pasa a la invitacion por correo: solo se aceptan destinos
   // propios, para que no pueda usarse como redireccion abierta.
+  //
+  // Sin lista configurada falla CERRADO: se ignora el destino que mande el
+  // cliente y Supabase usa el Site URL del proyecto. Antes, una lista
+  // vacia aceptaba cualquier destino (auditoria L1).
   const rawRedirect = (body as { redirectTo?: unknown })?.redirectTo;
   let redirectTo: string | undefined;
   if (rawRedirect !== undefined) {
@@ -116,10 +167,9 @@ Deno.serve(async (req) => {
     if (allowedOrigins.length && !allowedOrigins.includes(parsed.origin)) {
       return json({ error: 'redirectTo no esta permitido.' }, 400);
     }
-    redirectTo = parsed.toString();
+    redirectTo = allowedOrigins.length ? parsed.toString() : undefined;
   }
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const activeDoctorIds = new Set(
     therapists.filter((item) => item.active !== false && item.email).map((item) => item.id)
   );

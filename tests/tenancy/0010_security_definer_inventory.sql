@@ -103,7 +103,21 @@ declare
     -- hacerlo: opera sobre la fila que dispara el trigger, y es la unica
     -- que ve. search_path fijo. No hace falta revocarle el execute
     -- porque devuelve 'trigger': Postgres no admite llamarla desde SQL.
-    'clear_password_change_flag'
+    'clear_password_change_flag',
+    -- 0035: rol y ficha del usuario DE LA SESION, leidos de
+    -- tenant_members. Definer porque las policies de tenant_members
+    -- llaman a current_tenant_role(): leer la tabla con los permisos del
+    -- usuario seria recursivo. Solo responden por auth.uid().
+    'active_member_role',
+    'active_member_therapist',
+    -- 0035: una ficha con notas de otra persona no cambia de dueño. Lee
+    -- notas y encuentros sin depender de RLS; execute revocado a todos
+    -- (solo la llama el trigger).
+    'ficha_tiene_expediente_ajeno',
+    'guard_therapist_link',
+    -- 0035: las fechas de nota y addendum las pone el servidor. No lee
+    -- datos; definer para que ningun rol la esquive.
+    'stamp_clinical_times'
   ];
   v_reales text[];
   v_nuevas text[];

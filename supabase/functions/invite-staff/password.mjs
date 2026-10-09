@@ -55,6 +55,11 @@ export const caducidadTemporal = (ahora = new Date(), horas = HORAS_VIGENCIA) =>
 // niegan todo. Ver 0033.
 export const metadatosDeAlta = ({ tenantId, role, therapistId = null, caducidad }) => {
   const meta = {
+    // De que clinica salio la cuenta. Es lo que permite, despues, volver a
+    // generarle una temporal si la perdio antes de entrar: solo a quien la
+    // creo, y solo mientras nadie haya usado la cuenta. Ver
+    // puedeRegenerarTemporal.
+    created_by_tenant: tenantId,
     memberships: { [tenantId]: role },
     must_change_password: true,
     temp_expires_at: caducidad,
@@ -80,3 +85,45 @@ export const validarAlta = ({ email, role, therapistId }) => {
   }
   return null;
 };
+
+// Cuando esta clinica puede (re)generarle una contraseña temporal a una
+// cuenta que YA existe.
+//
+// Antes bastaba con una invitacion pendiente y que la persona no tuviera
+// otra clinica ACTIVA. El dueño podia crear esa invitacion para cualquier
+// correo registrado —incluido un especialista suyo al que acababa de
+// revocar—, generarle la temporal, entrar con ella y quedar como esa
+// persona: leer su expediente y firmar notas a su nombre (auditoria
+// 2026-10-09, S1). En el SaaS, cualquier dueño podia hacerlo con cuentas
+// de otras clinicas.
+//
+// Ahora la temporal es solo para lo que sirve de verdad: alguien a quien
+// ESTA clinica le creo la cuenta y que perdio la temporal antes de entrar.
+//
+//   · la cuenta la creo esta clinica (created_by_tenant),
+//   · nadie la ha usado nunca (sin last_sign_in_at): una vez que su
+//     titular entro, la contraseña es suya,
+//   · no tiene relacion con ninguna otra clinica, activa o no,
+//   · y es miembro (activo o invitado) de esta.
+//
+// Una cuenta que ya existia —de otra clinica, o de antes de este cambio—
+// NO entra: esa persona ya tiene su contraseña y acepta la invitacion al
+// iniciar sesion. Falla cerrado ante cualquier dato que falte.
+export const puedeRegenerarTemporal = ({ user, tenantId, otrasClinicas, esMiembroAqui }) => {
+  if (!user || !tenantId) return false;
+  if (user.app_metadata?.created_by_tenant !== tenantId) return false;
+  if (user.last_sign_in_at) return false;
+  if (!Array.isArray(otrasClinicas) || otrasClinicas.length > 0) return false;
+  return esMiembroAqui === true;
+};
+
+// Una sola respuesta para todas las negativas. Distinguir "no tiene
+// cuenta" de "no tiene invitacion" le decia a quien preguntara si un
+// correo esta registrado (auditoria S10, el oraculo que 0031 habia
+// cerrado en SQL).
+export const MENSAJE_TEMPORAL_NEGADA =
+  'No se puede generar una contraseña temporal para ese correo. Si la persona ya tiene cuenta, debe aceptar la invitacion al iniciar sesion con su propia contraseña.';
+
+// Quien todavia debe cambiar su contraseña temporal no administra nada:
+// la contraseña la conoce quien se la dio.
+export const debeCambiarClave = (user) => user?.app_metadata?.must_change_password === true;
