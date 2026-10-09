@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Copy, KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import { C } from '../theme';
-import { listTenantMembers, revokeTenantMember, inviteStaff, generateTempPassword } from '../api/supabaseData';
+// setTenantMemberRole faltaba: cambiar el rol de un miembro fallaba siempre
+// con un ReferenceError (lo encontro el linter, 2026-10-09).
+import { listTenantMembers, revokeTenantMember, inviteStaff, generateTempPassword, setTenantMemberRole } from '../api/supabaseData';
 import { supabase } from '../api/supabaseClient';
 import { useConfirm } from '../components/ConfirmDialog';
 import TempPasswordPanel from './TempPasswordPanel';

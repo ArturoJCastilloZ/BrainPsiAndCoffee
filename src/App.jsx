@@ -5,7 +5,8 @@ import { useStorage } from './hooks/useStorage';
 import { useSupabaseCrud } from './hooks/useSupabaseCrud';
 import GlobalLoader from './components/GlobalLoader';
 import { authService } from './auth/authService';
-import { useAuthSession, useInactivityTracking, useSessionWarning } from './auth/useAuth';
+import { useAuthReady, useAuthSession, useInactivityTracking, useSessionWarning } from './auth/useAuth';
+import ErrorBoundary from './components/ErrorBoundary';
 import SessionExpiryModal from './components/SessionExpiryModal';
 import { trackPageView } from './monitoring';
 import { canAccessAdmin, canAccessDoctor, isDoctor } from './auth/permissions';
@@ -23,6 +24,8 @@ const SetPassword = lazy(() => import('./components/SetPassword'));
 export default function App() {
   const [theme, setTheme] = useStorage('brainpsi:theme', 'light');
   const session = useAuthSession();
+  const authReady = useAuthReady();
+  const [errorCerrado, setErrorCerrado] = React.useState(null);
   const {
     bookings,
     setBookings,
@@ -32,6 +35,7 @@ export default function App() {
     catalogActions,
     loading: dataLoading,
     error: dataError,
+    reload: reloadData,
   } = useSupabaseCrud(session);
   const showSessionWarning = useSessionWarning();
   const navigate = useNavigate();
@@ -94,19 +98,9 @@ export default function App() {
   // un token queda sin valor: se veia texto negro sobre fondo negro, con
   // solo los hex literales funcionando.
   //
-  // Pasaba ya con TenantPicker antes de esta sesion. Este marco es el
-  // mismo contenedor, para que una puerta se pinte igual que el resto.
-  const Marco = ({ children }) => (
-    <div data-theme={theme} style={{
-      background: C.ivory,
-      minHeight: '100vh',
-      fontFamily: "'Outfit', system-ui, sans-serif",
-      ...themeVars(isDark),
-    }}>
-      <GlobalStyle />
-      {children}
-    </div>
-  );
+  // Pasaba ya con TenantPicker antes de esta sesion. Marco (abajo, fuera
+  // de App) es el mismo contenedor, para que una puerta se pinte igual que
+  // el resto.
 
   if (session?.user?.mustChangePassword) {
     // Suspense porque SetPassword es lazy (linea 21) y este return sale
@@ -114,7 +108,7 @@ export default function App() {
     // montar — un fallo que el build no ve, porque compilar no es
     // funcionar.
     return (
-      <Marco>
+      <Marco theme={theme} isDark={isDark}>
       <Suspense fallback={<RouteFallback />}>
       <SetPassword
         session={session}
@@ -137,7 +131,7 @@ export default function App() {
   // selector, y es precisamente quien mas necesita ver la invitacion.
   if (mostrarInvitaciones) {
     return (
-      <Marco>
+      <Marco theme={theme} isDark={isDark}>
       <PendingInvitations
         invitations={invitaciones}
         puedeSaltar={tieneClinica}
@@ -162,7 +156,7 @@ export default function App() {
 
   if (mustPickTenant) {
     return (
-      <Marco>
+      <Marco theme={theme} isDark={isDark}>
       <TenantPicker
         memberships={session.user.memberships}
         theme={theme}
@@ -183,16 +177,30 @@ export default function App() {
     }}>
       <GlobalStyle />
 
-      {dataError && (
-        <div style={{
+      {/* Un aviso que el paciente entiende y que se puede cerrar. Antes
+          decia "Error conectando con Supabase: <mensaje tecnico>" para
+          todo, incluidas validaciones, y no se podia quitar. Los errores
+          de una accion concreta (reservar, pedir, cancelar) ya los dice la
+          pantalla que la hizo; este es para lo que no tiene dueño. */}
+      {dataError && dataError !== errorCerrado && dataError.code !== 'PUBLIC_EDIT_NOT_ALLOWED' && (
+        <div role="alert" style={{
           position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 200,
-          background: C.rust, color: 'white', borderRadius: 999, padding: '8px 14px',
-          fontSize: 12, fontWeight: 700, boxShadow: '0 10px 30px rgba(0,0,0,0.18)'
+          display: 'flex', alignItems: 'center', gap: 10, maxWidth: 'calc(100vw - 32px)',
+          background: 'var(--bp-surface)', color: C.rustText, border: `1px solid ${C.rust}`,
+          borderRadius: 14, padding: '10px 12px 10px 16px',
+          fontSize: 14, lineHeight: 1.4, boxShadow: '0 10px 30px rgba(0,0,0,0.18)'
         }}>
-          Error conectando con Supabase: {dataError.message}
+          <span>No pudimos conectar con el servidor. Algunos datos pueden no estar al día.</span>
+          <button type="button" onClick={() => { setErrorCerrado(dataError); reloadData(); }} style={bannerButton}>
+            Reintentar
+          </button>
+          <button type="button" aria-label="Cerrar aviso" onClick={() => setErrorCerrado(dataError)} style={bannerButton}>
+            ✕
+          </button>
         </div>
       )}
 
+      <ErrorBoundary resetKey={location.pathname}>
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<UserApp initialPage="home" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
@@ -202,8 +210,11 @@ export default function App() {
           <Route path="/privacidad" element={<UserApp initialPage="privacy" bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
           <Route path="/login" element={<Login onLogin={(nextSession) => navigate(isDoctor(nextSession?.user.role) ? '/doctor' : '/admin', { replace: true })} onCancel={goUser} theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/set-password" element={<SetPassword session={session} onComplete={() => navigate(isDoctor(session?.user.role) ? '/doctor' : '/admin', { replace: true })} theme={theme} toggleTheme={toggleTheme} />} />
+          {/* Mientras se lee la sesion guardada no se decide nada: antes
+              session arrancaba en null, la ruta mandaba al login y quien
+              recargaba /admin con sesion valida perdia la pagina. */}
           <Route path="/admin" element={
-            canAccessAdmin(session?.user.role) ? (
+            !authReady ? <RouteFallback /> : canAccessAdmin(session?.user.role) ? (
               <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} dataLoading={dataLoading} />
             ) : canAccessDoctor(session?.user.role) ? (
               <Navigate to="/doctor" replace />
@@ -212,7 +223,7 @@ export default function App() {
             )
           } />
           <Route path="/doctor" element={
-            canAccessDoctor(session?.user.role) ? (
+            !authReady ? <RouteFallback /> : canAccessDoctor(session?.user.role) ? (
               <DoctorApp bookings={bookings} setBookings={setBookings} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} />
             ) : canAccessAdmin(session?.user.role) ? (
               <Navigate to="/admin" replace />
@@ -223,16 +234,42 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
       <SessionExpiryModal visible={Boolean(session && showSessionWarning)} />
       <GlobalLoader />
     </div>
   );
 }
 
+// Fuera de App A PROPOSITO. Definido dentro, era un tipo de componente
+// NUEVO en cada render de App, y React desmontaba y volvia a montar todo
+// lo de adentro: quien escribia su contraseña nueva en SetPassword perdia
+// el foco y lo escrito cada vez que App se re-renderizaba (el temporizador
+// de inactividad lo hace con el primer movimiento del raton).
+function Marco({ theme, isDark, children }) {
+  return (
+    <div data-theme={theme} style={{
+      background: C.ivory,
+      minHeight: '100vh',
+      fontFamily: "'Outfit', system-ui, sans-serif",
+      ...themeVars(isDark),
+    }}>
+      <GlobalStyle />
+      {children}
+    </div>
+  );
+}
+
+const bannerButton = {
+  background: 'transparent', border: '1px solid currentColor', color: 'inherit',
+  borderRadius: 10, padding: '6px 10px', fontSize: 13, fontWeight: 600,
+  cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+};
+
 function RouteFallback() {
   return (
     <div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: C.brown, fontWeight: 700 }}>
-      Cargando...
+      Cargando…
     </div>
   );
 }

@@ -14,6 +14,19 @@ export const useAuthSession = () => {
   return session;
 };
 
+// false mientras se lee la sesion guardada. Las rutas protegidas esperan
+// a que sea true antes de decidir si mandan al login.
+export const useAuthReady = () => {
+  const [ready, setReady] = useState(authService.ready$.value);
+
+  useEffect(() => {
+    const subscription = authService.ready$.subscribe(setReady);
+    return () => subscription.unsubscribe();
+  }, []);
+
+  return ready;
+};
+
 export const useSessionWarning = () => {
   const [showWarning, setShowWarning] = useState(authService.expiryWarning$.value);
 

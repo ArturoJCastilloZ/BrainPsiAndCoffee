@@ -120,7 +120,10 @@ declare
     'stamp_clinical_times',
     -- 0036: cancela solicitudes de reserva de mas de 24 h de UNA clinica.
     -- Definer porque quien reserva es anonimo; no lee ni devuelve datos.
-    'expire_stale_booking_requests'
+    'expire_stale_booking_requests',
+    -- 0037: topes de la reserva publica. Definer porque cuenta citas que
+    -- el visitante anonimo no puede leer; solo responde "pasa" o lanza.
+    'check_booking_request_limits'
   ];
   v_reales text[];
   v_nuevas text[];

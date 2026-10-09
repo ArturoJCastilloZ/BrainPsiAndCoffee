@@ -118,6 +118,12 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
         setStep(3);
         return;
       }
+      // P0429: un tope de la reserva publica (0037). El mensaje de la base
+      // ya esta escrito para el paciente y dice que hacer.
+      if (result?.error?.code === 'P0429') {
+        setErrors({ submit: result.error.message });
+        return;
+      }
       setErrors({ submit: 'No pudimos enviar tu solicitud. Revisa tu conexión e inténtalo de nuevo, o escríbenos por WhatsApp.' });
       return;
     }

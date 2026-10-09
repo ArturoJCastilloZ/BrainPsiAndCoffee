@@ -8,7 +8,7 @@
 // cualquier guardado fallaba al topar el primer pedido cerrado.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { cambiosDePedidos, huellaPedido, huellaLineas } from '../../src/orderDiff.mjs';
+import { cambiosDePedidos, huellaLineas } from '../../src/orderDiff.mjs';
 
 const pedido = (id, extra = {}) => ({
   id, status: 'received', customerName: 'A', total: 100, subtotal: 100,

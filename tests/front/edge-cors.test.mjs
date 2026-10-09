@@ -31,7 +31,7 @@ for (const dir of readdirSync(ROOT, { withFileTypes: true }).filter((d) => d.isD
   const leidos = [...src.matchAll(/req\.headers\.get\(\s*['"]([^'"]+)['"]\s*\)/g)]
     .map((m) => m[1].toLowerCase());
 
-  const allow = (src.match(/'Access-Control-Allow-Headers':\s*'([^']*)'/) || [, ''])[1]
+  const allow = (src.match(/'Access-Control-Allow-Headers':\s*'([^']*)'/) || ['', ''])[1]
     .toLowerCase();
 
   for (const h of leidos) {

@@ -10,7 +10,9 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { addDays, todayISO, uid, weekdayLabelsFrom, localDate } from '../utils.jsx';
-import { isWorkingDay, poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
+// timeSlotStates faltaba: agendar con "cualquier especialista" tronaba con
+// un ReferenceError al guardar (lo encontro el linter, 2026-10-09).
+import { isWorkingDay, poolAvailableSlots, poolSlotStates, timeSlotStates } from '../agenda.mjs';
 import { validateAppointment } from '../validation';
 import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
@@ -28,9 +30,12 @@ export default function AdminAppointments({
   // "Mis citas" y debajo "Citas / Gestiona reservaciones...".
   embedded = false,
 }) {
-  const services = catalogs?.services || [];
-  const therapists = catalogs?.therapists || [];
-  const schedules = catalogs?.schedules || [];
+  // VACIO y no []: un [] nuevo en cada render cambiaba las dependencias de
+  // los memos y efectos de abajo en cada pasada, mientras el catalogo no
+  // habia llegado. Es la clase de defecto que ya produjo un bucle aqui.
+  const services = catalogs?.services || VACIO;
+  const therapists = catalogs?.therapists || VACIO;
+  const schedules = catalogs?.schedules || VACIO;
   const [filter, setFilter] = useState('upcoming');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
@@ -605,6 +610,8 @@ function EstadoCita({ status, vencida = false }) {
     </span>
   );
 }
+
+const VACIO = [];
 
 const decisionStyle = (principal) => ({
   display: 'inline-flex', alignItems: 'center', gap: 4,

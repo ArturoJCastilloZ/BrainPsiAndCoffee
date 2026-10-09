@@ -15,7 +15,7 @@ import {
 } from '../api/supabaseData';
 import { BUSINESS } from '../businessInfo';
 import { supabase } from '../api/supabaseClient';
-import { canManageAppointments, canManageOrders, isSuperAdmin } from '../auth/permissions';
+import { canManageAppointments, canManageOrders } from '../auth/permissions';
 
 const resolveNext = (value, next) => (typeof next === 'function' ? next(value) : next);
 
@@ -75,9 +75,9 @@ export const useSupabaseCrud = (session) => {
   // de reload, cada pulsacion recrea el callback, el efecto vuelve a
   // pedir todos los catalogos, y las pantallas que derivan su borrador de
   // catalogs pierden lo que el usuario estaba escribiendo.
-  const canSeed = isSuperAdmin(session?.user?.role);
   const canLoadAppointments = canManageAppointments(session?.user?.role) || session?.user?.role === 'doctor';
   const canLoadOrders = canManageOrders(session?.user?.role);
+  const tenantId = session?.user?.tenantId || null;
   // TODOS arrancan VACIOS. Antes arrancaban con los datos de data.js, que
   // se pintaban antes de que la consulta volviera: el catalogo de demo era
   // el placeholder de carga, y un placeholder con PRECIOS es un
@@ -101,6 +101,10 @@ export const useSupabaseCrud = (session) => {
   const [orders, setOrdersRaw, setOrders, ordersError] = useRemoteState([], saveOrders);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [loadError, setLoadError] = useState(null);
+  // Numero de la ultima carga pedida. Una respuesta que llega despues de
+  // otra mas nueva se descarta: si no, una consulta lenta pisaba con datos
+  // viejos lo que una rapida acababa de traer.
+  const cargaRef = useRef(0);
 
   const reload = useCallback(async () => {
     if (!supabase) {
@@ -108,6 +112,8 @@ export const useSupabaseCrud = (session) => {
       return;
     }
 
+    const carga = ++cargaRef.current;
+    const vigente = () => carga === cargaRef.current;
     setLoading(true);
     try {
       // Aqui vivia la SIEMBRA AUTOMATICA, y era un defecto de producto:
@@ -126,6 +132,7 @@ export const useSupabaseCrud = (session) => {
       // cinco catalogos y las pantallas publicas dicen que todavia no hay
       // nada publicado.
       const catalogs = await loadCatalogs();
+      if (!vigente()) return;
 
       // VACIO ES VACIO, tambien para el visitante.
       //
@@ -154,6 +161,7 @@ export const useSupabaseCrud = (session) => {
           canLoadAppointments ? loadAppointments() : Promise.resolve([]),
           canLoadOrders ? loadOrders() : Promise.resolve([]),
         ]);
+        if (!vigente()) return;
         if (canLoadAppointments) setBookingsRaw(remoteBookings);
         if (canLoadOrders) setOrdersRaw(remoteOrders);
       }
@@ -161,33 +169,56 @@ export const useSupabaseCrud = (session) => {
       setLoadError(null);
     } catch (error) {
       console.error(error);
-      setLoadError(error);
+      if (vigente()) setLoadError(error);
     } finally {
-      setLoading(false);
+      if (vigente()) setLoading(false);
     }
-  }, [canLoadAppointments, canLoadOrders, canSeed, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setProductOptionsRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
+  }, [canLoadAppointments, canLoadOrders, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setProductOptionsRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
+  // Feed de pedidos en tiempo real.
+  //
+  // Antes cada evento recargaba TODO (nueve catalogos, citas y pedidos), y
+  // llega un evento por fila: un pedido de tres lineas eran cuatro
+  // recargas completas, unas 44 consultas por cada pestaña de admin
+  // abierta. Ahora:
+  //   · solo se recargan los PEDIDOS,
+  //   · los eventos de una misma rafaga se agrupan (400 ms),
+  //   · y el canal se acota a la clinica activa (RLS ya filtra el
+  //     contenido; el filtro evita recibir eventos ajenos de entrada).
+  const ordenRef = useRef(0);
   useEffect(() => {
-    if (!supabase || !canLoadOrders) return undefined;
+    if (!supabase || !canLoadOrders || !tenantId) return undefined;
+
+    let espera = null;
+    const recargarPedidos = () => {
+      window.clearTimeout(espera);
+      espera = window.setTimeout(async () => {
+        const turno = ++ordenRef.current;
+        try {
+          const remotos = await loadOrders();
+          if (turno === ordenRef.current) setOrdersRaw(remotos);
+        } catch (error) {
+          console.error(error);
+        }
+      }, 400);
+    };
+    const filtro = `tenant_id=eq.${tenantId}`;
 
     const channel = supabase
-      .channel('coffee-orders-feed')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        reload();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => {
-        reload();
-      })
+      .channel(`coffee-orders-feed:${tenantId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: filtro }, recargarPedidos)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: filtro }, recargarPedidos)
       .subscribe();
 
     return () => {
+      window.clearTimeout(espera);
       supabase.removeChannel(channel);
     };
-  }, [canLoadOrders, reload]);
+  }, [canLoadOrders, setOrdersRaw, tenantId]);
 
   const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || productOptionsError || settingsError || bookingsError || ordersError;
 

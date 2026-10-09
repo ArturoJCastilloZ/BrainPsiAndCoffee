@@ -109,3 +109,38 @@ begin
   end if;
   raise notice 'ok · el vencimiento solo toca solicitudes';
 end $$;
+
+-- 6 · 0037: topes a la reserva publica. Mismo correo, tercera solicitud
+--     vigente: rechazada. Otro correo pero el mismo telefono: tambien.
+do $$
+declare v_msg text;
+begin
+  -- req-3 (13:00) ya es una solicitud vigente de visita@ex.mx.
+  perform pg_temp.reserva_publica('lim-1','10:00','requested');
+  begin
+    perform pg_temp.reserva_publica('lim-2','17:00','requested');
+    raise exception 'FUGA: un mismo correo aparto tres horarios sin que nadie confirmara';
+  exception when sqlstate 'P0429' then
+    get stacked diagnostics v_msg = message_text;
+  end;
+  if position('dos solicitudes' in v_msg) = 0 then
+    raise exception 'FALLA: el rechazo no explica el motivo al paciente: %', v_msg;
+  end if;
+  raise notice 'ok · un correo no aparta mas de dos horarios por confirmar';
+end $$;
+
+do $$
+begin
+  set local role anon;
+  perform set_config('request.jwt.claims','', true);
+  perform set_config('request.tenant','t_a', true);
+  begin
+    insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
+      appointment_time,customer_name,customer_email,customer_phone,duration_minutes,status)
+    values ('t_a','lim-3','sv','tt', pg_temp.fecha(),'17:00','Otro Nombre','otro.correo@ex.mx','81 1111 1111',50,'requested');
+    raise exception 'FUGA: cambiando el correo, el mismo telefono aparto un tercer horario';
+  exception when sqlstate 'P0429' then null;
+  end;
+  reset role;
+  raise notice 'ok · el tope tambien cuenta por telefono (solo digitos)';
+end $$;

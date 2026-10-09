@@ -5,7 +5,7 @@
 // que la base va a rechazar.
 import assert from 'node:assert/strict';
 import {
-  blocksForDate, isWorkingDay, slotCandidates, timeSlotStates, fromMinutes, toMinutes,
+  isWorkingDay, timeSlotStates, fromMinutes, toMinutes,
 } from '../../src/agenda.mjs';
 
 const SV = { id: 'sv', duration: 50 };

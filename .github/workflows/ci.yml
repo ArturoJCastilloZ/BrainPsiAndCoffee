@@ -27,6 +27,11 @@ jobs:
 
       - run: npm ci
 
+      # Errores de lint frenan el PR (reglas de hooks, referencias a
+      # funciones no importadas). Los avisos se reportan pero no frenan.
+      - name: Lint
+        run: npm run lint
+
       # Chequeos de codigo: qa-check mas las pruebas de front, que cubren
       # la inyeccion del header del tenant y el CORS de las Edge Functions.
       - name: Pruebas de codigo

@@ -21,6 +21,7 @@ export const ESQUEMAS_WEB = ['http:', 'https:'];
 // del esquema, asi que un "javascript:" partido por un tabulador navega
 // igual que el directo. Por eso los caracteres de control se quitan ANTES
 // de parsear, no despues.
+// eslint-disable-next-line no-control-regex -- buscarlos es el proposito.
 const CONTROL = new RegExp('[\\u0000-\\u001F\\u007F-\\u009F]', 'g');
 
 export const normalizaUrl = (valor) => String(valor ?? '').replace(CONTROL, '').trim();

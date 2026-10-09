@@ -8,8 +8,16 @@ const hasSupabaseConfig = Boolean(env.supabaseUrl && env.supabasePublishableKey)
 // global.headers se evalua una sola vez, al crear el cliente: si el
 // usuario cambia de clinica a media sesion, seguiria mandando la
 // anterior. Este hook corre en cada peticion y siempre manda la vigente.
+//
+// La capa "GUARDANDO" (GlobalLoader) se enciende solo con ESCRITURAS. Antes
+// contaba toda peticion autenticada, lecturas incluidas, y como bloquea la
+// pantalla, cada recarga del feed de pedidos le tapaba la barra al barista.
+const ESCRITURAS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const esEscritura = (input, init) =>
+  ESCRITURAS.has(String(init?.method || input?.method || 'GET').toUpperCase());
+
 const trackedFetch = async (input, init) => {
-  const shouldTrack = isAuthenticatedSupabaseRequest(input, init);
+  const shouldTrack = isAuthenticatedSupabaseRequest(input, init) && esEscritura(input, init);
   const requestId = shouldTrack ? beginRequest() : null;
   const tenantId = getActiveTenant();
 

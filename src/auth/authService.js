@@ -43,6 +43,11 @@ const toAppSession = (session) => {
 
 class AuthService {
   session$ = new BehaviorSubject(null);
+  // Si ya se sabe si hay sesion. session$ arranca en null tambien cuando SI
+  // hay sesion guardada, porque leerla es asincrono: sin esta señal, las
+  // rutas protegidas no distinguian "sin sesion" de "todavia no se sabe" y
+  // recargar /admin mandaba al login a alguien con sesion valida.
+  ready$ = new BehaviorSubject(false);
   expiryWarning$ = new BehaviorSubject(false);
   warningTimer = null;
   logoutTimer = null;
@@ -52,10 +57,19 @@ class AuthService {
   }
 
   async bootstrap() {
-    if (!supabase) return;
+    if (!supabase) {
+      this.ready$.next(true);
+      return;
+    }
 
-    const { data } = await supabase.auth.getSession();
-    this.setSession(data.session);
+    try {
+      const { data } = await supabase.auth.getSession();
+      this.setSession(data.session);
+    } finally {
+      // Tambien si falla: una sesion que no se pudo leer es "sin sesion",
+      // y la pantalla tiene que poder avanzar al login.
+      this.ready$.next(true);
+    }
 
     supabase.auth.onAuthStateChange((_event, session) => {
       this.setSession(session);

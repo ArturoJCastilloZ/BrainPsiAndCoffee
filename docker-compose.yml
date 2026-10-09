@@ -43,7 +43,8 @@ services:
       # sin sondeo, Vite no veria los cambios.
       VITE_USE_POLLING: "true"
     ports:
-      - "${BRAINPSI_DEV_PORT:-5173}:5173"
+      # Solo en este equipo: el servidor de desarrollo no es para la red.
+      - "127.0.0.1:${BRAINPSI_DEV_PORT:-5173}:5173"
     volumes:
       - .:/app
       # node_modules del contenedor (Linux), no los del host (Windows).
