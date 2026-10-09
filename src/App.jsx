@@ -90,10 +90,16 @@ export default function App() {
       setInvitaciones([]);
     }
   }, []);
+  // Depende de QUIEN es el usuario, no del objeto de sesion. Ese objeto se
+  // recrea solo: Supabase revisa (y refresca) el token cada vez que la
+  // pestaña vuelve a tener el foco, y el temporizador de inactividad lo
+  // renueva cada 30 s de actividad. Con [session] cada uno de esos eventos
+  // volvia a pedir my_pending_invitations.
+  const usuarioId = session?.user?.id || null;
   React.useEffect(() => {
-    if (!session) { setInvitaciones([]); setInvitacionesVistas(false); return; }
+    if (!usuarioId) { setInvitaciones([]); setInvitacionesVistas(false); return; }
     cargarInvitaciones();
-  }, [session, cargarInvitaciones]);
+  }, [usuarioId, cargarInvitaciones]);
 
   const tieneClinica = Object.keys(session?.user?.memberships || {}).length > 0;
   const mostrarInvitaciones = Boolean(session) && invitaciones.length > 0 && !invitacionesVistas;

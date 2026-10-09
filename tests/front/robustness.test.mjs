@@ -40,4 +40,10 @@ assert.ok(!/\breload\(\)/.test(crud.slice(crud.indexOf('Feed de pedidos'), crud.
   'cada evento del feed recarga TODO otra vez');
 assert.ok(/filter:\s*filtro/.test(feed) && /tenant_id=eq\./.test(crud), 'el feed de pedidos debe acotarse a la clinica');
 
+// 6 · Las invitaciones se consultan una vez por USUARIO, no en cada
+//     cambio del objeto de sesion: Supabase lo recrea al volver a la
+//     pestaña y el temporizador de inactividad cada 30 s de actividad.
+assert.ok(/\[usuarioId, cargarInvitaciones\]/.test(app),
+  'my_pending_invitations volvio a depender del objeto de sesion: se pide cada vez que la pestaña recupera el foco');
+
 console.log('robustness: ok');
