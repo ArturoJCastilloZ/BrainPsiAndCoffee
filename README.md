@@ -115,6 +115,39 @@ Archivos: `Dockerfile` (etapas `deps`, `dev`, `build`, `runtime`),
 `docker-compose.yml`, `docker/nginx.conf` (fallback de React Router, cache
 inmutable de `/assets`, cabeceras de seguridad, gzip) y `.dockerignore`.
 
+## Vercel
+
+`vercel.json` publica el mismo sitio que Docker: mismas cabeceras de
+seguridad, redirecciones viejas (`/therapy`, `/coffee`) y cache.
+`tests/front/vercel.test.mjs` falla si se desincroniza de
+`docker/security-headers.conf` o de `LEGACY_REDIRECTS`. No hay rewrite a
+`index.html`: una URL que no existe responde `404.html` con 404.
+
+1. En Vercel: **Add New → Project → importar el repositorio**. Rama de
+   produccion: `main`. Lo demas (Vite, `npm run build`, `dist`) sale de
+   `vercel.json`.
+2. **Settings → Environment Variables:**
+
+   | Variable | Entornos | Valor |
+   |---|---|---|
+   | `VITE_SUPABASE_URL` | Production, Preview | `https://<proyecto>.supabase.co` |
+   | `VITE_SUPABASE_PUBLISHABLE_KEY` | Production, Preview | la llave publica (`sb_publishable_…`) |
+   | `VITE_TENANT_ID` | Production, Preview | `brainpsi` |
+   | `SITE_URL` | **solo Production** | `https://<dominio>` sin barra final |
+
+   En Vercel no hay contenedor que escriba `/env-config.js`: se queda el
+   vacio de `public/` y las `VITE_*` se compilan en el bundle. Son publicas
+   igual. **Nunca** agregues ahi una llave secreta (service role).
+   `SITE_URL` solo en Production: las vistas previas quedan sin canonical
+   ni sitemap.
+3. **Supabase → Authentication → URL Configuration:** Site URL = el
+   dominio de produccion; en Redirect URLs agrega
+   `https://<dominio>/set-password` (y el de las vistas previas si se
+   prueban invitaciones ahi). Si la Edge Function tiene
+   `ALLOWED_REDIRECT_ORIGINS`, agrega el dominio ahi tambien.
+
+Cada push a `main` publica; cada push a otra rama crea una vista previa.
+
 ## Estructura principal
 
 ```text
