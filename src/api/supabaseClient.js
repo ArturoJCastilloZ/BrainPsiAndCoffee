@@ -44,9 +44,31 @@ export const trackedFetch = async (input, init) => {
   }
 
   try {
-    return await fetch(input, withTenant);
+    let respuesta = await fetch(input, withTenant);
+    // "JWT issued at future": justo despues de entrar o de verificar el
+    // codigo, Auth emite un token cuyo iat va unos segundos por delante del
+    // reloj del servidor de datos, que lo rechaza (401) aunque sea valido.
+    // Se reintenta tras una pausa corta. Es seguro tambien en escrituras:
+    // el rechazo ocurre al validar el token, antes de tocar la base.
+    for (const espera of ESPERAS_RELOJ) {
+      if (!(await esTokenDelFuturo(respuesta))) break;
+      await new Promise((listo) => setTimeout(listo, espera));
+      respuesta = await fetch(input, withTenant);
+    }
+    return respuesta;
   } finally {
     if (requestId) endRequest(requestId);
+  }
+};
+
+export const ESPERAS_RELOJ = [1000, 2000, 3000];
+
+export const esTokenDelFuturo = async (respuesta) => {
+  if (respuesta?.status !== 401) return false;
+  try {
+    return /issued at future/i.test(await respuesta.clone().text());
+  } catch {
+    return false;
   }
 };
 
