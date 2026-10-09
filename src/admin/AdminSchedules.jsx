@@ -472,7 +472,7 @@ function CopiarADias({ dia, habilitado, onCopiar }) {
             <div style={{ display: 'flex', gap: 6 }}>
               <button type="button" onClick={aplicar} disabled={!elegidos.length}
                 style={{ ...botonChico, flex: 1, justifyContent: 'center',
-                  background: C.sageDark, borderColor: C.sageDark, color: 'var(--admin-on-accent)',
+                  background: 'var(--admin-accent)', borderColor: 'var(--admin-accent)', color: 'var(--admin-on-accent)',
                   opacity: elegidos.length ? 1 : 0.4, cursor: elegidos.length ? 'pointer' : 'not-allowed' }}>
                 Copiar
               </button>

@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
-    ChevronRight, ChevronLeft, Plus, Minus, Check, X,
-    ShoppingBag, Settings, BarChart3, Users, Sparkles,
-    Bell, Trash2, ArrowRight, ArrowLeft,
-    CheckCircle2, AlertCircle, MessageCircle, Cake,
-    Home, Menu as MenuIcon, LogOut, TrendingUp, DollarSign,
-    Zap, Gift, Send, RefreshCw, Filter, KeyRound, Milk, Wallet
+  Coffee,
+  Calendar as CalendarIcon,
+  Brain,
+  Clock,
+  ChevronRight,
+  ChevronLeft,
+  X,
+  Settings,
+  BarChart3,
+  Users,
+  Sparkles,
+  Cake,
+  LogOut,
+  Gift,
+  KeyRound,
+  Milk,
+  Wallet,
 } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
@@ -19,6 +29,7 @@ import AdminAccess from './AdminAccess';
 import AdminAccounting from './AdminAccounting';
 import AdminSchedules from './AdminSchedules';
 import { useAccountingData } from './useAccountingData';
+import { useAppData, useTheme } from '../context/AppContext';
 import {
     canAccessAdminPage,
     canManageAppointments,
@@ -34,7 +45,9 @@ import {
     canRecordPayment
 } from '../auth/permissions';
 
-export default function AdminApp({ bookings, setBookings, orders, setOrders, switchToUser, logout, session, theme, toggleTheme, catalogs, catalogActions }) {
+export default function AdminApp({ switchToUser, logout }) {
+  const { bookings, setBookings, orders, setOrders, session, catalogs, catalogActions } = useAppData();
+  const { theme, toggleTheme } = useTheme();
     const role = session?.user?.role;
     const [page, setPage] = useState(firstAllowedAdminPage(role) || 'cafe-orders');
     // Los cobros viven aqui y no en cada pantalla: citas, pedidos y el
@@ -47,7 +60,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             contexto: 'general', corto: 'General',
             label: 'Administración general',
             items: [
-                canViewDashboard(role) && { id: 'general-dashboard', label: 'Dashboard', icon: BarChart3 },
+                canViewDashboard(role) && { id: 'general-dashboard', label: 'Resumen', icon: BarChart3 },
                 canManageBusinessSettings(role) && { id: 'general-business', label: 'Negocio', icon: Settings },
                 canViewAccounting(role) && { id: 'general-accounting', label: 'Contabilidad', icon: Wallet },
                 canManageAccess(role) && { id: 'general-access', label: 'Accesos', icon: KeyRound },
@@ -75,7 +88,6 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
             ].filter(Boolean)
         }
     ].filter((section) => section.items.length)), [role]);
-    const navItems = useMemo(() => navSections.flatMap((section) => section.items), [navSections]);
 
     // M3 · Los dos ejes de la navegacion son distintos y estaban mezclados:
     // CONTEXTO (en que negocio estoy) y SECCION (que pantalla veo). La barra
@@ -102,7 +114,10 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
     }, [page, role]);
 
     return (
-        <div style={{
+        // data-contexto pinta el acento del area: caramelo en Cafeteria,
+        // sage en Consultorio, tostado en General (GlobalStyle.jsx). Saber
+        // en que negocio estas sin leer el encabezado.
+        <div data-contexto={contextoActivo} style={{
             background: 'var(--admin-bg)',
             height: '100vh',
             color: 'var(--admin-text)',
@@ -124,7 +139,7 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                         <BrandMark size={32} />
                         {!sidebarCollapsed && <div>
                             <div className="font-display" style={{ fontSize: 16, fontWeight: 700, color: 'var(--admin-text)', lineHeight: 1 }}>Brainpsi</div>
-                            <div style={{ fontSize: 10, color: 'var(--admin-accent-text)', letterSpacing: 1, fontWeight: 600 }}>ADMIN</div>
+                            <div style={{ fontSize: 12, color: 'var(--admin-accent-text)', fontWeight: 600 }}>Administración</div>
                         </div>}
                     </div>
 
@@ -151,11 +166,11 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                                         display: 'flex', alignItems: 'center', gap: 12,
                                         justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
                                         background: page === t.id ? 'var(--admin-surface)' : 'transparent',
-                                        border: page === t.id ? `1px solid ${C.sageDark}` : '1px solid transparent',
+                                        border: page === t.id ? '1px solid var(--admin-accent)' : '1px solid transparent',
                                         padding: sidebarCollapsed ? '12px' : '12px 14px', borderRadius: 10,
                                         cursor: 'pointer', color: page === t.id ? 'var(--admin-text)' : 'var(--admin-muted)',
                                         fontSize: 13, fontWeight: page === t.id ? 700 : 500, textAlign: 'left', width: '100%',
-                                        fontFamily: 'inherit', boxShadow: page === t.id ? `inset 3px 0 0 ${C.caramel}` : 'none'
+                                        fontFamily: 'inherit', boxShadow: page === t.id ? 'inset 3px 0 0 var(--admin-accent)' : 'none'
                                     }}>
                                         <t.icon size={16} strokeWidth={page === t.id ? 2 : 1.6} /> {!sidebarCollapsed && t.label}
                                     </button>
@@ -195,8 +210,8 @@ export default function AdminApp({ bookings, setBookings, orders, setOrders, swi
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <BrandMark size={32} />
                         <div>
-                            <div className="font-display" style={{ fontSize: 16, fontWeight: 700, color: 'var(--admin-text)', lineHeight: 1 }}>Admin</div>
-                            <div style={{ fontSize: 10, color: 'var(--admin-accent-text)', letterSpacing: 1, fontWeight: 600 }}>BRAINPSI</div>
+                            <div className="font-display" style={{ fontSize: 16, fontWeight: 700, color: 'var(--admin-text)', lineHeight: 1 }}>Brainpsi</div>
+                            <div style={{ fontSize: 12, color: 'var(--admin-accent-text)', fontWeight: 600 }}>Administración</div>
                         </div>
                     </div>
                     {/* Un solo menu en vez de tres pastillas.

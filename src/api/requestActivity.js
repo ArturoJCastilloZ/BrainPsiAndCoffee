@@ -1,7 +1,7 @@
-import { BehaviorSubject } from 'rxjs';
+import { ValueSubject } from '../lib/valueSubject.mjs';
 import { env } from '../config/env';
 
-const activeRequests$ = new BehaviorSubject(0);
+const activeRequests$ = new ValueSubject(0);
 const activeRequestIds = new Set();
 const requestTimers = new Map();
 const requestTimeoutMs = 30000;

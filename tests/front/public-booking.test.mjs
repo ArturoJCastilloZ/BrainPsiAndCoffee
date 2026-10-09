@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { enlaceReserva, proximosHorarios } from '../../src/nextSlots.mjs';
 import { etiquetaPaciente, nombrePaciente } from '../../src/appointmentStatus.mjs';
+import { fuenteCapaDeDatos } from './_capaDeDatos.mjs';
 
 // validation.js es ESM dentro de un paquete "commonjs" (Vite lo trata como
 // modulo; Node no). Se carga como modulo desde su texto.
@@ -70,12 +71,12 @@ assert.equal(enlaceReserva(), '/reservar');
 // 4 · La capa de datos manda for_minor y patient_name, y el visitante
 //     lee los horarios y lo ocupado.
 {
-  const datos = leer('api/supabaseData.js');
+  const datos = fuenteCapaDeDatos().replace(/\/\/.*$/gm, '');
   assert.match(datos, /for_minor:\s*Boolean\(item\.forMinor\)/);
   assert.match(datos, /patient_name:\s*item\.forMinor \?/);
   assert.ok(!/sessionData\?\.session\s*\n?\s*\?\s*supabase\.from\('therapist_schedules'\)/.test(datos),
     'el visitante volvio a quedarse sin horarios: la reserva publica no tendria nada que ofrecer');
-  assert.match(datos, /rpc\('busy_slots'/);
+  assert.match(datos, /restRpc\('busy_slots'/);
 }
 
 // 5 · La reserva pregunta para quien es, y el boton no se apaga sin decir por que.

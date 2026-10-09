@@ -4,12 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node scripts/qa-check.mjs && node --test tests/front/*.test.mjs",
+    "test": "node scripts/qa-check.mjs && node --test tests/front/*.test.mjs && vitest run",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "verify": "npm run lint && npm test && npm run build",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:componentes": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -22,16 +23,20 @@
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "react-router-dom": "^7.18.4",
-    "rxjs": "^7.8.2"
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
-    "vite": "^8.3.0"
+    "jsdom": "30.1.0",
+    "vite": "^8.3.0",
+    "vitest": "5.0.3"
   }
 }

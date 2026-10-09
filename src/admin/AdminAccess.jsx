@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import { C } from '../theme';
 // setTenantMemberRole faltaba: cambiar el rol de un miembro fallaba siempre
 // con un ReferenceError (lo encontro el linter, 2026-10-09).
 import { listTenantMembers, revokeTenantMember, inviteStaff, generateTempPassword, setTenantMemberRole } from '../api/supabaseData';
-import { supabase } from '../api/supabaseClient';
+import { getSupabase } from '../api/supabaseClient';
 import { useConfirm } from '../components/ConfirmDialog';
 import TempPasswordPanel from './TempPasswordPanel';
 
@@ -42,6 +42,7 @@ export default function AdminAccess() {
       setMembers(await listTenantMembers());
       // Las fichas de terapeuta de esta clinica, para poder vincular a un
       // doctor con la suya. RLS ya las acota al tenant activo.
+      const supabase = await getSupabase();
       const fichas = await supabase
         .from('therapists')
         .select('id, name')

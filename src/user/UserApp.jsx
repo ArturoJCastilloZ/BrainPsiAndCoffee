@@ -6,6 +6,7 @@ import BrandMark from '../components/BrandMark';
 import { businessFromSettings, BUSINESS, whatsappUrl } from '../businessInfo';
 import { LEGACY_REDIRECTS, NAV_LINKS } from '../seo/routes.mjs';
 import { useJsonLd } from '../seo/useRouteHead';
+import { useAppData, useTheme } from '../context/AppContext';
 import { businessJsonLd } from '../seo/jsonLd.mjs';
 import UserHome from './UserHome';
 import AboutPage from './AboutPage';
@@ -42,7 +43,9 @@ const TABS = [
   { path: '/contacto', label: 'Contacto', icon: MessageCircle },
 ];
 
-export default function UserApp({ bookings, setBookings, orders, setOrders, theme, toggleTheme, catalogs, dataLoading }) {
+export default function UserApp() {
+  const { bookings, setBookings, orders, setOrders, catalogs, dataLoading } = useAppData();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [cart, setCart] = useState([]);

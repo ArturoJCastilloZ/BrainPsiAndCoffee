@@ -290,7 +290,7 @@ function Tarjeta({ label, valor, prev, ayuda, invertir = false }) {
         {formatMoney(valor)}
       </div>
       {v.comparable ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 700, color: mejora ? C.sageDark : C.rustText }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 700, color: mejora ? C.sageText : C.rustText }}>
           <Flecha size={13} aria-hidden="true" />
           {/* El signo va en el texto, no solo en el color ni en la flecha:
               nadie deberia tener que distinguir verde de rojo para leer
@@ -641,7 +641,7 @@ function Aviso({ tono, children }) {
 }
 
 const pill = (activo) => ({
-  border: `1px solid ${activo ? C.sageDark : 'var(--admin-border)'}`,
+  border: `1px solid ${activo ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
   background: activo ? '#E8D9C5' : 'var(--admin-surface)',
   color: activo ? '#2E2A27' : 'var(--admin-row-text)',
   padding: '8px 13px', borderRadius: 999, cursor: 'pointer',

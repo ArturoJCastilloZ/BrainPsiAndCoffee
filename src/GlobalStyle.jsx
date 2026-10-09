@@ -187,7 +187,24 @@ export default function GlobalStyle() {
           --admin-border-interactive: #666C66;
         }
 
+        /* ACENTO POR CONTEXTO — Fase 5 (auditoria, seccion 5). El area del
+           negocio en que estas cambia el acento: caramelo en Cafeteria,
+           sage en Consultorio, tostado en General.
+             --admin-accent       relleno y borde activo (texto encima:
+                                  --admin-on-accent #1E1B18, >= 6:1)
+             --admin-accent-text  acento COMO TEXTO (>= 5:1 sobre las
+                                  superficies del admin)
+           Fuera de un data-contexto se queda el sage de siempre. */
+        [data-theme] { --admin-accent: #7A9E7E; }
+        [data-contexto="cafe"]    { --admin-accent: #D9A96A; --admin-accent-text: #8A5A22; }
+        [data-contexto="clinic"]  { --admin-accent: #7A9E7E; --admin-accent-text: #4A6450; }
+        [data-contexto="general"] { --admin-accent: #C9A27E; --admin-accent-text: #6B4A33; }
+        [data-theme="dark"] [data-contexto="cafe"]    { --admin-accent-text: #E2B577; }
+        [data-theme="dark"] [data-contexto="clinic"]  { --admin-accent-text: #A9CDB1; }
+        [data-theme="dark"] [data-contexto="general"] { --admin-accent-text: #E2C2A0; }
+
         .admin-card { background: var(--admin-surface); border: 1px solid var(--admin-border); }
+        .admin-kpi:hover { border-color: var(--admin-accent); }
         .admin-input { background: var(--admin-surface); border: 1px solid var(--admin-border); color: var(--admin-text); }
         .admin-input::placeholder { color: var(--admin-subtle); }
 

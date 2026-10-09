@@ -32,8 +32,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Chequeos de codigo: qa-check mas las pruebas de front, que cubren
-      # la inyeccion del header del tenant y el CORS de las Edge Functions.
+      # Chequeos de codigo: qa-check, las pruebas de logica (node --test) y
+      # las de componentes (vitest + jsdom), que montan las pantallas y las
+      # usan como una persona: la reserva, el menu, la agenda del admin.
       - name: Pruebas de codigo
         run: npm test
 

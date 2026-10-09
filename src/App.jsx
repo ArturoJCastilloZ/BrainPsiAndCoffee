@@ -15,6 +15,7 @@ import PendingInvitations from './components/PendingInvitations';
 import { myPendingInvitations, acceptTenantInvitation, declineTenantInvitation } from './api/supabaseData';
 import GlobalStyle, { themeVars } from './GlobalStyle';
 import { useRouteHead } from './seo/useRouteHead';
+import { AppProviders } from './context/AppContext';
 // El sitio publico va en el paquete inicial, NO lazy: es lo que ve todo
 // visitante, y cargarlo aparte cambiaba el HTML prerenderizado por un
 // "Cargando…" mientras llegaba el chunk. Admin y doctor siguen aparte.
@@ -30,17 +31,8 @@ export default function App() {
   const session = useAuthSession();
   const authReady = useAuthReady();
   const [errorCerrado, setErrorCerrado] = React.useState(null);
-  const {
-    bookings,
-    setBookings,
-    orders,
-    setOrders,
-    catalogs,
-    catalogActions,
-    loading: dataLoading,
-    error: dataError,
-    reload: reloadData,
-  } = useSupabaseCrud(session);
+  const crud = useSupabaseCrud(session);
+  const { loading: dataLoading, error: dataError, reload: reloadData } = crud;
   const showSessionWarning = useSessionWarning();
   const navigate = useNavigate();
   const location = useLocation();
@@ -54,7 +46,20 @@ export default function App() {
   React.useEffect(() => {
     document.documentElement.classList.toggle('tema-oscuro', isDark);
   }, [isDark]);
-  const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
+  const toggleTheme = React.useCallback(() => setTheme(isDark ? 'light' : 'dark'), [isDark, setTheme]);
+  // Lo que los paneles leen con useAppData()/useTheme() (context/AppContext).
+  const datos = React.useMemo(() => ({
+    session,
+    bookings: crud.bookings,
+    setBookings: crud.setBookings,
+    orders: crud.orders,
+    setOrders: crud.setOrders,
+    catalogs: crud.catalogs,
+    catalogActions: crud.catalogActions,
+    dataLoading,
+    reload: reloadData,
+  }), [session, crud.bookings, crud.setBookings, crud.orders, crud.setOrders, crud.catalogs, crud.catalogActions, dataLoading, reloadData]);
+  const tema = React.useMemo(() => ({ theme, isDark, toggleTheme }), [theme, isDark, toggleTheme]);
   const goUser = () => navigate('/');
   const logout = () => {
     authService.logout();
@@ -212,6 +217,7 @@ export default function App() {
         </div>
       )}
 
+      <AppProviders data={datos} theme={tema}>
       <ErrorBoundary resetKey={location.pathname}>
       <Suspense fallback={<RouteFallback />}>
         <Routes>
@@ -222,7 +228,7 @@ export default function App() {
               recargaba /admin con sesion valida perdia la pagina. */}
           <Route path="/admin" element={
             !authReady ? <RouteFallback /> : canAccessAdmin(session?.user.role) ? (
-              <AdminApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} switchToUser={goUser} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} dataLoading={dataLoading} />
+              <AdminApp switchToUser={goUser} logout={logout} />
             ) : canAccessDoctor(session?.user.role) ? (
               <Navigate to="/doctor" replace />
             ) : (
@@ -231,7 +237,7 @@ export default function App() {
           } />
           <Route path="/doctor" element={
             !authReady ? <RouteFallback /> : canAccessDoctor(session?.user.role) ? (
-              <DoctorApp bookings={bookings} setBookings={setBookings} logout={logout} session={session} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} catalogActions={catalogActions} />
+              <DoctorApp logout={logout} />
             ) : canAccessAdmin(session?.user.role) ? (
               <Navigate to="/admin" replace />
             ) : (
@@ -240,10 +246,11 @@ export default function App() {
           } />
           {/* El sitio publico tiene sus propias rutas (/terapia, /reservar,
               ...) y su 404: ver user/UserApp.jsx. */}
-          <Route path="/*" element={<UserApp bookings={bookings} setBookings={setBookings} orders={orders} setOrders={setOrders} theme={theme} toggleTheme={toggleTheme} catalogs={catalogs} dataLoading={dataLoading} />} />
+          <Route path="/*" element={<UserApp />} />
         </Routes>
       </Suspense>
       </ErrorBoundary>
+      </AppProviders>
       <SessionExpiryModal visible={Boolean(session && showSessionWarning)} />
       <GlobalLoader />
     </div>

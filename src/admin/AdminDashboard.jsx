@@ -1,13 +1,5 @@
 import React from 'react';
-import {
-  Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
-  ChevronRight, ChevronLeft, Plus, Minus, Check, X,
-  ShoppingBag, Settings, BarChart3, Users, Sparkles,
-  Bell, Trash2, ArrowRight, ArrowLeft,
-  CheckCircle2, AlertCircle, MessageCircle, Cake,
-  Home, Menu as MenuIcon, LogOut, TrendingUp, DollarSign,
-  Zap, Gift, Send, RefreshCw, Filter
-} from 'lucide-react';
+import { Coffee, Calendar as CalendarIcon, Users, Bell, ArrowRight, DollarSign } from 'lucide-react';
 import { C } from '../theme';
 import { fullDayLabel, todayISO } from '../utils.jsx';
 import { solicitudVencida, etiquetaPaciente } from '../appointmentStatus.mjs';
@@ -23,7 +15,6 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
   const therapists = catalogs?.therapists || [];
   const today = todayISO();
   const todayBookings = bookings.filter(b => b.date === today && b.status !== 'cancelled');
-  const todayOrders = orders.filter(o => o.createdAt.startsWith(today));
   const pendingOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
   // Solicitudes de la web que esperan que alguien las confirme (0036).
   const porConfirmar = bookings.filter(b => b.status === 'requested' && !solicitudVencida(b));
@@ -69,37 +60,30 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
   return (
     <div>
       <div style={{ marginBottom: 28 }}>
-        <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: 0, letterSpacing: '-0.02em' }}>Dashboard</h1>
+        <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: 0, letterSpacing: '-0.02em' }}>Resumen</h1>
         <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginTop: 4 }}>Vista general de hoy · {fullDayLabel(new Date())}</p>
       </div>
 
       {/* Stats */}
       <div className="rejilla-tarjetas" style={{ '--rejilla-min': '180px', gap: 12, marginBottom: 28 }}>
         {stats.map(s => (
-          <button key={s.label} onClick={() => setPage(s.page)} className="admin-card" style={{
+          // Sin icono de color: el numero es lo que se lee, y el icono en un
+          // mosaico tintado era decoracion (auditoria, mejora 7). Encima,
+          // s.color + '20' sobre una variable CSS daba un color invalido.
+          <button key={s.label} onClick={() => setPage(s.page)} className="admin-card admin-kpi" style={{
             borderRadius: 14,
             padding: 18,
             cursor: 'pointer',
             textAlign: 'left',
             fontFamily: 'inherit',
-            transition: 'transform 0.18s ease, border-color 0.18s ease'
-          }} onMouseEnter={e => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.borderColor = s.color;
-          }} onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.borderColor = 'var(--admin-border)';
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: s.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <s.icon size={18} color={s.color} strokeWidth={1.6} />
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+              <div style={{ fontSize: 14, color: 'var(--admin-muted)', fontWeight: 600 }}>{s.label}</div>
               <Cambio variacion={s.variacion} etiqueta={s.cambio} />
             </div>
-            <div className="font-display" style={{ fontSize: 28, fontWeight: 600, color: 'var(--admin-text)', lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: 'var(--admin-muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{s.label}</div>
+            <div className="font-display" style={{ fontSize: 30, fontWeight: 600, color: 'var(--admin-text)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
             {s.ayuda && (
-              <div style={{ fontSize: 10.5, color: 'var(--admin-subtle)', marginTop: 4, textTransform: 'none', letterSpacing: 0 }}>{s.ayuda}</div>
+              <div style={{ fontSize: 13, color: 'var(--admin-subtle)', marginTop: 6 }}>{s.ayuda}</div>
             )}
           </button>
         ))}
@@ -190,7 +174,7 @@ function Cambio({ variacion, etiqueta }) {
     return (
       <span style={{
         fontSize: 10, fontWeight: 700,
-        color: plano ? 'var(--admin-muted)' : sube ? C.sageDark : C.rustText,
+        color: plano ? 'var(--admin-muted)' : sube ? C.sageText : C.rustText,
       }}>
         {sube ? '+' : ''}{variacion.pct}%
       </span>

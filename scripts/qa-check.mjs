@@ -104,7 +104,10 @@ assert(doctor.includes('addNoteAddendum'), 'DoctorApp debe permitir addenda sobr
 // existir. NOM-004 exige conservar el expediente 5 años desde el último
 // acto médico, así que si alguien la reintroduce, esto lo detiene.
 assert(!doctor.includes('deleteClinicalNote'), 'DoctorApp no debe poder borrar notas clínicas.');
-const dataLayer = read('src/api/supabaseData.js');
+// La capa de datos son varios modulos desde la Fase 5 (supabaseData.js
+// solo re-exporta): se revisan todos.
+const dataLayer = ['shared', 'mappers', 'catalogs', 'appointments', 'orders', 'clinical', 'accounting', 'access']
+  .map((m) => read(`src/api/${m}.js`)).join('\n');
 assert(!dataLayer.includes('export const deleteClinicalNote'), 'La capa de datos no debe exponer borrado de notas clínicas.');
 assert(doctor.includes('Pacientes'), 'DoctorApp debe incluir vista de pacientes.');
 

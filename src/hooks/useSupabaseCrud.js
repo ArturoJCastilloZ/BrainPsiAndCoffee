@@ -14,7 +14,7 @@ import {
   saveTherapists,
 } from '../api/supabaseData';
 import { BUSINESS } from '../businessInfo';
-import { supabase } from '../api/supabaseClient';
+import { getSupabase, hasSupabaseConfig } from '../api/supabaseClient';
 import { canManageAppointments, canManageOrders } from '../auth/permissions';
 
 const resolveNext = (value, next) => (typeof next === 'function' ? next(value) : next);
@@ -101,7 +101,7 @@ export const useSupabaseCrud = (session) => {
   const [busy, setBusy] = useState([]);
   const [bookings, setBookingsRaw, setBookings, bookingsError] = useRemoteState([], saveAppointments);
   const [orders, setOrdersRaw, setOrders, ordersError] = useRemoteState([], saveOrders);
-  const [loading, setLoading] = useState(Boolean(supabase));
+  const [loading, setLoading] = useState(hasSupabaseConfig);
   const [loadError, setLoadError] = useState(null);
   // Numero de la ultima carga pedida. Una respuesta que llega despues de
   // otra mas nueva se descarta: si no, una consulta lenta pisaba con datos
@@ -109,7 +109,7 @@ export const useSupabaseCrud = (session) => {
   const cargaRef = useRef(0);
 
   const reload = useCallback(async () => {
-    if (!supabase) {
+    if (!hasSupabaseConfig) {
       setLoading(false);
       return;
     }
@@ -182,6 +182,17 @@ export const useSupabaseCrud = (session) => {
     reload();
   }, [reload]);
 
+  // Al cerrar sesion (o perder el permiso) las citas y los pedidos se
+  // BORRAN de memoria. Antes se quedaban: quien usara el navegador
+  // despues de un cierre de sesion veia en el sitio publico la agenda de
+  // la clinica que acababa de salir (auditoria M4).
+  useEffect(() => {
+    if (!canLoadAppointments) setBookingsRaw([]);
+  }, [canLoadAppointments, setBookingsRaw]);
+  useEffect(() => {
+    if (!canLoadOrders) setOrdersRaw([]);
+  }, [canLoadOrders, setOrdersRaw]);
+
   // Feed de pedidos en tiempo real.
   //
   // Antes cada evento recargaba TODO (nueve catalogos, citas y pedidos), y
@@ -194,9 +205,12 @@ export const useSupabaseCrud = (session) => {
   //     contenido; el filtro evita recibir eventos ajenos de entrada).
   const ordenRef = useRef(0);
   useEffect(() => {
-    if (!supabase || !canLoadOrders || !tenantId) return undefined;
+    if (!hasSupabaseConfig || !canLoadOrders || !tenantId) return undefined;
 
     let espera = null;
+    let cancelado = false;
+    let cliente = null;
+    let channel = null;
     const recargarPedidos = () => {
       window.clearTimeout(espera);
       espera = window.setTimeout(async () => {
@@ -211,15 +225,22 @@ export const useSupabaseCrud = (session) => {
     };
     const filtro = `tenant_id=eq.${tenantId}`;
 
-    const channel = supabase
-      .channel(`coffee-orders-feed:${tenantId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: filtro }, recargarPedidos)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: filtro }, recargarPedidos)
-      .subscribe();
+    // El canal necesita supabase-js, que se carga bajo demanda: solo el
+    // personal con pedidos llega aqui.
+    getSupabase().then((supabase) => {
+      if (cancelado || !supabase) return;
+      cliente = supabase;
+      channel = supabase
+        .channel(`coffee-orders-feed:${tenantId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: filtro }, recargarPedidos)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: filtro }, recargarPedidos)
+        .subscribe();
+    });
 
     return () => {
+      cancelado = true;
       window.clearTimeout(espera);
-      supabase.removeChannel(channel);
+      if (cliente && channel) cliente.removeChannel(channel);
     };
   }, [canLoadOrders, setOrdersRaw, tenantId]);
 
@@ -238,4 +259,3 @@ export const useSupabaseCrud = (session) => {
   }), [bookings, services, specialties, therapists, menu, offers, productOptions, settings, schedules, busy, error, loading, orders, reload, setBookings, setMenu, setOffers, setOrders, setProductOptions, setServices, setSettings, setSpecialties, setTherapists]);
 };
 
-const hasMenuItems = (menu) => Object.values(menu || {}).some((section) => section.items?.length);

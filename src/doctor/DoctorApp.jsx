@@ -1,17 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar as CalendarIcon, Clock, FileText, Lock, LogOut, Plus, Save, Settings, User, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Calendar as CalendarIcon,
+  Clock,
+  FileText,
+  Lock,
+  LogOut,
+  Plus,
+  Settings,
+  User,
+} from 'lucide-react';
 import { C } from '../theme';
 import { localDate } from '../utils.jsx';
 import BrandMark from '../components/BrandMark';
 import AdminAppointments from '../admin/AdminAppointments';
 import AdminSchedules from '../admin/AdminSchedules';
 import { useConfirm } from '../components/ConfirmDialog';
+import { useAppData, useTheme } from '../context/AppContext';
 import {
   addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes, logClinicalNoteAccess,
   loadPatients, signClinicalNote, updateClinicalNote,
 } from '../api/supabaseData';
 
-export default function DoctorApp({ bookings, setBookings, catalogs, session, logout, theme, toggleTheme, catalogActions}) {
+export default function DoctorApp({ logout }) {
+  const { bookings, setBookings, catalogs, session, catalogActions } = useAppData();
+  const { theme, toggleTheme } = useTheme();
   const therapistId = session?.user?.therapistId;
   const therapist = catalogs.therapists.find((item) => item.id === therapistId);
   const [page, setPage] = useState('appointments');
@@ -101,7 +114,8 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
   };
 
   return (
-    <div style={{
+    // El panel del especialista es Consultorio: acento sage.
+    <div data-contexto="clinic" style={{
       minHeight: '100vh',
       background: 'var(--admin-bg)',
       color: 'var(--admin-text)'
@@ -121,7 +135,7 @@ export default function DoctorApp({ bookings, setBookings, catalogs, session, lo
           <BrandMark size={36} />
           <div>
             <div className="font-display" style={{ fontSize: 18, fontWeight: 700, lineHeight: 1 }}>{therapist?.name || session.user.name}</div>
-            <div style={{ color: 'var(--admin-accent-text)', fontSize: 10, letterSpacing: 1, fontWeight: 800 }}>PANEL DOCTOR</div>
+            <div style={{ color: 'var(--admin-accent-text)', fontSize: 12, fontWeight: 600 }}>Especialista</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -611,75 +625,106 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
     }
   };
 
+  // Una nota clinica se LEE con calma: 16 px, interlineado 1.6 y renglones
+  // de 65 caracteres. Antes era texto de 13 px a todo el ancho. Cada nota
+  // dice dia Y hora, y "Firmar nota" es un boton con su nombre, separado
+  // de Editar: eran dos iconos juntos, y firmar no se deshace.
   return (
-    <article style={{ border: '1px solid var(--admin-border)', borderRadius: 12, padding: 14, background: 'var(--admin-surface-soft)' }}>
+    <article style={{ border: '1px solid var(--admin-border)', borderRadius: 12, padding: '16px 18px', background: 'var(--admin-surface-soft)' }}>
       {dialogo}
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
-        <div style={{ color: 'var(--admin-muted)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {new Date(note.createdAt).toLocaleDateString('es-MX')}
-          {note.locked ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: C.sageDeep, fontWeight: 700 }}>
-              <Lock size={11} /> Firmada {new Date(note.signedAt).toLocaleDateString('es-MX')}
-            </span>
-          ) : (
-            <span style={{ color: C.caramel, fontWeight: 700 }}>Borrador</span>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {/* Una nota firmada no ofrece editar ni borrar. Borrar no existe
-              en el producto: NOM-004 exige conservar el expediente. */}
-          {note.locked ? (
-            <button onClick={() => setAddingAddendum((v) => !v)} style={iconButtonStyle} title="Agregar addendum">
-              <Plus size={14} />
-            </button>
-          ) : editing ? (
-            <>
-              <button onClick={save} style={iconButtonStyle} title="Guardar"><Save size={14} /></button>
-              <button onClick={() => { setEditing(false); setContent(note.content); }} style={iconButtonStyle} title="Cancelar"><X size={14} /></button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => setEditing(true)} style={iconButtonStyle} title="Editar"><FileText size={14} /></button>
-              <button onClick={sign} style={{ ...iconButtonStyle, color: C.sageDeep }} title="Firmar"><Lock size={14} /></button>
-            </>
-          )}
-        </div>
-      </div>
+      <header style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', marginBottom: 10, fontSize: 14 }}>
+        <time dateTime={note.createdAt} style={{ color: 'var(--admin-text)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+          {fechaHora(note.createdAt)}
+        </time>
+        {note.locked ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--admin-accent-text)', fontWeight: 600 }}>
+            <Lock size={13} aria-hidden="true" /> Firmada el {fechaHora(note.signedAt)}
+          </span>
+        ) : (
+          <span style={{ color: 'var(--admin-muted)', fontWeight: 600 }}>Borrador sin firmar</span>
+        )}
+      </header>
 
       {editing && !note.locked ? (
-        <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={5} maxLength={5000} className="admin-input" style={{ ...fieldInput, resize: 'vertical' }} />
+        <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={8} maxLength={5000}
+          aria-label="Contenido de la nota" className="admin-input"
+          style={{ ...fieldInput, resize: 'vertical', fontSize: 16, lineHeight: 1.6 }} />
       ) : (
-        <p style={{ whiteSpace: 'pre-wrap', color: 'var(--admin-row-text)', fontSize: 13, lineHeight: 1.55, margin: 0 }}>{note.content}</p>
+        <p style={notaTexto}>{note.content}</p>
       )}
 
       {(note.addenda || []).map((a) => (
-        <div key={a.id} style={{ marginTop: 10, paddingLeft: 10, borderLeft: `2px solid ${C.caramelLight}` }}>
-          <div style={{ color: 'var(--admin-muted)', fontSize: 10, fontWeight: 800, letterSpacing: 0.6 }}>
-            ADDENDUM · {new Date(a.createdAt).toLocaleDateString('es-MX')}
-          </div>
-          <p style={{ whiteSpace: 'pre-wrap', color: 'var(--admin-row-text)', fontSize: 13, lineHeight: 1.55, margin: '4px 0 0' }}>{a.content}</p>
-        </div>
+        <section key={a.id} style={{ marginTop: 14, paddingLeft: 12, borderLeft: `2px solid ${C.caramelLight}` }}>
+          <h4 style={{ color: 'var(--admin-muted)', fontSize: 13, fontWeight: 600, margin: 0 }}>
+            Addendum · <time dateTime={a.createdAt}>{fechaHora(a.createdAt)}</time>
+          </h4>
+          <p style={{ ...notaTexto, marginTop: 4 }}>{a.content}</p>
+        </section>
       ))}
 
       {addingAddendum && (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 12 }}>
           <textarea
             value={addendum}
             onChange={(event) => setAddendum(event.target.value)}
-            rows={3}
+            rows={4}
             maxLength={5000}
+            aria-label="Addendum"
             placeholder="Corrección o nota adicional. Queda fechada y tampoco se podrá editar."
             className="admin-input"
-            style={{ ...fieldInput, resize: 'vertical' }}
+            style={{ ...fieldInput, resize: 'vertical', fontSize: 16, lineHeight: 1.6 }}
           />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-            <button onClick={addAddendum} disabled={!addendum.trim()} style={smallButtonStyle}>Agregar addendum</button>
-            <button onClick={() => { setAddingAddendum(false); setAddendum(''); }} style={iconButtonStyle}><X size={14} /></button>
-          </div>
         </div>
       )}
+
+      {/* Una nota firmada no ofrece editar ni borrar. Borrar no existe en
+          el producto: NOM-004 exige conservar el expediente. */}
+      <footer style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+        {note.locked ? (
+          addingAddendum ? (
+            <>
+              <button onClick={addAddendum} disabled={!addendum.trim()} style={smallButtonStyle}>Guardar addendum</button>
+              <button onClick={() => { setAddingAddendum(false); setAddendum(''); }} style={textButtonStyle}>Cancelar</button>
+            </>
+          ) : (
+            <button onClick={() => setAddingAddendum(true)} style={textButtonStyle}>Agregar addendum</button>
+          )
+        ) : editing ? (
+          <>
+            <button onClick={save} style={smallButtonStyle}>Guardar cambios</button>
+            <button onClick={() => { setEditing(false); setContent(note.content); }} style={textButtonStyle}>Cancelar</button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setEditing(true)} style={textButtonStyle}>Editar</button>
+            {/* A la derecha y con su nombre completo: lejos de Editar. */}
+            <button onClick={sign} style={{ ...smallButtonStyle, marginLeft: 'auto' }}>
+              <Lock size={14} aria-hidden="true" /> Firmar nota
+            </button>
+          </>
+        )}
+      </footer>
     </article>
   );
+}
+
+const notaTexto = {
+  whiteSpace: 'pre-wrap', color: 'var(--admin-text)', fontSize: 16, lineHeight: 1.6,
+  maxWidth: '65ch', margin: 0, overflowWrap: 'anywhere',
+};
+
+const textButtonStyle = {
+  background: 'transparent', border: '1px solid var(--admin-border-interactive)', color: 'var(--admin-text)',
+  borderRadius: 10, padding: '8px 14px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40,
+};
+
+// "9 oct 2026, 14:05". La hora importa en un expediente: dos notas del
+// mismo dia no se distinguian.
+function fechaHora(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('es-MX', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 }
 
 // Etiqueta arriba en minusculas y dato abajo. Tres de estos en linea
@@ -707,15 +752,16 @@ const smallButtonStyle = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 7,
-  background: C.sageDark,
+  background: 'var(--admin-accent)',
   border: 'none',
   color: 'var(--admin-on-accent)',
   borderRadius: 10,
-  padding: '9px 12px',
+  padding: '8px 14px',
+  minHeight: 40,
   cursor: 'pointer',
   fontFamily: 'inherit',
-  fontSize: 12,
-  fontWeight: 800,
+  fontSize: 14,
+  fontWeight: 700,
 };
 const ghostButtonStyle = {
   display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -725,11 +771,3 @@ const ghostButtonStyle = {
   cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
 };
 
-const iconButtonStyle = {
-  background: 'var(--admin-surface)',
-  border: '1px solid var(--admin-border)',
-  color: 'var(--admin-accent-text)',
-  borderRadius: 8,
-  padding: 6,
-  cursor: 'pointer',
-};

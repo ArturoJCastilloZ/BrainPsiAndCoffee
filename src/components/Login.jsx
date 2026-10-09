@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Lock, LogIn, Mail, User } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from './BrandMark';
@@ -12,6 +12,9 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const errorTextStyle = { color: C.rustText, fontSize: 13, fontWeight: 600, lineHeight: 1.4, margin: '0 0 12px' };
 
 export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
+  // supabase-js se carga bajo demanda: se pide al abrir el login, mientras
+  // la persona escribe, para que entrar no espere la descarga.
+  useEffect(() => { authService.precargar(); }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

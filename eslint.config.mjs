@@ -43,6 +43,19 @@ export default [
     languageOptions: { sourceType: 'script', globals: globals.browser },
   },
   {
+    // Pruebas de componentes (vitest + jsdom): JSX y globales del navegador.
+    files: ['tests/components/**/*.{js,jsx}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.browser, ...globals.node },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    plugins: { react },
+    settings: { react: { version: '19' } },
+    rules: { ...react.configs['jsx-runtime'].rules, 'react/jsx-uses-vars': 'error', 'no-unused-vars': ['error', { varsIgnorePattern: '^React$' }] },
+  },
+  {
     files: ['tests/**/*.mjs', 'scripts/**/*.mjs', '*.config.mjs'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: globals.node },
   },

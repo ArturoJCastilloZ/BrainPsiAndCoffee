@@ -1,7 +1,7 @@
 // Los numeros que ve un contador. Si estos fallan, el panel miente con
 // aplomo — que es peor que no tenerlo.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { fuenteCapaDeDatos } from './_capaDeDatos.mjs';
 import {
   periodRange, previousRange, billedClinic, billedCafe, collected,
   receivableClinic, receivableCafe, expensesOf, profit, variation,
@@ -161,7 +161,7 @@ assert.equal(formatMoney(undefined), '$0.00', 'un dato roto no imprime NaN');
 // Lo encontro el dev mirando la pantalla, no una prueba: el motor estaba
 // impecable porque las pruebas le pasaban objetos con price a mano.
 {
-  const src = readFileSync('src/api/supabaseData.js', 'utf8');
+  const src = fuenteCapaDeDatos();
   const mapper = src.match(/const mapAppointmentFromDb = \(row\) => \(\{[\s\S]*?\n\}\);/)?.[0] || '';
   assert.ok(mapper.length > 50, 'no se encontro mapAppointmentFromDb');
   assert.ok(

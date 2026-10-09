@@ -1,9 +1,17 @@
-import { createClient } from '@supabase/supabase-js';
 import { env } from '../config/env';
 import { beginRequest, endRequest, isAuthenticatedSupabaseRequest } from './requestActivity';
 import { getActiveTenant } from './tenant';
 
-const hasSupabaseConfig = Boolean(env.supabaseUrl && env.supabasePublishableKey);
+// supabase-js se carga BAJO DEMANDA (auditoria M1).
+//
+// Era un import estatico: unos 60 KB gz en el paquete inicial de TODA
+// visita, aunque el visitante solo mirara precios. Ahora la portada lee el
+// catalogo por REST plano (rest.js) y la libreria llega solo cuando hace
+// falta de verdad: hay una sesion guardada, alguien entra al login, o se
+// escribe algo (enviar una solicitud de cita, un pedido).
+
+export const hasSupabaseConfig = Boolean(env.supabaseUrl && env.supabasePublishableKey);
+
 // El tenant activo se inyecta aqui y no en global.headers porque
 // global.headers se evalua una sola vez, al crear el cliente: si el
 // usuario cambia de clinica a media sesion, seguiria mandando la
@@ -16,7 +24,7 @@ const ESCRITURAS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const esEscritura = (input, init) =>
   ESCRITURAS.has(String(init?.method || input?.method || 'GET').toUpperCase());
 
-const trackedFetch = async (input, init) => {
+export const trackedFetch = async (input, init) => {
   const shouldTrack = isAuthenticatedSupabaseRequest(input, init) && esEscritura(input, init);
   const requestId = shouldTrack ? beginRequest() : null;
   const tenantId = getActiveTenant();
@@ -42,21 +50,62 @@ const trackedFetch = async (input, init) => {
   }
 };
 
-export const supabase = hasSupabaseConfig
-  ? createClient(env.supabaseUrl, env.supabasePublishableKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-      global: {
-        fetch: trackedFetch,
-      },
-    })
-  : null;
+let cliente = null;
+let cargando = null;
+
+// El cliente, cargando la libreria la primera vez. null sin configuracion.
+export const getSupabase = () => {
+  if (!hasSupabaseConfig) return Promise.resolve(null);
+  if (!cargando) {
+    cargando = import('@supabase/supabase-js').then(({ createClient }) => {
+      cliente = createClient(env.supabaseUrl, env.supabasePublishableKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+        global: {
+          fetch: trackedFetch,
+        },
+      });
+      return cliente;
+    });
+  }
+  return cargando;
+};
+
+// El cliente SOLO si ya se cargo. Para quien quiere saber si hay sesion
+// sin provocar la descarga: si la libreria no esta, no hay sesion.
+export const peekSupabase = () => cliente;
 
 export const assertSupabaseConfigured = () => {
-  if (!supabase) {
+  if (!hasSupabaseConfig) {
     throw new Error('Faltan VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en el entorno.');
   }
+};
+
+// Para la capa de datos: el cliente, o un error claro si no hay config.
+export const conCliente = async () => {
+  assertSupabaseConfigured();
+  return getSupabase();
+};
+
+// ¿Hay algo que obligue a cargar la libreria al arrancar? Una sesion
+// guardada (supabase-js la deja en localStorage como sb-<ref>-auth-token)
+// o un enlace de correo que trae credenciales en la URL (invitacion,
+// recuperacion de contraseña). Sin ninguna de las dos, el visitante es
+// anonimo y no se descarga nada.
+export const necesitaClienteAlArrancar = (location = window.location) => {
+  const enUrl = /(access_token|refresh_token|error_description)=/.test(location.hash || '')
+    || /[?&](code|token_hash)=/.test(location.search || '');
+  if (enUrl) return true;
+  try {
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const llave = window.localStorage.key(i) || '';
+      if (llave.startsWith('sb-') && llave.endsWith('-auth-token')) return true;
+    }
+  } catch {
+    // Sin storage no puede haber sesion guardada.
+  }
+  return false;
 };

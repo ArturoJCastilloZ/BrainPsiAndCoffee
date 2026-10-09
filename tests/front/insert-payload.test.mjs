@@ -8,9 +8,10 @@
 // Paso de verdad: guardar un horario nuevo fallaba con
 // 'null value in column "id" of relation "therapist_schedules"'.
 import assert from 'node:assert/strict';
+import { fuenteCapaDeDatos } from './_capaDeDatos.mjs';
 import { readFileSync } from 'node:fs';
 
-const src = readFileSync('src/api/supabaseData.js', 'utf8');
+const src = fuenteCapaDeDatos();
 
 // Los mappers *ToDb construyen filas que se mandan en arreglos. Ninguno
 // debe emitir una clave que pueda quedar en undefined.

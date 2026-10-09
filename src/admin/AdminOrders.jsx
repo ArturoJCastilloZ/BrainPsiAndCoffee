@@ -1,13 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
-  ChevronRight, ChevronLeft, Plus, Minus, Check, X,
-  ShoppingBag, Settings, BarChart3, Users, Sparkles,
-  Bell, Trash2, ArrowRight, ArrowLeft,
-  CheckCircle2, AlertCircle, MessageCircle, Cake,
-  Home, Menu as MenuIcon, LogOut, TrendingUp, DollarSign,
-  Zap, Gift, Send, RefreshCw, Filter
-} from 'lucide-react';
+import { Coffee, Plus, X, DollarSign } from 'lucide-react';
 import { C } from '../theme';
 import { uid } from '../utils.jsx';
 import { validateOrder } from '../validation';
@@ -119,7 +111,7 @@ export default function AdminOrders({
         <div className="admin-card" style={{ borderRadius: 14, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(170px, 1fr))', gap: '18px 14px', alignItems: 'end' }}>
             <label style={{ ...fieldWrap, gridColumn: 'span 2' }}>
-              <span style={fieldLabel}>PRODUCTO</span>
+              <span style={fieldLabel}>Producto</span>
               <select value={draft.productId} onChange={e => { setFormError(''); setDraft({ ...draft, productId: e.target.value }); }} required className="admin-input" style={{ ...fieldInput, borderColor: !draft.productId ? C.rust : undefined }}>
                 {products.map(product => <option key={product.id} value={product.id}>{product.categoryTitle} · {product.name} (${product.price})</option>)}
               </select>
@@ -174,20 +166,20 @@ export default function AdminOrders({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                 <div>
                   <div className="font-display" style={{ fontSize: 18, color: 'var(--admin-text)', fontWeight: 600 }}>#{o.id.slice(0,5).toUpperCase()}</div>
-                  <div style={{ fontSize: 11, color: 'var(--admin-muted)', marginTop: 2 }}>{formatOrderTime(o.createdAt)} · {sourceLabel(o.source, o.linkedBookingId)}</div>
+                  <div style={{ fontSize: 14, color: 'var(--admin-muted)', marginTop: 2 }}>{formatOrderTime(o.createdAt)} · {sourceLabel(o.source, o.linkedBookingId)}</div>
                 </div>
                 <StatusBadge status={o.status} />
               </div>
 
               <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
                 {(o.customerName || o.customerPhone) && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, color: 'var(--admin-row-text)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15, color: 'var(--admin-row-text)' }}>
                     <span>{o.customerName || 'Cliente'}</span>
                     {o.customerPhone && <span style={{ color: 'var(--admin-muted)' }}>{o.customerPhone}</span>}
                   </div>
                 )}
                 {o.linkedBookingId && (
-                  <div style={{ border: `1px solid ${C.caramel}`, background: C.caramelLightAlpha30, color: 'var(--admin-text)', borderRadius: 10, padding: '9px 10px', fontSize: 11, fontWeight: 700 }}>
+                  <div style={{ border: `1px solid ${C.caramel}`, background: C.caramelLightAlpha30, color: 'var(--admin-text)', borderRadius: 10, padding: '9px 10px', fontSize: 14, fontWeight: 700 }}>
                     Pedido ligado a cita · sin datos clínicos
                   </div>
                 )}
@@ -195,17 +187,17 @@ export default function AdminOrders({
                   <div style={{
                     border: `1px solid ${isLate(o) ? C.rust : 'var(--admin-border)'}`,
                     background: isLate(o) ? C.rustAlpha20 : 'var(--admin-surface-soft)',
-                    color: isLate(o) ? C.rust : 'var(--admin-row-text)',
+                    color: isLate(o) ? C.rustText : 'var(--admin-row-text)',
                     borderRadius: 10,
                     padding: '9px 10px',
-                    fontSize: 11,
+                    fontSize: 14,
                     fontWeight: 700
                   }}>
                     Hora objetivo: {formatTargetTime(o.targetReadyAt)}{isLate(o) ? ' · retrasado' : ''}
                   </div>
                 )}
                 {o.operationalNotes && (
-                  <div style={{ color: 'var(--admin-muted)', fontSize: 11, lineHeight: 1.45 }}>
+                  <div style={{ color: 'var(--admin-muted)', fontSize: 14, lineHeight: 1.45 }}>
                     {o.operationalNotes}
                   </div>
                 )}
@@ -213,7 +205,7 @@ export default function AdminOrders({
 
               <div style={{ display: 'grid', gap: 6, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--admin-border)' }}>
                 {o.items.map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--admin-row-text)' }}>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 16, lineHeight: 1.4, color: 'var(--admin-text)' }}>
                     <span>{Number(item.qty || 1) > 1 ? `${item.qty}x ` : ''}{item.name}{item.customizations?.milk ? ` · ${item.customizations.milk}` : ''}{item.customizations?.flavor ? ` · ${item.customizations.flavor}` : ''}{(item.customizations?.addons || []).map((a) => ` · ${a}`).join('')}</span>
                     {/* item.price viene de order_items.unit_price, que el servidor
                         calcula desde el catalogo. customizations.totalPrice es
@@ -245,27 +237,27 @@ export default function AdminOrders({
                 <div style={{ display: 'flex', gap: 6 }}>
                   {o.status === 'received' && (
                     <button onClick={() => updateOrderStatus(o.id, 'preparing')} style={{
-                      flex: 1, background: C.caramel, color: actionText, border: 'none', padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
+                      flex: 1, background: C.caramel, color: actionText, border: 'none', padding: '8px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40
                     }}>Preparar</button>
                   )}
                   {o.status === 'pending_appointment' && (
                     <button onClick={() => updateOrderStatus(o.id, 'preparing')} style={{
-                      flex: 1, background: C.caramel, color: actionText, border: 'none', padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
+                      flex: 1, background: C.caramel, color: actionText, border: 'none', padding: '8px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40
                     }}>Preparar ahora</button>
                   )}
                   {o.status === 'preparing' && (
                     <button onClick={() => updateOrderStatus(o.id, 'ready')} style={{
-                      flex: 1, background: C.sageLight, color: actionText, border: 'none', padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
+                      flex: 1, background: C.sageLight, color: actionText, border: 'none', padding: '8px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40
                     }}>Listo</button>
                   )}
                   {o.status === 'ready' && (
                     <button onClick={() => updateOrderStatus(o.id, 'delivered')} style={{
-                      flex: 1, background: C.sageDark, color: 'var(--admin-on-accent)', border: 'none', padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
+                      flex: 1, background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', padding: '8px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40
                     }}>Entregar</button>
                   )}
                   {(o.status === 'received' || o.status === 'pending_appointment' || o.status === 'preparing') && (
                     <button onClick={() => updateOrderStatus(o.id, 'cancelled')} style={{
-                      flex: 1, background: 'transparent', color: C.rust, border: `1px solid ${C.rustAlpha40}`, padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
+                      flex: 1, background: 'transparent', color: C.rustText, border: `1px solid ${C.rustAlpha40}`, padding: '8px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40
                     }}>Cancelar</button>
                   )}
                 </div>
@@ -324,15 +316,15 @@ function CobroPedido({ order, payments, onCobrar }) {
 }
 
 const fieldWrap = { display: 'grid', gap: 6 };
-const fieldLabel = { color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 };
+const fieldLabel = { color: 'var(--admin-row-text)', fontSize: 13, fontWeight: 700 };
 const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' };
-const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 };
+const requiredHint = { color: C.rustText, fontSize: 13, fontWeight: 700 };
 
 function AdminField({ label, value, onChange, type = 'text', required = false }) {
   const missing = required && String(value || '').trim().length === 0;
   return (
     <label style={fieldWrap}>
-      <span style={fieldLabel}>{label.toUpperCase()}</span>
+      <span style={fieldLabel}>{label}</span>
       <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} min={type === 'number' ? 1 : undefined} required={required} className="admin-input" style={{ ...fieldInput, borderColor: missing ? C.rust : undefined }} />
       {missing && <span style={requiredHint}>Campo requerido</span>}
     </label>
@@ -364,19 +356,21 @@ function isLate(order) {
 }
 
 function StatusBadge({ status }) {
+  // Frase normal, no MAYUSCULAS, y color de TEXTO que pasa contraste: el
+  // rust y el caramelo crudos daban 2.6-3.2:1 sobre la tarjeta.
   const config = {
-    received: { label: 'NUEVO', background: C.rustAlpha30, color: C.rust },
-    pending_appointment: { label: 'PENDIENTE POR CITA', background: C.caramelLightAlpha30, color: C.caramel },
-    preparing: { label: 'PREPARANDO', background: C.caramelLightAlpha30, color: C.caramel },
-    ready: { label: 'LISTO', background: C.sageDarkAlpha50, color: 'var(--admin-accent-text)' },
-    delivered: { label: 'ENTREGADO', background: 'var(--admin-border)', color: 'var(--admin-muted)' },
-    cancelled: { label: 'CANCELADO', background: C.rustAlpha20, color: C.rust },
-  }[status] || { label: String(status || '').toUpperCase(), background: 'var(--admin-border)', color: 'var(--admin-muted)' };
+    received: { label: 'Nuevo', background: C.rustAlpha20, color: C.rustText },
+    pending_appointment: { label: 'Espera la cita', background: C.caramelLightAlpha30, color: 'var(--admin-text)' },
+    preparing: { label: 'Preparando', background: C.caramelLightAlpha30, color: 'var(--admin-text)' },
+    ready: { label: 'Listo', background: C.sageDarkAlpha50, color: 'var(--admin-text)' },
+    delivered: { label: 'Entregado', background: 'var(--admin-border)', color: 'var(--admin-muted)' },
+    cancelled: { label: 'Cancelado', background: C.rustAlpha20, color: C.rustText },
+  }[status] || { label: String(status || ''), background: 'var(--admin-border)', color: 'var(--admin-muted)' };
 
   return (
     <span style={{
-      fontSize: 10,
-      padding: '3px 8px',
+      fontSize: 13,
+      padding: '4px 10px',
       borderRadius: 999,
       fontWeight: 700,
       background: config.background,

@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { fromEvent, merge } from 'rxjs';
-import { throttleTime } from 'rxjs/operators';
 import { authService } from './authService';
 
 export const useAuthSession = () => {
@@ -42,17 +40,17 @@ export const useInactivityTracking = (enabled) => {
   useEffect(() => {
     if (!enabled) return undefined;
 
+    // Como el throttleTime(30000) de rxjs que habia aqui: la PRIMERA
+    // actividad cuenta y las siguientes 30 s se ignoran.
+    let ultima = 0;
     const refresh = () => {
+      const ahora = Date.now();
+      if (ahora - ultima < 30000) return;
+      ultima = ahora;
       if (!authService.expiryWarning$.value) authService.refreshActivity();
     };
-    const activity$ = merge(
-      fromEvent(window, 'click'),
-      fromEvent(window, 'keydown'),
-      fromEvent(window, 'mousemove'),
-      fromEvent(window, 'touchstart')
-    ).pipe(throttleTime(30000));
-    const subscription = activity$.subscribe(refresh);
-
-    return () => subscription.unsubscribe();
+    const eventos = ['click', 'keydown', 'mousemove', 'touchstart'];
+    eventos.forEach((e) => window.addEventListener(e, refresh, { passive: true }));
+    return () => eventos.forEach((e) => window.removeEventListener(e, refresh));
   }, [enabled]);
 };

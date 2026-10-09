@@ -1,15 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Coffee, Calendar as CalendarIcon, Brain, Heart, Clock, User, Phone, Mail,
-  ChevronRight, ChevronLeft, Plus, Minus, Check, X,
-  ShoppingBag, Settings, BarChart3, Users, Sparkles,
-  Bell, Trash2, ArrowRight, ArrowLeft,
-  CheckCircle2, AlertCircle, MessageCircle, Cake,
-  Home, Menu as MenuIcon, LogOut, TrendingUp, DollarSign,
-  Zap, Gift, Send, RefreshCw, Filter
-} from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Check, X, DollarSign, RefreshCw } from 'lucide-react';
 import { C } from '../theme';
 import { addDays, todayISO, uid, weekdayLabelsFrom, localDate } from '../utils.jsx';
+import { localISO } from '../localDay.mjs';
 // timeSlotStates faltaba: agendar con "cualquier especialista" tronaba con
 // un ReferenceError al guardar (lo encontro el linter, 2026-10-09).
 import { isWorkingDay, poolAvailableSlots, poolSlotStates, timeSlotStates } from '../agenda.mjs';
@@ -272,7 +265,7 @@ export default function AdminAppointments({
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
         <button onClick={() => setCreating(!creating)} style={{
-          background: C.sageDark, color: 'var(--admin-on-accent)', border: 'none', borderRadius: 999,
+          background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', borderRadius: 999,
           padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7,
           fontFamily: 'inherit', fontSize: 12, fontWeight: 700
         }}>
@@ -341,7 +334,7 @@ export default function AdminAppointments({
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
             <button onClick={createBooking} disabled={!canCreateBooking} style={{
-              background: C.sageDark, color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9,
+              background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9,
               padding: '9px 14px', cursor: canCreateBooking ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
               opacity: canCreateBooking ? 1 : 0.45
             }}>Guardar cita</button>
@@ -361,9 +354,9 @@ export default function AdminAppointments({
           { id: 'all', label: 'Todas' },
         ].map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)} style={{
-            background: filter === f.id ? C.sageDark : 'transparent',
+            background: filter === f.id ? 'var(--admin-accent)' : 'transparent',
             color: filter === f.id ? 'var(--admin-on-accent)' : 'var(--admin-muted)',
-            border: '1px solid ' + (filter === f.id ? C.sageDark : 'var(--admin-border)'),
+            border: '1px solid ' + (filter === f.id ? 'var(--admin-accent)' : 'var(--admin-border)'),
             padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
           }}>{f.label}</button>
         ))}
@@ -603,7 +596,7 @@ function EstadoCita({ status, vencida = false }) {
       height: 22, padding: '0 9px', borderRadius: 6,
       fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
       background: e.acento ? C.sageDarkAlpha50 : 'var(--admin-surface-soft)',
-      border: `1px solid ${e.acento ? C.sageDark : 'var(--admin-border)'}`,
+      border: `1px solid ${e.acento ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
       color: e.acento ? 'var(--admin-text)' : 'var(--admin-muted)',
     }}>
       {e.texto}
@@ -617,9 +610,9 @@ const decisionStyle = (principal) => ({
   display: 'inline-flex', alignItems: 'center', gap: 4,
   height: 30, padding: '0 10px', borderRadius: 8, cursor: 'pointer',
   fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-  background: principal ? C.sageDark : 'transparent',
+  background: principal ? 'var(--admin-accent)' : 'transparent',
   color: principal ? 'var(--admin-on-accent)' : 'var(--admin-muted)',
-  border: `1px solid ${principal ? C.sageDark : 'var(--admin-border)'}`,
+  border: `1px solid ${principal ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
 });
 
 const accionStyle = {
@@ -698,7 +691,7 @@ function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, 
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-accent-text)', borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Cerrar</button>
-        <button onClick={onSave} disabled={!draft.time} style={{ background: C.sageDark, color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9, padding: '8px 12px', cursor: draft.time ? 'pointer' : 'not-allowed', opacity: draft.time ? 1 : 0.45, fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Guardar</button>
+        <button onClick={onSave} disabled={!draft.time} style={{ background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9, padding: '8px 12px', cursor: draft.time ? 'pointer' : 'not-allowed', opacity: draft.time ? 1 : 0.45, fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Guardar</button>
       </div>
     </div>
   );
@@ -775,8 +768,8 @@ function AvailabilityCalendar({ days, selectedDate, onSelect, onMove, onToday, e
           <button key={day.iso} type="button" disabled={disabled} onClick={() => onSelect(day.iso)} title={disabled ? 'Sin horarios disponibles' : `${day.slots.length} horarios disponibles`} style={{
             minHeight: 42,
             borderRadius: 10,
-            border: `1px solid ${selected ? C.sageDark : 'var(--admin-border)'}`,
-            background: selected ? C.sageDark : (disabled ? 'transparent' : 'var(--admin-surface)'),
+            border: `1px solid ${selected ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
+            background: selected ? 'var(--admin-accent)' : (disabled ? 'transparent' : 'var(--admin-surface)'),
             color: selected ? 'var(--admin-on-accent)' : (disabled ? 'var(--admin-subtle)' : 'var(--admin-text)'),
             cursor: disabled ? 'not-allowed' : 'pointer',
             opacity: disabled ? 0.35 : 1,
@@ -826,8 +819,8 @@ function TimeSlotGrid({ slots, selectedTime, onSelect }) {
           <button key={slot.time} type="button" disabled={!slot.available} onClick={() => onSelect(slot.time)} title={slot.available ? 'Disponible' : slot.reason} style={{
             minHeight: 38,
             borderRadius: 10,
-            border: `1px solid ${selected ? C.sageDark : 'var(--admin-border)'}`,
-            background: selected ? C.sageDark : (slot.available ? 'var(--admin-surface)' : 'transparent'),
+            border: `1px solid ${selected ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
+            background: selected ? 'var(--admin-accent)' : (slot.available ? 'var(--admin-surface)' : 'transparent'),
             color: selected ? 'var(--admin-on-accent)' : (slot.available ? 'var(--admin-text)' : 'var(--admin-subtle)'),
             cursor: slot.available ? 'pointer' : 'not-allowed',
             opacity: slot.available ? 1 : 0.35,
@@ -845,19 +838,4 @@ function TimeSlotGrid({ slots, selectedTime, onSelect }) {
 // Estas dos delegan en src/agenda.mjs, que es donde vive la aritmetica y
 // donde se puede probar. Aqui solo se resuelve QUE terapeutas entran:
 // con "cualquiera", un horario esta disponible si al menos uno puede.
-function localISO(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function toMinutes(time) {
-  const [hours, minutes] = String(time || '00:00').split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-function fromMinutes(minutes) {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-}
-
 // ============ ADMIN ORDERS ============

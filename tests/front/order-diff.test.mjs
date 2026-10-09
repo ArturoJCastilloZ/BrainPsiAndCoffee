@@ -7,7 +7,7 @@
 // pasaba, el insert tronaba, sin un solo error visible); con la 0026
 // cualquier guardado fallaba al topar el primer pedido cerrado.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { fuenteCapaDeDatos } from './_capaDeDatos.mjs';
 import { cambiosDePedidos, huellaLineas } from '../../src/orderDiff.mjs';
 
 const pedido = (id, extra = {}) => ({
@@ -68,7 +68,7 @@ const pedido = (id, extra = {}) => ({
 //     mapOrderToDb pone updated_at = ahora, asi que comparar filas diria
 //     siempre "cambio" y no arreglaria nada.
 {
-  const capa = readFileSync('src/api/supabaseData.js', 'utf8');
+  const capa = fuenteCapaDeDatos();
   assert.ok(/updated_at: new Date\(\)\.toISOString\(\)/.test(capa),
     'mapOrderToDb ya no sella updated_at; revisa si la comparacion por dominio sigue siendo necesaria');
   const saveOrders = capa.slice(capa.indexOf('export const saveOrders'), capa.indexOf('export const', capa.indexOf('export const saveOrders') + 10));

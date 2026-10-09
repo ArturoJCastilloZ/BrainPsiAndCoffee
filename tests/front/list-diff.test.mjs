@@ -7,7 +7,7 @@
 // borraba, sin un solo error. Con la lista vacia el borrado era la tabla
 // entera de la clinica.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { fuenteCapaDeDatos } from './_capaDeDatos.mjs';
 import { cambiosDeLista, productosDelMenu, opcionesConPosicion } from '../../src/listDiff.mjs';
 
 const cita = (id, extra = {}) => ({ id, status: 'confirmed', name: 'A', date: '2026-10-09', time: '10:00', ...extra });
@@ -71,7 +71,7 @@ const cita = (id, extra = {}) => ({ id, status: 'confirmed', name: 'A', date: '2
 //     el guardado no lo usa. Ningun guardado puede volver a borrar "todo
 //     lo que no este en la lista".
 {
-  const fuente = readFileSync(new URL('../../src/api/supabaseData.js', import.meta.url), 'utf8')
+  const fuente = fuenteCapaDeDatos()
     .replace(/\/\/.*$/gm, '');
   assert.ok(!/\bdeleteMissing\b/.test(fuente), 'deleteMissing volvio a supabaseData.js');
   assert.ok(!/\.notIn\(/.test(fuente), 'un borrado por notIn borra lo que la pantalla nunca vio');

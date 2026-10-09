@@ -30,7 +30,12 @@ createRoot(document.getElementById('root'), {
     reportError(error, { source: 'react-uncaught', stack: info?.componentStack?.slice(0, 500) });
   },
 }).render(
-  <BrowserRouter>
-    <App />
-  </BrowserRouter>
+  // StrictMode (auditoria, seccion 4): en desarrollo monta, limpia y vuelve
+  // a montar, y asi destapa efectos impuros. Se activa DESPUES de C1: con
+  // el guardado dentro del updater de setState habria guardado dos veces.
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
 );

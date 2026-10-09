@@ -99,10 +99,13 @@ function CustomizeDialog({ item, options, onClose, onAdd }) {
   const [flavor, setFlavor] = useState(null);
   const [addonIds, setAddonIds] = useState([]);
 
+  // Sin close() en la limpieza, a proposito: al desmontar, React quita el
+  // <dialog> del documento y eso ya lo saca de la capa superior. Cerrarlo
+  // aqui disparaba 'close' -> onClose, y con StrictMode (que en desarrollo
+  // monta, limpia y vuelve a montar) el dialogo se cerraba solo al abrir.
   useEffect(() => {
     const dialogo = ref.current;
     if (dialogo && !dialogo.open) dialogo.showModal();
-    return () => { if (dialogo?.open) dialogo.close(); };
   }, []);
 
   const chosenAddons = addons.filter((a) => addonIds.includes(a.id));

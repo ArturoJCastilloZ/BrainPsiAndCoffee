@@ -70,7 +70,7 @@ export default function AdminCatalog({ catalogs, catalogActions, session, initia
       {!lockedTab && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
         {tabs.map(item => (
           <button key={item.id} onClick={() => setTab(item.id)} style={{
-            display: 'flex', alignItems: 'center', gap: 8, border: '1px solid ' + (tab === item.id ? C.sageDark : 'var(--admin-border)'),
+            display: 'flex', alignItems: 'center', gap: 8, border: '1px solid ' + (tab === item.id ? 'var(--admin-accent)' : 'var(--admin-border)'),
             background: tab === item.id ? selectedPill.background : 'var(--admin-surface)', color: tab === item.id ? selectedPill.color : 'var(--admin-row-text)',
             padding: '9px 14px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700
           }}>

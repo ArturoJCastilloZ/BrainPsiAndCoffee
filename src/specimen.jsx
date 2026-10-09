@@ -26,6 +26,7 @@ import AdminDashboard from './admin/AdminDashboard';
 import AdminSchedules from './admin/AdminSchedules';
 import AdminApp from './admin/AdminApp';
 import DoctorApp from './doctor/DoctorApp';
+import { AppProviders } from './context/AppContext';
 import ContactPage from './user/ContactPage';
 import PendingInvitations from './components/PendingInvitations';
 import TempPasswordPanel from './admin/TempPasswordPanel';
@@ -92,7 +93,10 @@ const ESQUEMA_EJECUTABLE = 'java' + 'script:';
 const AJUSTES_ENVENENADOS = {
   address: 'Calle Falsa 123, Monterrey',
   mapsUrl: 'data:text/html,<img src=x onerror=alert(1)>',
-  instagram: '//evil.example/perfil',
+  // El esquema armado arriba se usa aqui: estaba declarado y sin usar, asi
+  // que el especimen nunca probaba el caso 'javascript:'. El de '//dominio'
+  // lo cubre tests/front/safe-url.test.mjs.
+  instagram: `${ESQUEMA_EJECUTABLE}alert(document.domain)`,
 };
 const SESION = { user: { role: 'owner', name: 'Espécimen' } };
 // Se pasan los catalogos de demo explicitamente en vez de null: `catalogs?.x
@@ -163,13 +167,17 @@ function Especimen() {
         ))}
       </div>
       {pantalla === 'DoctorApp' && (
-        <DoctorApp
-          bookings={citas} setBookings={setCitas}
-          catalogs={{ ...CATALOGOS, therapists: CATALOGOS.therapists }}
-          session={{ user: { role: 'doctor', name: 'Dra. Espécimen', therapistId: 't1' } }}
-          logout={() => {}} theme={theme} toggleTheme={() => setTheme(isDark ? 'light' : 'dark')}
-          catalogActions={{ reload: () => {} }}
-        />
+        // Los paneles leen datos y tema del contexto (context/AppContext).
+        <AppProviders
+          data={{
+            bookings: citas, setBookings: setCitas, orders: pedidos, setOrders: setPedidos,
+            catalogs: { ...CATALOGOS, therapists: CATALOGOS.therapists },
+            session: { user: { role: 'doctor', name: 'Dra. Espécimen', therapistId: 't1' } },
+            catalogActions: { reload: () => {} }, dataLoading: false, reload: () => {},
+          }}
+          theme={{ theme, isDark, toggleTheme: () => setTheme(isDark ? 'light' : 'dark') }}>
+          <DoctorApp logout={() => {}} />
+        </AppProviders>
       )}
       {pantalla === 'Temporal' && (
         <div style={{ maxWidth: 640, margin: '0 auto', padding: 24 }}>
@@ -198,13 +206,15 @@ function Especimen() {
       )}
 
       {pantalla === 'AdminApp' && (
-        <AdminApp
-          bookings={citas} setBookings={setCitas}
-          orders={pedidos} setOrders={setPedidos}
-          switchToUser={() => {}} logout={() => {}}
-          session={SESION} theme={theme} toggleTheme={() => setTheme(isDark ? 'light' : 'dark')}
-          catalogs={CATALOGOS} catalogActions={{ reload: () => {} }}
-        />
+        <AppProviders
+          data={{
+            bookings: citas, setBookings: setCitas, orders: pedidos, setOrders: setPedidos,
+            catalogs: CATALOGOS, session: SESION,
+            catalogActions: { reload: () => {} }, dataLoading: false, reload: () => {},
+          }}
+          theme={{ theme, isDark, toggleTheme: () => setTheme(isDark ? 'light' : 'dark') }}>
+          <AdminApp switchToUser={() => {}} logout={() => {}} />
+        </AppProviders>
       )}
       {/* Reproduce el <main> de AdminApp.jsx: mismo padding, sin el
           minWidth:900 que M2 retiro. AdminApp NO va aqui: trae su propio

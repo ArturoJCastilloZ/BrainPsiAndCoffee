@@ -1,6 +1,6 @@
-import { BehaviorSubject } from 'rxjs';
 import { env } from '../config/env';
-import { supabase, assertSupabaseConfigured } from '../api/supabaseClient';
+import { ValueSubject } from '../lib/valueSubject.mjs';
+import { conCliente, getSupabase, hasSupabaseConfig, necesitaClienteAlArrancar, peekSupabase } from '../api/supabaseClient';
 import { getSelectedTenant, resolveInitialTenant, setActiveTenant } from '../api/tenant';
 import { resetRequests } from '../api/requestActivity';
 import { canAccessAdmin, canAccessDoctor, normalizeRole } from './permissions';
@@ -42,27 +42,31 @@ const toAppSession = (session) => {
 };
 
 class AuthService {
-  session$ = new BehaviorSubject(null);
+  session$ = new ValueSubject(null);
   // Si ya se sabe si hay sesion. session$ arranca en null tambien cuando SI
   // hay sesion guardada, porque leerla es asincrono: sin esta señal, las
   // rutas protegidas no distinguian "sin sesion" de "todavia no se sabe" y
   // recargar /admin mandaba al login a alguien con sesion valida.
-  ready$ = new BehaviorSubject(false);
-  expiryWarning$ = new BehaviorSubject(false);
+  ready$ = new ValueSubject(false);
+  expiryWarning$ = new ValueSubject(false);
   warningTimer = null;
   logoutTimer = null;
+  escuchando = false;
 
   constructor() {
     this.bootstrap();
   }
 
   async bootstrap() {
-    if (!supabase) {
+    // Sin sesion guardada ni enlace de correo en la URL, el visitante es
+    // anonimo: se decide YA, sin descargar supabase-js (M1).
+    if (!hasSupabaseConfig || !necesitaClienteAlArrancar()) {
       this.ready$.next(true);
       return;
     }
 
     try {
+      const supabase = await this.cliente();
       const { data } = await supabase.auth.getSession();
       this.setSession(data.session);
     } finally {
@@ -70,14 +74,28 @@ class AuthService {
       // y la pantalla tiene que poder avanzar al login.
       this.ready$.next(true);
     }
+  }
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      this.setSession(session);
-    });
+  // El cliente, cargandolo si hace falta, y escuchando sus cambios de
+  // sesion una sola vez (refresco de token, cierre en otra pestaña).
+  async cliente() {
+    const supabase = await conCliente();
+    if (!this.escuchando) {
+      this.escuchando = true;
+      supabase.auth.onAuthStateChange((_event, session) => {
+        this.setSession(session);
+      });
+    }
+    return supabase;
+  }
+
+  // El login carga la libreria mientras la persona escribe, no al enviar.
+  precargar() {
+    if (hasSupabaseConfig) getSupabase();
   }
 
   async login({ username, password }) {
-    assertSupabaseConfigured();
+    const supabase = await this.cliente();
     const email = await this.resolveLoginEmail(username.trim());
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -95,7 +113,7 @@ class AuthService {
   }
 
   async updatePassword(password) {
-    assertSupabaseConfigured();
+    const supabase = await this.cliente();
     const { data, error } = await supabase.auth.updateUser({ password });
     // El mensaje de Supabase va DENTRO. Antes se descartaba y se
     // mostraba siempre "solicita una nueva invitacion", que manda a
@@ -111,7 +129,7 @@ class AuthService {
   }
 
   async requestPasswordReset(email) {
-    assertSupabaseConfigured();
+    const supabase = await this.cliente();
     const redirectTo = `${window.location.origin}/set-password`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) {
@@ -125,6 +143,7 @@ class AuthService {
   async resolveLoginEmail(identifier) {
     if (identifier.includes('@')) return identifier;
 
+    const supabase = await this.cliente();
     const { data, error } = await supabase.rpc('resolve_login_identifier', { identifier });
     if (error || !data) return identifier;
     return data;
@@ -149,7 +168,8 @@ class AuthService {
   // mismo usuario puede ser doctor en una y administrador en otra.
   // refreshActivity() conserva el objeto anterior y dejaria el rol viejo.
   async reloadSession() {
-    if (!supabase) return this.session$.value;
+    if (!hasSupabaseConfig) return this.session$.value;
+    const supabase = await this.cliente();
     const { data } = await supabase.auth.getSession();
     return this.setSession(data.session);
   }
@@ -162,7 +182,8 @@ class AuthService {
   // Es el equivalente programatico de "cierra sesion y vuelve a entrar",
   // que es lo que habia que hacer antes para que un rol nuevo apareciera.
   async refreshClaims() {
-    if (!supabase) return this.session$.value;
+    if (!hasSupabaseConfig) return this.session$.value;
+    const supabase = await this.cliente();
     const { data, error } = await supabase.auth.refreshSession();
     if (error) throw error;
     return this.setSession(data.session);
@@ -179,6 +200,8 @@ class AuthService {
   }
 
   async logout(reason = 'manual') {
+    // Si la libreria nunca se cargo, no hay sesion que cerrar.
+    const supabase = peekSupabase();
     if (supabase) await supabase.auth.signOut();
     // Sin esto, la clinica del usuario anterior seguiria viajando en el
     // header de quien inicie sesion despues en el mismo navegador.
