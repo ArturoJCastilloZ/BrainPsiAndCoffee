@@ -3,7 +3,7 @@ import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from
 import { Brain, CalendarCheck, Coffee, Home, MessageCircle, Moon, ShoppingBag, Sun, X } from 'lucide-react';
 import { uid } from '../utils.jsx';
 import BrandMark from '../components/BrandMark';
-import { businessFromSettings, BUSINESS, whatsappUrl } from '../businessInfo';
+import { businessFromSettings, BUSINESS_PLACEHOLDERS, whatsappUrl } from '../businessInfo';
 import { LEGACY_REDIRECTS, NAV_LINKS } from '../seo/routes.mjs';
 import { useJsonLd } from '../seo/useRouteHead';
 import { useAppData, useTheme } from '../context/AppContext';
@@ -65,7 +65,7 @@ export default function UserApp() {
 
   useJsonLd(businessJsonLd({
     settings: catalogs?.settings,
-    defaults: BUSINESS,
+    defaults: BUSINESS_PLACEHOLDERS,
     services: catalogs?.services || [],
   }));
 

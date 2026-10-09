@@ -2,6 +2,7 @@ import React from 'react';
 import { businessFromSettings, whatsappUrl } from '../businessInfo';
 import { esExterna, hrefSeguro } from '../safeUrl.mjs';
 import { trackEvent } from '../monitoring';
+import ResenasGoogle from './ResenasGoogle';
 
 export default function ContactPage({ settings }) {
   const business = businessFromSettings(settings);
@@ -67,6 +68,8 @@ export default function ContactPage({ settings }) {
           </ul>
         </div>
       </section>
+
+      <ResenasGoogle settings={settings} />
     </>
   );
 }

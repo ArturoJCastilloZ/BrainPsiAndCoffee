@@ -6,6 +6,7 @@ import { enlaceReserva, proximosHorarios } from '../nextSlots.mjs';
 import { localDate } from '../utils.jsx';
 import { trackEvent } from '../monitoring';
 import Pizarron, { precio } from './Pizarron';
+import ResenasGoogle from './ResenasGoogle';
 
 const etiquetaDia = (iso) => localDate(iso).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
 
@@ -138,6 +139,8 @@ export default function UserHome({ catalogs, dataLoading }) {
           </ol>
         </div>
       </section>
+
+      <ResenasGoogle settings={catalogs?.settings} />
 
       <section className="pub-section pub-section-alt">
         <div className="pub-wrap">

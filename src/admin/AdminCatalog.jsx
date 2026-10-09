@@ -500,6 +500,7 @@ function BusinessSettings({ settings, setSettings }) {
       email: draft.email || '',
       instagram: draft.instagram || '',
       mapsUrl: draft.mapsUrl || '',
+      reviewUrl: draft.reviewUrl || '',
       hours: String(draft.hoursText || '').split('\n').map((line) => line.trim()).filter(Boolean),
     };
     setSettings(next);
@@ -519,6 +520,8 @@ function BusinessSettings({ settings, setSettings }) {
         <Field label="CORREO" type="email" value={draft.email} onChange={value => update('email', value)} />
         <Field label="INSTAGRAM URL" value={draft.instagram} onChange={value => update('instagram', value)} aviso={avisoUrl(draft.instagram)} />
         <Field label="GOOGLE MAPS URL" value={draft.mapsUrl} onChange={value => update('mapsUrl', value)} aviso={avisoUrl(draft.mapsUrl)} />
+        <Field label="ENLACE PARA DEJAR RESEÑA (GOOGLE)" value={draft.reviewUrl} onChange={value => update('reviewUrl', value)}
+          placeholder='Perfil de Negocio de Google → "Pedir reseñas"' aviso={avisoUrl(draft.reviewUrl)} />
       </FormGrid>
       <label style={{ display: 'grid', gap: 6, marginTop: 10 }}>
         <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>HORARIOS, UNO POR LINEA</span>

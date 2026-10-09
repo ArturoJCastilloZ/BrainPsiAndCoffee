@@ -114,3 +114,13 @@ const SITIO = 'https://ejemplo.mx';
 }
 
 console.log('seo: ok');
+
+// La direccion ya es la real: con BUSINESS_PLACEHOLDERS como relleno entra
+// al schema; el telefono de ejemplo sigue fuera.
+{
+  const { BUSINESS, BUSINESS_PLACEHOLDERS } = await import(`data:text/javascript,${encodeURIComponent(
+    readFileSync(new URL('../../src/businessInfo.js', import.meta.url), 'utf8'))}`);
+  const ld = businessJsonLd({ settings: { ...BUSINESS }, defaults: BUSINESS_PLACEHOLDERS });
+  assert.equal(ld.address.streetAddress, BUSINESS.address);
+  assert.equal(ld.telephone, undefined, 'el telefono de relleno entro al schema');
+}
