@@ -115,15 +115,6 @@ Archivos: `Dockerfile` (etapas `deps`, `dev`, `build`, `runtime`),
 `docker-compose.yml`, `docker/nginx.conf` (fallback de React Router, cache
 inmutable de `/assets`, cabeceras de seguridad, gzip) y `.dockerignore`.
 
-## Acceso admin demo
-
-En modo local/demo, las credenciales del admin son:
-
-```text
-Usuario: admin
-Password: brainpsi
-```
-
 ## Estructura principal
 
 ```text
@@ -169,97 +160,60 @@ Despues de actualizar el codigo, aplica las migraciones pendientes con `./script
 - Eventos de conversion: solicitud de cita, pedido de cafeteria, clicks de contacto y confirmacion por WhatsApp.
 - Script de QA basico: `npm test`.
 
-## Usuarios de prueba recomendados
+## Usuarios y roles
 
-Crea estos usuarios desde Supabase Auth para probar roles. Por seguridad y compatibilidad, no se insertan directo en `auth.users` desde el schema.
+No hay cuentas de prueba ni contraseñas fijas: Supabase guarda las
+contraseñas cifradas y nadie puede leerlas. Cada persona tiene su propia
+cuenta y un rol **por clínica** (una misma persona puede ser especialista
+en una clínica y administradora en otra).
 
-```text
-Admin
-Correo: admin@brainpsi.test
-Password: BrainpsiAdmin123!
+### Roles
 
-Doctor
-Correo: doctor@brainpsi.test
-Password: BrainpsiDoctor123!
-```
-
-Despues de crearlos, asigna roles con SQL. Reemplaza los correos si usaste otros:
-
-```sql
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('role', 'admin')
-where email = 'admin@brainpsi.test';
-
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('role', 'doctor', 'therapist_id', 't1')
-where email = 'doctor@brainpsi.test';
-
-update public.therapists
-set email = 'doctor@brainpsi.test',
-    user_id = (select id from auth.users where email = 'doctor@brainpsi.test')
-where id = 't1';
-```
-
-Con esos usuarios puedes probar: login admin, edicion de catalogos, negocio, ofertas, citas, pedidos y panel doctor.
-
-## Roles y permisos
-
-La fuente de verdad para permisos criticos es `auth.users.raw_app_meta_data.role` en Supabase Auth. La tabla `public.profiles` existe como espejo administrativo para futuras pantallas de usuarios, pero las politicas RLS usan `app_metadata`.
-
-Roles soportados:
-
-```text
-super_admin
-admin_cafe
-admin_consultorio
-doctor
-barista
-```
-
-Compatibilidad: el rol antiguo `admin` se interpreta como `super_admin`.
-
-Asignar rol a usuarios existentes:
-
-```sql
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('role', 'super_admin')
-where email = 'admin@brainpsi.test';
-
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('role', 'admin_cafe')
-where email = 'admin-cafe@brainpsi.test';
-
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('role', 'admin_consultorio')
-where email = 'admin-consultorio@brainpsi.test';
-
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('role', 'barista')
-where email = 'barista@brainpsi.test';
-
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('role', 'doctor', 'therapist_id', 't1')
-where email = 'doctor@brainpsi.test';
-```
-
-Matriz aplicada en esta fase:
-
-| Rol | Acceso frontend | Datos Supabase principales |
+| Rol (en `tenant_members`) | Se muestra como | Qué ve |
 |---|---|---|
-| `super_admin` | Admin completo actual | Gestiona productos, ofertas, citas, consultorio, pedidos, negocio y perfiles |
-| `admin_cafe` | Pedidos y catalogos de cafeteria | Gestiona productos, ofertas, pedidos y order items |
-| `admin_consultorio` | Citas y catalogos de consultorio | Gestiona citas, servicios, doctores, especialidades y vinculos terapeuta-servicio |
-| `doctor` | Solo `/doctor` | Gestiona solo citas de su `therapist_id` |
-| `barista` | Solo pedidos de cafeteria | Lee pedidos/items y actualiza estado de pedidos |
+| `owner` | Dueño | Todo: resumen, contabilidad, negocio, accesos, derechos ARCO, seguridad |
+| `admin_consultorio` | Administración del consultorio | Citas, servicios, especialistas, horarios, derechos ARCO |
+| `admin_cafe` | Administración de cafetería | Pedidos, menú, personalización y promociones |
+| `doctor` | Especialista | Solo `/doctor`: sus citas, sus pacientes, notas y consentimientos |
+| `barista` | Barista | Solo los pedidos de la cafetería |
 
-Despues de cambiar roles en Supabase, el usuario debe cerrar sesion y volver a entrar para recibir el nuevo JWT.
+La fuente de verdad es la tabla `public.tenant_members` (migración 0035): la
+base decide los permisos leyendo esa tabla, no lo que diga el token. Un
+`owner` aparece en el código como `super_admin`.
+
+### Dar acceso a alguien (lo normal)
+
+1. Entra al panel como dueño y ve a **General → Accesos**.
+2. Escribe el correo y elige el rol. Para **Especialista**, primero crea su
+   ficha en **Consultorio → Especialistas** y elígela al invitar.
+3. Si la persona ya tiene cuenta, recibe una invitación que acepta al
+   entrar. Si es nueva, el sistema genera una **contraseña temporal** que
+   le compartes; al entrar por primera vez debe cambiarla.
+
+Para probar cada rol sin tener varios correos, con Gmail sirve
+`tucorreo+doctor@gmail.com`, `tucorreo+barista@gmail.com`, etc.: llegan al
+mismo buzón y cuentan como cuentas distintas.
+
+### El primer dueño de una clínica nueva
+
+Nadie puede invitar si todavía no hay dueño. Se crea una sola vez:
+
+1. Crea el usuario en Supabase → Authentication → Users.
+2. En el editor SQL de Supabase (corre con permisos de administrador):
+
+```sql
+select public.grant_tenant_role('dueno@ejemplo.mx', 'id-de-la-clinica', 'owner');
+```
+
+`grant_tenant_role` no se puede llamar desde la app: escribe permisos y
+solo la ejecuta un administrador de la base.
+
+### Verificación en dos pasos
+
+Cualquier persona puede activarla en **Seguridad** (con una app como Google
+Authenticator). El dueño puede exigirla a toda la clínica para abrir
+expedientes, pero solo después de activar y verificar la suya, para no
+quedarse fuera (migración 0039).
 
 ## Cambios Fase B
 
@@ -325,7 +279,7 @@ Despues de actualizar el codigo, vuelve a ejecutar `scripts/supabase-schema.sql`
 Pruebas manuales recomendadas para esta fase:
 
 1. Crear una cita nueva y confirmar que se llena `appointments.patient_id`.
-2. Entrar como `doctor@brainpsi.test`; debe ver solo sus citas.
+2. Entrar con una cuenta de especialista; debe ver solo sus citas.
 3. En `/doctor`, abrir `Pacientes`; debe ver solo pacientes relacionados a sus citas.
 4. Crear una nota clínica para una cita propia; debe guardarse en `appointment_notes`.
 5. Editar y eliminar esa nota desde el panel doctor.
