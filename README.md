@@ -148,6 +148,15 @@ seguridad, redirecciones viejas (`/therapy`, `/coffee`) y cache.
 
 Cada push a `main` publica; cada push a otra rama crea una vista previa.
 
+## Correos de Supabase Auth
+
+Salen por SMTP propio (Resend, dominio `brainpsi.arturocastillo.dev`); la
+clave se captura a mano en Supabase → Authentication → Emails → SMTP y no
+vive en el repo. Asuntos y plantillas en español: `scripts/email-templates.mjs`
+las genera en `supabase/templates/` y con `--apply` las sube (necesita
+`SUPABASE_ACCESS_TOKEN` y `SUPABASE_PROJECT_REF`). Editar el script, no los
+`.html`: se sobrescriben.
+
 ## Estructura principal
 
 ```text
