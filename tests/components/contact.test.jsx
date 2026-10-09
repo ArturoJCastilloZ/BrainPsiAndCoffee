@@ -29,5 +29,6 @@ describe('Contacto', () => {
     expect(hayWhatsapp({ whatsapp: '528112345678' })).toBe(true);
     render(<ContactPage settings={{ whatsapp: '', address: 'Av Lincoln 1600' }} />);
     expect(screen.queryByText('WhatsApp')).toBeNull();
+    expect(screen.queryByText(/Por WhatsApp respondemos/)).toBeNull();
   });
 });

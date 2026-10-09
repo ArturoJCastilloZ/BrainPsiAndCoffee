@@ -61,9 +61,9 @@ export const PUBLIC_ROUTES = [
   {
     path: '/contacto',
     title: 'Contacto y ubicación · Brainpsi Coffee',
-    description: 'WhatsApp, teléfono, correo, dirección y horario de Brainpsi Coffee en Monterrey.',
+    description: 'Dirección, horario y formas de contacto de Brainpsi Coffee en Monterrey.',
     h1: 'Contacto',
-    text: 'Escríbenos por WhatsApp para dudas, citas o pedidos de la cafetería. Aquí están la dirección y el horario.',
+    text: 'Dudas sobre terapia, citas o pedidos de la cafetería: aquí están la dirección, el horario y cómo contactarnos.',
     priority: '0.7',
   },
   {

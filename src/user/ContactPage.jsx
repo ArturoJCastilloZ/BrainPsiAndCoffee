@@ -31,8 +31,11 @@ export default function ContactPage({ settings }) {
           <div>
             <h1 className="pub-hero-title">Contacto</h1>
             <p className="pub-hero-lead">
-              Escríbenos para confirmar disponibilidad, resolver dudas sobre terapia o preguntar por la cafetería.
-              Por WhatsApp respondemos más rápido.
+              {/* "Por WhatsApp respondemos mas rapido" solo si hay WhatsApp:
+                  sin numero, prometia un canal que no existe. */}
+              {hayWhatsapp(business)
+                ? 'Escríbenos para confirmar disponibilidad, resolver dudas sobre terapia o preguntar por la cafetería. Por WhatsApp respondemos más rápido.'
+                : 'Aquí están nuestro horario, dónde encontrarnos y cómo contactarnos para dudas sobre terapia o la cafetería.'}
             </p>
           </div>
           <section className="pub-board" aria-labelledby="horario">
