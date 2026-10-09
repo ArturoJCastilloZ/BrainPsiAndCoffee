@@ -8,8 +8,7 @@ import {
   LogOut,
   Plus,
   Settings,
-  User,
-} from 'lucide-react';
+  User, LockKeyhole } from 'lucide-react';
 import { C } from '../theme';
 import { localDate } from '../utils.jsx';
 import BrandMark from '../components/BrandMark';
@@ -17,6 +16,9 @@ import AdminAppointments from '../admin/AdminAppointments';
 import AdminSchedules from '../admin/AdminSchedules';
 import { useConfirm } from '../components/ConfirmDialog';
 import { useAppData, useTheme } from '../context/AppContext';
+import SecurityPanel from '../components/SecurityPanel';
+import { useMfaExigida } from '../components/useMfaExigida';
+import ConsentimientoClinico from './ConsentimientoClinico';
 import {
   addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes, logClinicalNoteAccess,
   loadPatients, signClinicalNote, updateClinicalNote,
@@ -25,6 +27,7 @@ import {
 export default function DoctorApp({ logout }) {
   const { bookings, setBookings, catalogs, session, catalogActions } = useAppData();
   const { theme, toggleTheme } = useTheme();
+  const mfaPendiente = useMfaExigida(session);
   const therapistId = session?.user?.therapistId;
   const therapist = catalogs.therapists.find((item) => item.id === therapistId);
   const [page, setPage] = useState('appointments');
@@ -112,6 +115,18 @@ export default function DoctorApp({ logout }) {
       setNotesLoading(false);
     }
   };
+
+  // La clinica exige verificacion en dos pasos y esta sesion entro solo
+  // con contraseña: antes que nada, verificarse (0039).
+  if (mfaPendiente) {
+    return (
+      <div data-contexto="clinic" style={{ background: 'var(--admin-bg)', minHeight: '100vh', padding: '40px 20px', boxSizing: 'border-box', color: 'var(--admin-text)' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <SecurityPanel session={session} modo="exigido" onLogout={logout} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     // El panel del especialista es Consultorio: acento sage.
@@ -211,6 +226,7 @@ export default function DoctorApp({ logout }) {
         {page === 'schedule' && (
           <AdminSchedules catalogs={catalogs} lockedTherapistId={therapistId} reload={catalogActions?.reload} embedded />
         )}
+        {page === 'security' && <SecurityPanel session={session} />}
         {page === 'patients' && (
           <DoctorPatients
             appointments={doctorBookings}
@@ -248,6 +264,12 @@ const PAGINAS = {
     icono: User,
     descripcion: 'El expediente de cada paciente. Las notas clínicas solo las ve el especialista autorizado, y cada lectura queda en la bitácora.',
   },
+  security: {
+    titulo: 'Seguridad',
+    pestana: 'Seguridad',
+    icono: LockKeyhole,
+    descripcion: 'Tu verificación en dos pasos. Protege los expedientes aunque alguien conozca tu contraseña.',
+  },
   schedule: {
     titulo: 'Mi horario',
     pestana: 'Horario',
@@ -256,7 +278,7 @@ const PAGINAS = {
   },
 };
 
-const ORDEN_PAGINAS = ['appointments', 'patients', 'schedule'];
+const ORDEN_PAGINAS = ['appointments', 'patients', 'schedule', 'security'];
 
 const topButtonStyle = {
   display: 'inline-flex',
@@ -425,8 +447,12 @@ function DoctorPatients({
               <h2 className="font-display" style={{ margin: 0, fontSize: 26, fontWeight: 500, letterSpacing: '-0.015em', color: 'var(--admin-text)' }}>
                 {patient?.name}
               </h2>
-              <div style={{ color: 'var(--admin-muted)', fontSize: 12.5, marginTop: 5 }}>
-                {[patient?.email, patient?.phone].filter(Boolean).join(' · ')}
+              {/* 0038: un menor no tiene correo ni telefono propios; los
+                  que aparecen son de su adulto responsable, y se dice. */}
+              <div style={{ color: 'var(--admin-muted)', fontSize: 14, marginTop: 5 }}>
+                {patient?.isMinor
+                  ? `Menor de edad · responsable: ${patient.guardianName || 'sin registrar'} · ${[patient?.email, patient?.phone].filter(Boolean).join(' · ')}`
+                  : [patient?.email, patient?.phone].filter(Boolean).join(' · ')}
               </div>
             </div>
             <button onClick={reload} disabled={loading} style={ghostButtonStyle}>
@@ -448,6 +474,8 @@ function DoctorPatients({
             />
           </dl>
         </header>
+
+        <ConsentimientoClinico patient={patient} />
 
         <ClinicalNoteEditor
           patient={patient}

@@ -47,6 +47,13 @@ export const canManageAccess = (role) => isSuperAdmin(role);
 export const canManageSchedules = (role) => canAccessClinic(role);
 export const canManageAppointments = (role) => canAccessClinic(role);
 export const canViewDashboard = (role) => isSuperAdmin(role);
+// Solicitudes ARCO (0039): las atiende el staff administrativo, igual que
+// is_clinic_staff() en la base (dueño y admin del consultorio).
+export const canManageArco = (role) => isSuperAdmin(role) || isClinicAdmin(role);
+// Seguridad de la PROPIA cuenta (verificacion en dos pasos): todo el que
+// entra al panel. Exigirla a la clinica, solo el dueño (set_clinical_mfa).
+export const canManageOwnSecurity = (role) => canAccessAdmin(role) || canAccessDoctor(role);
+export const canRequireClinicalMfa = (role) => isSuperAdmin(role);
 
 // Contabilidad. Los tres entran, pero cada uno a lo suyo: el area que ve
 // NO se decide aqui sino en RLS (0027), porque una policy no se esquiva y
@@ -100,6 +107,8 @@ export const canAccessAdminPage = (role, page) => {
   if (page === 'general-dashboard') return canViewDashboard(role);
   if (page === 'general-business') return canManageBusinessSettings(role);
   if (page === 'general-access') return canManageAccess(role);
+  if (page === 'general-arco') return canManageArco(role);
+  if (page === 'general-security') return canManageOwnSecurity(role);
   if (page === 'clinic-schedules') return canManageSchedules(role);
   if (page === 'cafe-orders') return canManageOrders(role);
   if (page === 'general-accounting') return canViewAccounting(role);

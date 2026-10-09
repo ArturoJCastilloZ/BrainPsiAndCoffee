@@ -59,7 +59,7 @@ const sinComentarios = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/
   const fachada = sinComentarios(readFileSync(join(SRC, 'api/supabaseData.js'), 'utf8')).trim();
   assert.ok(fachada.split('\n').every((l) => /^export \* from '\.\/[a-z]+';$/.test(l.trim())),
     'supabaseData.js volvio a tener codigo: cada dominio va en su modulo');
-  for (const m of ['catalogs', 'appointments', 'orders', 'clinical', 'accounting', 'access']) {
+  for (const m of ['catalogs', 'appointments', 'orders', 'clinical', 'accounting', 'access', 'compliance']) {
     const lineas = readFileSync(join(SRC, `api/${m}.js`), 'utf8').split('\n').length;
     assert.ok(lineas < 400, `api/${m}.js ya mide ${lineas} lineas`);
   }

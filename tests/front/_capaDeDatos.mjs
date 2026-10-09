@@ -4,7 +4,7 @@
 // las deje mirando un archivo vacio.
 import { readFileSync } from 'node:fs';
 
-export const MODULOS = ['shared', 'mappers', 'catalogs', 'appointments', 'orders', 'clinical', 'accounting', 'access', 'rest', 'supabaseClient'];
+export const MODULOS = ['shared', 'mappers', 'catalogs', 'appointments', 'orders', 'clinical', 'accounting', 'access', 'compliance', 'rest', 'supabaseClient'];
 
 export const fuenteCapaDeDatos = () => MODULOS
   .map((m) => readFileSync(new URL(`../../src/api/${m}.js`, import.meta.url), 'utf8'))

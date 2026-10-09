@@ -8,6 +8,18 @@ import { canAccessAdmin, canAccessDoctor, normalizeRole } from './permissions';
 const warningMs = env.authWarningSeconds * 1000;
 const inactivityMs = env.authInactivityMinutes * 60 * 1000;
 
+// El claim 'aal' del JWT, sin verificar la firma: SOLO para decidir que
+// pantalla mostrar. Quien decide el acceso es la base, que si la verifica.
+const leerAal = (token) => {
+  try {
+    const carga = String(token || '').split('.')[1] || '';
+    const json = JSON.parse(atob(carga.replace(/-/g, '+').replace(/_/g, '/')));
+    return json.aal || 'aal1';
+  } catch {
+    return 'aal1';
+  }
+};
+
 const toAppSession = (session) => {
   if (!session?.user) return null;
   // El rol se toma SOLO de app_metadata: viaja firmado en el JWT y el usuario
@@ -36,6 +48,9 @@ const toAppSession = (session) => {
       // el motor ya impone, no lo sustituye.
       mustChangePassword: session.user.app_metadata?.must_change_password === true,
     },
+    // aal1 = solo contraseña; aal2 = con segundo factor. Viene firmado en el
+    // token; es lo que leen las policies del expediente (0039).
+    aal: leerAal(session.access_token),
     accessToken: session.access_token,
     expiresAt: Date.now() + inactivityMs,
   };
@@ -109,7 +124,63 @@ class AuthService {
       throw new Error('Tu usuario no tiene permisos para acceder al panel.');
     }
 
+    // Quien activo la verificacion en dos pasos la usa SIEMPRE al entrar:
+    // la contraseña sola deja la sesion en aal1 y el expediente, si la
+    // clinica lo exige, no se abre. Login pide el codigo y llama a
+    // verificarSegundoFactor().
+    const { data: nivel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (nivel?.nextLevel === 'aal2' && nivel?.currentLevel !== 'aal2') {
+      return { ...session, requiereSegundoFactor: true };
+    }
     return session;
+  }
+
+  // ---- Verificacion en dos pasos (TOTP, app de autenticacion) ----------
+  //
+  // Supabase Auth la implementa; aqui solo se orquesta. El nivel (aal1 o
+  // aal2) viaja FIRMADO en el JWT y es lo que las policies de 0039 leen:
+  // la pantalla no puede saltarse nada.
+
+  async factoresVerificados() {
+    const supabase = await this.cliente();
+    const { data, error } = await supabase.auth.mfa.listFactors();
+    if (error) throw error;
+    return (data?.totp || []).filter((f) => f.status === 'verified');
+  }
+
+  // Empieza el alta: devuelve el QR (SVG en data:) y el secreto para
+  // escribirlo a mano. Los intentos a medias se limpian antes: Supabase
+  // no deja dos factores sin verificar con el mismo nombre.
+  async iniciarAltaSegundoFactor() {
+    const supabase = await this.cliente();
+    const { data: lista } = await supabase.auth.mfa.listFactors();
+    for (const f of (lista?.all || []).filter((x) => x.status !== 'verified')) {
+      await supabase.auth.mfa.unenroll({ factorId: f.id });
+    }
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'App de autenticación' });
+    if (error) throw error;
+    return { factorId: data.id, qr: data.totp.qr_code, secreto: data.totp.secret };
+  }
+
+  // Confirma un codigo: sirve para terminar el alta y para entrar. Deja
+  // la sesion en aal2 (Supabase emite un token nuevo).
+  async verificarSegundoFactor(codigo, factorId = null) {
+    const supabase = await this.cliente();
+    const id = factorId || (await this.factoresVerificados())[0]?.id;
+    if (!id) throw new Error('No tienes configurada la verificación en dos pasos.');
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: id, code: String(codigo).replace(/\s/g, '') });
+    if (error) throw new Error('El código no es válido o ya expiró. Usa el que muestra tu app ahora.');
+    const { data } = await supabase.auth.getSession();
+    return this.setSession(data.session);
+  }
+
+  async desactivarSegundoFactor(factorId) {
+    const supabase = await this.cliente();
+    const { error } = await supabase.auth.mfa.unenroll({ factorId });
+    if (error) throw new Error('Para desactivarla entra primero con tu código de verificación.');
+    await supabase.auth.refreshSession();
+    const { data } = await supabase.auth.getSession();
+    return this.setSession(data.session);
   }
 
   async updatePassword(password) {

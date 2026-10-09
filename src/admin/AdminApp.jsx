@@ -17,6 +17,8 @@ import {
   KeyRound,
   Milk,
   Wallet,
+  ShieldCheck,
+  LockKeyhole,
 } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
@@ -28,6 +30,9 @@ import AdminCatalog from './AdminCatalog';
 import AdminAccess from './AdminAccess';
 import AdminAccounting from './AdminAccounting';
 import AdminSchedules from './AdminSchedules';
+import AdminArco from './AdminArco';
+import SecurityPanel from '../components/SecurityPanel';
+import { useMfaExigida } from '../components/useMfaExigida';
 import { useAccountingData } from './useAccountingData';
 import { useAppData, useTheme } from '../context/AppContext';
 import {
@@ -41,6 +46,9 @@ import {
     canManageClinicCatalog,
     canManageOrders,
     canViewDashboard,
+    canManageArco,
+    canManageOwnSecurity,
+    canRequireClinicalMfa,
     firstAllowedAdminPage,
     canRecordPayment
 } from '../auth/permissions';
@@ -64,6 +72,8 @@ export default function AdminApp({ switchToUser, logout }) {
                 canManageBusinessSettings(role) && { id: 'general-business', label: 'Negocio', icon: Settings },
                 canViewAccounting(role) && { id: 'general-accounting', label: 'Contabilidad', icon: Wallet },
                 canManageAccess(role) && { id: 'general-access', label: 'Accesos', icon: KeyRound },
+                canManageArco(role) && { id: 'general-arco', label: 'Derechos ARCO', icon: ShieldCheck },
+                canManageOwnSecurity(role) && { id: 'general-security', label: 'Seguridad', icon: LockKeyhole },
             ].filter(Boolean)
         },
         {
@@ -107,11 +117,25 @@ export default function AdminApp({ switchToUser, logout }) {
         [contextoActivo, navSections],
     );
 
+    // La clinica exige verificacion en dos pasos y esta sesion entro solo
+    // con contraseña: antes que nada, verificarse (0039).
+    const mfaPendiente = useMfaExigida(session);
+
     useEffect(() => {
         if (!canAccessAdminPage(role, page)) {
             setPage(firstAllowedAdminPage(role) || 'cafe-orders');
         }
     }, [page, role]);
+
+    if (mfaPendiente) {
+        return (
+            <div data-contexto="clinic" style={{ background: 'var(--admin-bg)', minHeight: '100vh', padding: '40px 20px', boxSizing: 'border-box', color: 'var(--admin-text)' }}>
+                <div style={{ maxWidth: 640, margin: '0 auto' }}>
+                    <SecurityPanel session={session} modo="exigido" onLogout={logout} />
+                </div>
+            </div>
+        );
+    }
 
     return (
         // data-contexto pinta el acento del area: caramelo en Cafeteria,
@@ -263,6 +287,8 @@ export default function AdminApp({ switchToUser, logout }) {
                         {page === 'general-dashboard' && canViewDashboard(role) && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} contabilidad={contabilidad} />}
                         {page === 'general-accounting' && canViewAccounting(role) && <AdminAccounting bookings={bookings} orders={orders} catalogs={catalogs} session={session} contabilidad={contabilidad} />}
                         {page === 'general-access' && canManageAccess(role) && <AdminAccess />}
+                        {page === 'general-arco' && canManageArco(role) && <AdminArco />}
+                        {page === 'general-security' && canManageOwnSecurity(role) && <SecurityPanel session={session} puedeExigir={canRequireClinicalMfa(role)} />}
                         {page === 'general-business' && canManageBusinessSettings(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="business" lockedTab heading="Negocio" description="Administra información general del negocio, contacto, redes, mapa y horarios." />}
                         {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} payments={contabilidad.datos.payments} canRecordPayments={canRecordPayment(role, 'pedido')} onRegistrarCobro={contabilidad.registrarCobro} />}
                         {page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}

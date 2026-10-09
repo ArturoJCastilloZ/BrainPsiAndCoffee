@@ -1,11 +1,14 @@
 // Citas: lectura del staff, alta publica y consentimientos.
 import { conCliente } from './supabaseClient';
+import { PRIVACY_NOTICE_VERSION, hashAviso } from '../legal/avisoPrivacidad.mjs';
 import { cambiosDeLista } from '../listDiff.mjs';
 import { validateAppointment } from '../validation';
 import { throwIfError, hasAuthSession, deleteRemoved } from './shared';
 import { mapAppointmentFromDb, mapAppointmentToDb } from './mappers';
 
-export const PRIVACY_NOTICE_VERSION = '2026-08-v1';
+// La version sale del aviso mismo (src/legal): una constante suelta aqui
+// podia quedarse en '2026-08-v1' mientras el texto cambiaba.
+export { PRIVACY_NOTICE_VERSION } from '../legal/avisoPrivacidad.mjs';
 
 export const loadAppointments = async () => {
   const supabase = await conCliente();
@@ -78,6 +81,8 @@ export const saveAppointments = async (items, previousItems = []) => {
 // no es evidencia de nada.
 const recordPrivacyConsents = async (appointments) => {
   const supabase = await conCliente();
+  // El hash del texto aceptado: con la version, prueba QUE leyo la persona.
+  const documentHash = await hashAviso();
   const rows = appointments
     .filter((item) => item.privacyAccepted && item.email)
     .map((item) => ({
@@ -85,6 +90,7 @@ const recordPrivacyConsents = async (appointments) => {
       subject_email: item.email,
       consent_type: 'privacy_notice',
       document_version: PRIVACY_NOTICE_VERSION,
+      document_hash: documentHash,
       user_agent: typeof navigator === 'undefined' ? null : navigator.userAgent.slice(0, 400),
       evidence: { source: 'booking_flow', accepted_at_client: new Date().toISOString() },
     }));

@@ -127,7 +127,15 @@ declare
     -- 0038: rangos ocupados para la reserva publica. Definer porque el
     -- visitante no lee appointments; devuelve terapeuta, fecha, hora y
     -- duracion, nunca datos del paciente (lo vigila 0028_minor_bookings).
-    'busy_slots'
+    'busy_slots',
+    -- 0039: alta y tramite ARCO (topes para el visitante, sellos de la
+    -- base); sellos del consentimiento; y la regla de MFA del expediente,
+    -- que lee tenants.config sin exponerlo.
+    'arco_request_rules',
+    'consent_server_stamps',
+    'clinical_mfa_ok',
+    'set_clinical_mfa',
+    'clinical_mfa_required'
   ];
   v_reales text[];
   v_nuevas text[];

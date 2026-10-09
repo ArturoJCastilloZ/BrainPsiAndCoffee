@@ -74,6 +74,14 @@ export const PUBLIC_ROUTES = [
     text: 'Usamos tus datos de contacto solo para responder, confirmar citas y dar seguimiento. No pidas ni envíes información clínica por formularios públicos.',
     priority: '0.3',
   },
+  {
+    path: '/derechos-arco',
+    title: 'Derechos ARCO · Brainpsi Coffee',
+    description: 'Solicita acceso, rectificación, cancelación u oposición sobre tus datos personales, o revoca tu consentimiento.',
+    h1: 'Tus derechos sobre tus datos',
+    text: 'Puedes pedir acceso, corrección o cancelación de tus datos, oponerte a su uso o revocar tu consentimiento. Respondemos en un máximo de 20 días hábiles.',
+    priority: '0.2',
+  },
 ];
 
 // Rutas que existen pero que un buscador no debe indexar: son personales

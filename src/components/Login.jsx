@@ -30,6 +30,10 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
   const [mode, setMode] = useState('login');
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
+  // Segundo paso (0039): quien activo la verificacion en dos pasos escribe
+  // el codigo de su app despues de la contraseña.
+  const [codigo, setCodigo] = useState('');
+  const codigoValido = /^\d{6}$/.test(codigo.replace(/\s/g, ''));
 
   const isDark = theme === 'dark';
   const identifier = username.trim();
@@ -60,9 +64,29 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
     try {
       const session = await authService.login({ username: identifier, password });
       setError('');
+      if (session?.requiereSegundoFactor) {
+        setMode('mfa');
+        return;
+      }
       onLogin(session);
     } catch (error) {
       setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitCodigo = async (event) => {
+    event.preventDefault();
+    if (!codigoValido || loading) return;
+    setLoading(true);
+    try {
+      const session = await authService.verificarSegundoFactor(codigo);
+      setError('');
+      onLogin(session);
+    } catch (err) {
+      setError(err.message);
+      setCodigo('');
     } finally {
       setLoading(false);
     }
@@ -94,7 +118,7 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
       color: isDark ? C.cream : C.brown,
       boxSizing: 'border-box'
     }}>
-      <form onSubmit={mode === 'login' ? submit : submitReset} style={{
+      <form onSubmit={mode === 'login' ? submit : mode === 'mfa' ? submitCodigo : submitReset} style={{
         width: '100%',
         maxWidth: 420,
         background: isDark ? '#1A2118' : C.creamLight,
@@ -107,11 +131,21 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
           <BrandMark size={42} />
           <div>
             <div className="font-display" style={{ fontSize: 24, fontWeight: 700, lineHeight: 1 }}>Brainpsi</div>
-            <div style={{ fontSize: 12, color: isDark ? C.sageLight : C.brownMid }}>{mode === 'login' ? 'Acceso administrativo' : 'Recuperación de acceso'}</div>
+            <div style={{ fontSize: 12, color: isDark ? C.sageLight : C.brownMid }}>{mode === 'login' ? 'Acceso administrativo' : mode === 'mfa' ? 'Verificación en dos pasos' : 'Recuperación de acceso'}</div>
           </div>
         </div>
 
-        {mode === 'reset' ? (
+        {mode === 'mfa' ? (
+          <>
+            <p style={{ margin: '0 0 16px', color: isDark ? C.cream : C.brownMid, fontSize: 14, lineHeight: 1.5 }}>
+              Abre tu app de autenticación y escribe el código de 6 dígitos de Brainpsi.
+            </p>
+            <label htmlFor="login-codigo" style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Código</label>
+            <input id="login-codigo" value={codigo} onChange={(e) => { setCodigo(e.target.value); setError(''); }}
+              inputMode="numeric" autoComplete="one-time-code" maxLength={7} autoFocus
+              style={{ width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 12, border: `1px solid ${isDark ? '#2A332A' : C.sagePale}`, background: isDark ? '#0F1410' : C.ivory, color: 'inherit', fontFamily: 'inherit', fontSize: 24, letterSpacing: 6, fontVariantNumeric: 'tabular-nums', marginBottom: 14 }} />
+          </>
+        ) : mode === 'reset' ? (
           <>
             <p style={{ margin: '0 0 16px', color: isDark ? C.cream : C.brownMid, fontSize: 13, lineHeight: 1.5 }}>
               Ingresa tu correo. Si pertenece a un usuario autorizado, recibirás un enlace para crear una nueva contraseña.
@@ -152,13 +186,25 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
 
         {error && <div role="alert" style={{ color: C.rustText, fontSize: 13, fontWeight: 600, marginBottom: 14, lineHeight: 1.45 }}>{error}</div>}
 
-        <button type="submit" disabled={mode === 'login' ? !canSubmit : !canReset} style={{ width: '100%', border: 'none', borderRadius: 14, padding: 14, background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', fontWeight: 700, cursor: loading ? 'wait' : ((mode === 'login' ? canSubmit : canReset) ? 'pointer' : 'not-allowed'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', opacity: (mode === 'login' ? canSubmit : canReset) ? 1 : 0.65 }}>
-          {mode === 'login' ? <LogIn size={16} /> : <Mail size={16} />} {loading ? (mode === 'login' ? 'Entrando...' : 'Enviando...') : (mode === 'login' ? 'Entrar al admin' : 'Enviar enlace')}
-        </button>
+        {(() => {
+          const habilitado = mode === 'login' ? canSubmit : mode === 'mfa' ? codigoValido && !loading : canReset;
+          const texto = mode === 'login'
+            ? (loading ? 'Entrando…' : 'Entrar al admin')
+            : mode === 'mfa' ? (loading ? 'Verificando…' : 'Verificar y entrar')
+              : (loading ? 'Enviando…' : 'Enviar enlace');
+          return (
+            <button type="submit" disabled={!habilitado} style={{ width: '100%', border: 'none', borderRadius: 14, padding: 14, background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', fontWeight: 700, cursor: loading ? 'wait' : (habilitado ? 'pointer' : 'not-allowed'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', opacity: habilitado ? 1 : 0.65 }}>
+              {mode === 'reset' ? <Mail size={16} /> : <LogIn size={16} />} {texto}
+            </button>
+          );
+        })()}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 14 }}>
           {mode === 'login' ? (
             <button type="button" onClick={onCancel} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, minHeight: 44, padding: '0 8px' }}>Volver a la app</button>
+          ) : mode === 'mfa' ? (
+            // Volver cierra la sesion a medias (solo contraseña).
+            <button type="button" onClick={async () => { await authService.logout('mfa-cancelado'); setMode('login'); setCodigo(''); setError(''); }} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, minHeight: 44, padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={13} /> Usar otra cuenta</button>
           ) : (
             <button type="button" onClick={() => { setMode('login'); setError(''); setResetSent(false); }} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, minHeight: 44, padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={13} /> Volver</button>
           )}

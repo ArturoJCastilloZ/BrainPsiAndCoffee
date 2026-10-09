@@ -18,6 +18,7 @@ import TherapyPage from './TherapyPage';
 import ContactPage from './ContactPage';
 import PrivacyPage from './PrivacyPage';
 import NotFoundPage from './NotFoundPage';
+import ArcoPage from './ArcoPage';
 import './public.css';
 
 // Las pantallas del flujo (reserva, carrito) siguen pidiendo "la pagina
@@ -150,6 +151,7 @@ export default function UserApp() {
           <Route path="nosotros" element={<AboutPage {...comunes} />} />
           <Route path="contacto" element={<ContactPage settings={catalogs?.settings} />} />
           <Route path="privacidad" element={<PrivacyPage settings={catalogs?.settings} />} />
+          <Route path="derechos-arco" element={<ArcoPage />} />
           {Object.entries(LEGACY_REDIRECTS).map(([vieja, nueva]) => (
             <Route key={vieja} path={vieja.slice(1)} element={<Navigate to={nueva} replace />} />
           ))}
@@ -176,6 +178,7 @@ export default function UserApp() {
                 <li><Link to="/reservar">Solicitar cita</Link></li>
                 <li><Link to="/mis-citas">Mis citas</Link></li>
                 <li><Link to="/privacidad">Aviso de privacidad</Link></li>
+                <li><Link to="/derechos-arco">Derechos ARCO</Link></li>
               </ul>
             </div>
             <div>
