@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-#
 # Imagen de Brainpsi. Tres etapas:
 #   deps     -> node_modules a partir del lockfile (capa cacheada)
 #   dev      -> servidor de Vite con recarga en caliente (docker compose --profile dev)
@@ -9,6 +7,10 @@
 # La configuracion (Supabase, tenant, etc.) NO se compila dentro: se
 # inyecta al arrancar el contenedor (docker/40-env-config.sh). Una sola
 # imagen sirve a cualquier clinica o entorno.
+#
+# Sin linea '# syntax=': usa el interprete de Dockerfile que ya trae
+# Docker (soporta COPY --chmod). Con ella, cada build descargaba uno de
+# Docker Hub, y si Docker Hub fallaba no se podia construir nada.
 
 # Imagenes base fijadas por DIGEST (2026-10-09), no solo por etiqueta: una
 # etiqueta como 22-alpine cambia de contenido con cada publicacion, y una
