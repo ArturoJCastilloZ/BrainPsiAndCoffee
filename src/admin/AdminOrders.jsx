@@ -17,6 +17,8 @@ export default function AdminOrders({
   payments = [], canRecordPayments = false, onRegistrarCobro = null,
 }) {
   const [filter, setFilter] = useState('active');
+  // { order, entregar }: con entregar, el cobro es el paso previo a
+  // entregar el pedido.
   const [cobrando, setCobrando] = useState(null);
   const canCreate = canCreateOrders(session?.user?.role);
   const menu = catalogs?.menu || {};
@@ -60,6 +62,18 @@ export default function AdminOrders({
 
   const updateOrderStatus = (id, status) => {
     setOrders(orders.map(o => o.id === id ? { ...o, status } : o));
+  };
+
+  // Entregar con saldo pendiente pide el cobro primero: entregar sacaba la
+  // tarjeta de "Activos" y el pedido se quedaba sin cobrar sin que nadie
+  // lo notara. Quien no puede cobrar (barista) entrega directo.
+  const entregar = (o) => {
+    const pendiente = paymentStatus(o, payments, 'pedido');
+    if (canRecordPayments && pendiente.estado !== 'pagado' && pendiente.saldo > 0) {
+      setCobrando({ order: o, entregar: true });
+      return;
+    }
+    updateOrderStatus(o.id, 'delivered');
   };
 
   const createOrder = () => {
@@ -229,7 +243,7 @@ export default function AdminOrders({
                 <CobroPedido
                   order={o}
                   payments={payments}
-                  onCobrar={() => setCobrando(o)}
+                  onCobrar={() => setCobrando({ order: o, entregar: false })}
                 />
               )}
 
@@ -251,7 +265,7 @@ export default function AdminOrders({
                     }}>Listo</button>
                   )}
                   {o.status === 'ready' && (
-                    <button onClick={() => updateOrderStatus(o.id, 'delivered')} style={{
+                    <button onClick={() => entregar(o)} style={{
                       flex: 1, background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', padding: '8px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40
                     }}>Entregar</button>
                   )}
@@ -270,11 +284,22 @@ export default function AdminOrders({
       {cobrando && (
         <PaymentDialog
           kind="pedido"
-          doc={cobrando}
+          doc={cobrando.order}
           payments={payments}
           canRecord={canRecordPayments}
-          descripcion={`Pedido ${String(cobrando.id).slice(0, 8)} · ${cobrando.customerName || 'Mostrador'}`}
-          onGuardar={onRegistrarCobro}
+          descripcion={`Pedido ${String(cobrando.order.id).slice(0, 8)} · ${cobrando.order.customerName || 'Mostrador'}`}
+          titulo={cobrando.entregar ? 'Cobrar y entregar' : 'Registrar cobro'}
+          textoGuardar={cobrando.entregar ? 'Cobrar y entregar' : 'Registrar cobro'}
+          sinCobrar={cobrando.entregar ? {
+            label: 'Entregar sin cobrar',
+            onClick: () => { updateOrderStatus(cobrando.order.id, 'delivered'); setCobrando(null); },
+          } : null}
+          onGuardar={async (fila) => {
+            await onRegistrarCobro(fila);
+            // Solo si el cobro quedo: si la base lo rechaza, el dialogo
+            // muestra el error y el pedido sigue sin entregar.
+            if (cobrando.entregar) updateOrderStatus(cobrando.order.id, 'delivered');
+          }}
           onCerrar={() => setCobrando(null)}
         />
       )}

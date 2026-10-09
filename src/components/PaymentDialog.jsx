@@ -27,6 +27,11 @@ export default function PaymentDialog({
   descripcion,     // que se esta cobrando, en palabras
   onGuardar,       // async (fila) => void
   onCerrar,
+  // Para cobrar como PARTE de otra accion (entregar un pedido): cambia el
+  // titulo y el boton, y ofrece seguir sin cobrar como salida explicita.
+  titulo = 'Registrar cobro',
+  textoGuardar = 'Registrar cobro',
+  sinCobrar = null, // { label, onClick }
 }) {
   const estado = useMemo(() => paymentStatus(doc, payments, kind), [doc, payments, kind]);
 
@@ -86,7 +91,7 @@ export default function PaymentDialog({
       <form
         role="dialog"
         aria-modal="true"
-        aria-label="Registrar cobro"
+        aria-label={titulo}
         onClick={(e) => e.stopPropagation()}
         onSubmit={enviar}
         style={{
@@ -99,7 +104,7 @@ export default function PaymentDialog({
           margin: '0 0 4px', fontSize: 20, fontWeight: 500,
           color: 'var(--admin-text)', letterSpacing: '-0.01em',
         }}>
-          Registrar cobro
+          {titulo}
         </h2>
         <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.5, color: 'var(--admin-muted)' }}>
           {descripcion}
@@ -173,6 +178,11 @@ export default function PaymentDialog({
           <button type="button" onClick={onCerrar} disabled={guardando} style={boton()}>
             Cancelar
           </button>
+          {sinCobrar && (
+            <button type="button" onClick={sinCobrar.onClick} disabled={guardando} style={boton()}>
+              {sinCobrar.label}
+            </button>
+          )}
           <button
             type="submit"
             disabled={guardando || estado.saldo <= 0}
@@ -182,7 +192,7 @@ export default function PaymentDialog({
               cursor: guardando || estado.saldo <= 0 ? 'not-allowed' : 'pointer',
             }}
           >
-            {guardando ? 'Registrando…' : 'Registrar cobro'}
+            {guardando ? 'Registrando…' : textoGuardar}
           </button>
         </div>
       </form>
