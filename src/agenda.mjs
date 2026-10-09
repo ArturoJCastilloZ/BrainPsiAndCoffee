@@ -1,3 +1,5 @@
+import { ocupaHorario } from './appointmentStatus.mjs';
+
 // Motor de disponibilidad.
 //
 // Vive aparte de la interfaz para poder probarlo: la aritmetica de
@@ -91,7 +93,7 @@ export const timeSlotStates = ({
   // Lo que ya esta ocupado ese dia, con el buffer de CADA cita: dos citas
   // pueden tener buffers distintos si el terapeuta lo cambio en medio.
   const ocupados = (bookings || [])
-    .filter((b) => b.date === date && b.status !== 'cancelled' && b.therapistId === therapist.id)
+    .filter((b) => b.date === date && ocupaHorario(b, now) && b.therapistId === therapist.id)
     .map((b) => {
       const s = (services || []).find((x) => x.id === b.serviceId);
       const d = Number(b.durationMinutes || s?.duration || therapist.sessionDuration || 50);

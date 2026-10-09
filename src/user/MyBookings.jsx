@@ -11,6 +11,18 @@ import {
 import { C } from '../theme';
 import { isWorkingDay, poolAvailableSlots } from '../agenda.mjs';
 import { addDays, dayLabel, localDate, localISO } from '../utils.jsx';
+import { solicitudVencida } from '../appointmentStatus.mjs';
+
+// Lo que la pantalla le dice al paciente sobre su cita. Una solicitud
+// (0036) no es una cita confirmada, y una que nadie confirmo a tiempo
+// tampoco: decirle "CONFIRMADA" lo haria presentarse a una cita que no hay.
+const etiquetaEstado = (booking, isPast) => {
+  if (booking.status === 'cancelled') return 'CANCELADA';
+  if (booking.status === 'requested') {
+    return solicitudVencida(booking) || isPast ? 'NO CONFIRMADA' : 'POR CONFIRMAR';
+  }
+  return isPast ? 'COMPLETADA' : 'CONFIRMADA';
+};
 
 export default function MyBookings({ bookings, setBookings, setPage, showToast, catalogs }) {
   const services = catalogs?.services || [];
@@ -135,7 +147,7 @@ function BookingCard({ booking, onCancel, onStartReschedule, onSaveReschedule, o
           fontSize: 10, padding: '3px 10px', borderRadius: 999, fontWeight: 700,
           background: booking.status === 'cancelled' ? C.rustAlpha20 : (isPast ? C.sagePale : C.sageDark),
           color: booking.status === 'cancelled' ? C.rust : (isPast ? C.sageDeep : onLightAccent)
-        }}>{booking.status === 'cancelled' ? 'CANCELADA' : (isPast ? 'COMPLETADA' : 'CONFIRMADA')}</span>
+        }}>{etiquetaEstado(booking, isPast)}</span>
       </div>
 
       <div style={{ display: 'flex', gap: 14, fontSize: 13, color: C.brownMid, paddingTop: 10, borderTop: `1px solid ${C.sagePale}` }}>

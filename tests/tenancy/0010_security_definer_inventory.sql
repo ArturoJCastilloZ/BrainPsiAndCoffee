@@ -117,7 +117,10 @@ declare
     'guard_therapist_link',
     -- 0035: las fechas de nota y addendum las pone el servidor. No lee
     -- datos; definer para que ningun rol la esquive.
-    'stamp_clinical_times'
+    'stamp_clinical_times',
+    -- 0036: cancela solicitudes de reserva de mas de 24 h de UNA clinica.
+    -- Definer porque quien reserva es anonimo; no lee ni devuelve datos.
+    'expire_stale_booking_requests'
   ];
   v_reales text[];
   v_nuevas text[];

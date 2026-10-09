@@ -1,3 +1,6 @@
+// Una cita POR CONFIRMAR (0036) todavia no es un servicio facturado.
+import { cuentaComoFacturada } from './appointmentStatus.mjs';
+
 // Motor de contabilidad.
 //
 // Aparte y probado, como agenda.mjs y menuOptions.mjs. Un panel contable
@@ -99,7 +102,7 @@ const enRango = (fecha, { from, to }) => {
 
 export const billedClinic = (appointments = [], range) =>
   redondea(appointments
-    .filter((a) => vive(a) && enRango(a.date, range))
+    .filter((a) => cuentaComoFacturada(a) && enRango(a.date, range))
     .reduce((s, a) => s + num(a.price), 0));
 
 export const billedCafe = (orders = [], range) =>
@@ -135,7 +138,7 @@ const pagadoPorDocumento = (payments = [], llave) =>
 export const receivableClinic = (appointments = [], payments = [], range) => {
   const pagado = pagadoPorDocumento(payments, 'appointmentId');
   return redondea(appointments
-    .filter((a) => vive(a) && enRango(a.date, range))
+    .filter((a) => cuentaComoFacturada(a) && enRango(a.date, range))
     .reduce((s, a) => s + Math.max(0, num(a.price) - num(pagado[a.id])), 0));
 };
 
@@ -189,7 +192,7 @@ const agrupa = (filas, llave, etiqueta, importe) => {
 export const byService = (appointments = [], services = [], range) => {
   const nombre = (id) => services.find((s) => s.id === id)?.name;
   return agrupa(
-    appointments.filter((a) => vive(a) && enRango(a.date, range)),
+    appointments.filter((a) => cuentaComoFacturada(a) && enRango(a.date, range)),
     (a) => a.serviceId, (a) => nombre(a.serviceId), (a) => a.price,
   );
 };
@@ -197,7 +200,7 @@ export const byService = (appointments = [], services = [], range) => {
 export const byTherapist = (appointments = [], therapists = [], range) => {
   const nombre = (id) => therapists.find((t) => t.id === id)?.name;
   return agrupa(
-    appointments.filter((a) => vive(a) && enRango(a.date, range) && a.therapistId),
+    appointments.filter((a) => cuentaComoFacturada(a) && enRango(a.date, range) && a.therapistId),
     (a) => a.therapistId, (a) => nombre(a.therapistId), (a) => a.price,
   );
 };

@@ -96,7 +96,9 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
       therapistId: assignedTherapistId,
       durationMinutes,
       notes: '',
-      status: 'confirmed',
+      // La base la guarda como solicitud de todos modos (0036); se manda
+      // asi para que la pantalla diga lo mismo que la base.
+      status: 'requested',
       createdAt: new Date().toISOString(),
       reminderSent: false
     };
@@ -108,14 +110,15 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
     const result = await setBookings([...bookings, newBooking]);
     setSaving(false);
     if (!result?.ok) {
-      // 23P01: la restriccion de exclusion de la base — otra persona tomo
-      // ese horario mientras este paciente llenaba sus datos.
-      if (result?.error?.code === '23P01') {
+      // Otra persona tomo ese horario mientras este paciente llenaba sus
+      // datos. La misma hora exacta la rechaza el indice unico (23505); un
+      // rango encimado, el EXCLUDE (23P01).
+      if (['23P01', '23505'].includes(result?.error?.code)) {
         setErrors({ time: 'Ese horario se acaba de ocupar. Elige otro, por favor.' });
         setStep(3);
         return;
       }
-      setErrors({ submit: 'No pudimos guardar tu cita. Revisa tu conexión e inténtalo de nuevo, o escríbenos por WhatsApp.' });
+      setErrors({ submit: 'No pudimos enviar tu solicitud. Revisa tu conexión e inténtalo de nuevo, o escríbenos por WhatsApp.' });
       return;
     }
     setLinkedBookingId(newBooking.id);
@@ -302,7 +305,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
               <div style={{ background: C.sagePale, borderRadius: 14, padding: 14, marginBottom: 20, fontSize: 12, color: C.sageDeep, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <Bell size={16} style={{ flexShrink: 0, marginTop: 1 }} />
                 <div>
-                  <strong>Confirmación:</strong> Al guardar tu solicitud, el equipo podrá verla en el panel administrativo. Para confirmación inmediata, usa el botón de WhatsApp al finalizar.
+                  <strong>Así funciona:</strong> tu solicitud aparta este horario. El consultorio la revisa y te confirma por WhatsApp. Si no se confirma en 24 horas, el horario se libera.
                 </div>
               </div>
 
@@ -318,7 +321,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
                 opacity: saving ? 0.7 : 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
               }}>
-                <Check size={18} /> {saving ? 'Guardando tu cita…' : 'Confirmar reservación'}
+                <Check size={18} /> {saving ? 'Enviando tu solicitud…' : 'Enviar solicitud'}
               </button>
             </div>
           )}
@@ -332,9 +335,9 @@ export default function BookingFlow({ setPage, bookings, setBookings, addToCart,
             <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: `2px dashed ${C.sage}`, animation: 'spin 20s linear infinite' }} />
             <CheckCircle2 size={50} color={C.sageDeep} strokeWidth={1.5} />
           </div>
-          <h1 className="font-display" style={{ fontSize: 32, fontWeight: 600, color: C.brown, margin: '0 0 10px', letterSpacing: '-0.02em' }}>¡Listo, {data.name.split(' ')[0]}!</h1>
+          <h1 className="font-display" style={{ fontSize: 32, fontWeight: 600, color: C.brown, margin: '0 0 10px', letterSpacing: '-0.02em' }}>¡Solicitud enviada, {data.name.split(' ')[0]}!</h1>
           <p style={{ fontSize: 15, color: C.brownMid, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 24px' }}>
-            Recibimos tu solicitud de cita. El equipo podrá revisarla en el panel y puedes confirmarla por WhatsApp.
+            Te apartamos el horario durante 24 horas. El consultorio te confirmará por WhatsApp; si quieres agilizarlo, escríbenos con el botón de abajo.
           </p>
 
           <div style={{ background: C.creamLight, border: `1px solid ${C.sagePale}`, borderRadius: 14, padding: 16, marginBottom: 16, textAlign: 'left' }}>

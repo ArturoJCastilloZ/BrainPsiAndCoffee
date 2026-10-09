@@ -15,6 +15,7 @@ import { validateAppointment } from '../validation';
 import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
 import { formatMoney } from '../accounting.mjs';
+import { cuentaComoFacturada, solicitudVencida } from '../appointmentStatus.mjs';
 
 export default function AdminAppointments({
   bookings, setBookings, catalogs, lockedTherapistId = null,
@@ -160,10 +161,17 @@ export default function AdminAppointments({
     }
   }, [availableSlots, draft.time]);
 
+  const porConfirmar = useMemo(
+    () => bookings.filter(b => b.status === 'requested' && !solicitudVencida(b)
+      && (!lockedTherapistId || b.therapistId === lockedTherapistId)).length,
+    [bookings, lockedTherapistId],
+  );
+
   const filtered = useMemo(() => {
     let list = [...bookings];
     if (lockedTherapistId) list = list.filter(b => b.therapistId === lockedTherapistId);
     if (filter === 'upcoming') list = list.filter(b => b.status !== 'cancelled' && new Date(b.date + 'T' + b.time) >= new Date());
+    else if (filter === 'requested') list = list.filter(b => b.status === 'requested');
     else if (filter === 'past') list = list.filter(b => new Date(b.date + 'T' + b.time) < new Date());
     else if (filter === 'cancelled') list = list.filter(b => b.status === 'cancelled');
 
@@ -340,6 +348,9 @@ export default function AdminAppointments({
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         {[
           { id: 'upcoming', label: 'Próximas' },
+          // Las solicitudes de la web esperan una decision: confirmar o
+          // rechazar. El contador dice cuantas hay sin abrir el filtro.
+          { id: 'requested', label: porConfirmar ? `Por confirmar (${porConfirmar})` : 'Por confirmar' },
           { id: 'past', label: 'Pasadas' },
           { id: 'cancelled', label: 'Canceladas' },
           { id: 'all', label: 'Todas' },
@@ -367,6 +378,7 @@ export default function AdminAppointments({
             {search.trim()
               ? `Ningún resultado para “${search.trim()}”`
               : filter === 'upcoming' ? 'No hay citas próximas'
+                : filter === 'requested' ? 'No hay solicitudes por confirmar'
                 : filter === 'cancelled' ? 'Ninguna cita cancelada'
                   : filter === 'past' ? 'Todavía no hay citas pasadas'
                     : 'Aún no hay citas'}
@@ -445,9 +457,24 @@ export default function AdminAppointments({
                       </div>
 
                       <div className="cita-acciones">
-                        <EstadoCita status={b.status} />
-                        {canRecordPayments && b.status !== 'cancelled' && (
+                        <EstadoCita status={b.status} vencida={solicitudVencida(b)} />
+                        {/* Una solicitud por confirmar todavia no se cobra:
+                            no es un servicio acordado. */}
+                        {canRecordPayments && cuentaComoFacturada(b) && (
                           <CobroChip booking={b} payments={payments} onCobrar={() => setCobrando(b)} />
+                        )}
+                        {/* Decision sobre una solicitud de la web. Con texto y
+                            no solo icono: confirmar le promete al paciente
+                            una cita, y no debe confundirse con otra accion. */}
+                        {b.status === 'requested' && (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button onClick={() => updateStatus(b.id, 'confirmed')} aria-label={`Confirmar la solicitud de ${b.name}`} style={decisionStyle(true)}>
+                              <Check size={13} aria-hidden="true" /> Confirmar
+                            </button>
+                            <button onClick={() => updateStatus(b.id, 'cancelled')} aria-label={`Rechazar la solicitud de ${b.name}`} style={decisionStyle(false)}>
+                              Rechazar
+                            </button>
+                          </div>
                         )}
                         {b.status === 'confirmed' && (
                           <div style={{ display: 'flex', gap: 4 }}>
@@ -551,13 +578,20 @@ function etiquetaDia(iso) {
 //
 // Ademas del color va la PALABRA, para quien no distingue los tonos.
 const ESTADO_CITA = {
-  confirmed: { texto: 'Confirmada', acento: true },
+  // La unica que pide una decision: lleva el acento.
+  requested: { texto: 'Por confirmar', acento: true },
+  confirmed: { texto: 'Confirmada', acento: false },
   completed: { texto: 'Completada', acento: false },
   cancelled: { texto: 'Cancelada', acento: false },
 };
 
-function EstadoCita({ status }) {
-  const e = ESTADO_CITA[status] || { texto: status, acento: false };
+function EstadoCita({ status, vencida = false }) {
+  // Una solicitud que nadie confirmo en 24 h ya no aparta el horario
+  // (0036): dejarla como "Por confirmar" invitaria a confirmarla sobre un
+  // horario que quiza ya tomo otra persona.
+  const e = vencida
+    ? { texto: 'Vencida', acento: false }
+    : (ESTADO_CITA[status] || { texto: status, acento: false });
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -571,6 +605,15 @@ function EstadoCita({ status }) {
     </span>
   );
 }
+
+const decisionStyle = (principal) => ({
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  height: 30, padding: '0 10px', borderRadius: 8, cursor: 'pointer',
+  fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+  background: principal ? C.sageDark : 'transparent',
+  color: principal ? 'var(--admin-on-accent)' : 'var(--admin-muted)',
+  border: `1px solid ${principal ? C.sageDark : 'var(--admin-border)'}`,
+});
 
 const accionStyle = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',

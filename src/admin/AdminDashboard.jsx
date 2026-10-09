@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { C } from '../theme';
 import { fullDayLabel, todayISO } from '../utils.jsx';
+import { solicitudVencida } from '../appointmentStatus.mjs';
 import {
   CAFETERIA, CONSULTORIO, collected, formatMoney,
   periodRange, previousRange, variation,
@@ -24,6 +25,8 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
   const todayBookings = bookings.filter(b => b.date === today && b.status !== 'cancelled');
   const todayOrders = orders.filter(o => o.createdAt.startsWith(today));
   const pendingOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
+  // Solicitudes de la web que esperan que alguien las confirme (0036).
+  const porConfirmar = bookings.filter(b => b.status === 'requested' && !solicitudVencida(b));
 
   // El dinero sale de accounting.mjs, el mismo motor probado que usa
   // Contabilidad. Antes se calculaba aqui a mano y estaba mal de tres
@@ -56,7 +59,8 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
   // nada, en vez de rellenar el hueco con un adorno que se lee como dato.
   const stats = [
     { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, page: 'clinic-appointments' },
-    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.rust, page: 'clinic-appointments' },
+    { label: 'Solicitudes por confirmar', value: porConfirmar.length, icon: Bell, color: C.sage, cambio: porConfirmar.length > 0 ? 'Revisar' : 'Al día', page: 'clinic-appointments' },
+    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.sage, page: 'clinic-appointments' },
     { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, cambio: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'cafe-orders' },
     { label: 'Cobrado · consultorio', value: formatMoney(consultorio.valor), icon: DollarSign, color: C.sageLight, variacion: consultorio.variacion, ayuda: rangoMes.label, page: 'general-accounting' },
     { label: 'Cobrado · cafetería', value: formatMoney(cafeteria.valor), icon: Coffee, color: C.caramel, variacion: cafeteria.variacion, ayuda: rangoMes.label, page: 'general-accounting' },
