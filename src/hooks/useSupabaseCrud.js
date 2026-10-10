@@ -12,6 +12,7 @@ import {
   saveSettings,
   saveServices,
   saveTherapists,
+  saveLocations,
 } from '../api/supabaseData';
 import { BUSINESS } from '../businessInfo';
 import { getSupabase, hasSupabaseConfig } from '../api/supabaseClient';
@@ -96,6 +97,7 @@ export const useSupabaseCrud = (session) => {
   const [offers, setOffersRaw, setOffers, offersError] = useRemoteState([], saveOffers);
   const [productOptions, setProductOptionsRaw, setProductOptions, productOptionsError] = useRemoteState([], saveProductOptions);
   const [settings, setSettingsRaw, setSettings, settingsError] = useRemoteState(BUSINESS, saveSettings);
+  const [locations, setLocationsRaw, setLocations, locationsError] = useRemoteState([], saveLocations);
   const [schedules, setSchedules] = useState([]);
   // Rangos ocupados para la reserva publica (0038). Sin datos de nadie.
   const [busy, setBusy] = useState([]);
@@ -156,6 +158,7 @@ export const useSupabaseCrud = (session) => {
       setOffersRaw(catalogs.offers);
       setProductOptionsRaw(catalogs.productOptions || []);
       setSettingsRaw(catalogs.settings || BUSINESS);
+      setLocationsRaw(catalogs.locations || []);
       setSchedules(catalogs.schedules || []);
       setBusy(catalogs.busy || []);
 
@@ -176,7 +179,7 @@ export const useSupabaseCrud = (session) => {
     } finally {
       if (vigente()) setLoading(false);
     }
-  }, [canLoadAppointments, canLoadOrders, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setProductOptionsRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw]);
+  }, [canLoadAppointments, canLoadOrders, setBookingsRaw, setMenuRaw, setOffersRaw, setOrdersRaw, setProductOptionsRaw, setServicesRaw, setSettingsRaw, setSpecialtiesRaw, setTherapistsRaw, setLocationsRaw]);
 
   useEffect(() => {
     reload();
@@ -244,18 +247,18 @@ export const useSupabaseCrud = (session) => {
     };
   }, [canLoadOrders, setOrdersRaw, tenantId]);
 
-  const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || productOptionsError || settingsError || bookingsError || ordersError;
+  const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || productOptionsError || settingsError || locationsError || bookingsError || ordersError;
 
   return useMemo(() => ({
     bookings,
     setBookings,
     orders,
     setOrders,
-    catalogs: { services, specialties, therapists, menu, offers, productOptions, settings, schedules, busy },
-    catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setProductOptions, setSettings, reload },
+    catalogs: { services, specialties, therapists, menu, offers, productOptions, settings, schedules, busy, locations },
+    catalogActions: { setServices, setSpecialties, setTherapists, setMenu, setOffers, setProductOptions, setSettings, setLocations, reload },
     loading,
     error,
     reload,
-  }), [bookings, services, specialties, therapists, menu, offers, productOptions, settings, schedules, busy, error, loading, orders, reload, setBookings, setMenu, setOffers, setOrders, setProductOptions, setServices, setSettings, setSpecialties, setTherapists]);
+  }), [bookings, services, specialties, therapists, menu, offers, productOptions, settings, schedules, busy, locations, error, loading, orders, reload, setBookings, setMenu, setOffers, setOrders, setProductOptions, setServices, setSettings, setSpecialties, setTherapists, setLocations]);
 };
 

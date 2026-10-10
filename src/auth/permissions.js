@@ -117,7 +117,8 @@ export const canAccessAdminPage = (role, page) => {
     page === 'clinic-appointments' ||
     page === 'clinic-services' ||
     page === 'clinic-therapists' ||
-    page === 'clinic-specialties'
+    page === 'clinic-specialties' ||
+    page === 'clinic-locations'
   ) return page === 'clinic-appointments' ? canManageAppointments(role) : canManageClinicCatalog(role);
   return false;
 };

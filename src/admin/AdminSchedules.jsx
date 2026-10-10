@@ -22,6 +22,11 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
     [catalogs?.therapists, lockedTherapistId],
   );
   const [therapistId, setTherapistId] = useState(lockedTherapistId || '');
+  // Sucursales (0040). Con una sola, todo va ahi y no se pregunta; con
+  // varias, cada bloque dice en cual es.
+  const sucursales = useMemo(() => (catalogs?.locations || []).filter((l) => l.active !== false), [catalogs?.locations]);
+  const variasSucursales = sucursales.length > 1;
+  const sucursalPorDefecto = sucursales[0]?.id || '';
   const [blocks, setBlocks] = useState([]);
   const [prefs, setPrefs] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -68,7 +73,9 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
       .sort((x, y) => toMinutes(x.startTime) - toMinutes(y.startTime));
     const ultimo = delDia[delDia.length - 1];
     // Una hora de separacion tras el bloque anterior: es el hueco de
-    // comida, que es para lo que sirve partir el dia.
+    // comida, que es para lo que sirve partir el dia. La sucursal se
+    // hereda del bloque anterior del dia: lo normal es quedarse en el
+    // mismo lugar.
     const inicio = ultimo ? toMinutes(ultimo.endTime) + 60 : 9 * 60;
     const fin = Math.min(inicio + 240, 23 * 60 + 59);
     if (inicio >= fin) return b;
@@ -80,6 +87,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
         startTime: fromMinutes(inicio),
         endTime: fromMinutes(fin),
         active: true,
+        locationId: ultimo?.locationId || sucursalPorDefecto,
       },
     ];
   });
@@ -123,6 +131,9 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
   // constraint.
   const problemas = useMemo(() => {
     const fallas = [];
+    if (variasSucursales && blocks.some((b) => !b.locationId)) {
+      fallas.push('Elige la sucursal de cada bloque: con varias sucursales, la reserva necesita saber dónde atiende.');
+    }
     for (const dia of DIAS) {
       const delDia = blocks
         .filter((b) => b.weekday === dia.id)
@@ -139,7 +150,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
       }
     }
     return fallas;
-  }, [blocks]);
+  }, [blocks, variasSucursales]);
 
   const guardar = async () => {
     if (problemas.length) return;
@@ -156,7 +167,12 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
     setError('');
     setNotice('');
     try {
-      await saveTherapistSchedules(therapistId, blocks);
+      // Con UNA sucursal, todo bloque va ahi (los de antes de 0040 sin
+      // sucursal tambien): asi, el dia que se agregue otra, ya esta claro
+      // donde era cada uno.
+      await saveTherapistSchedules(therapistId, blocks.map((b) => (
+        !variasSucursales && sucursalPorDefecto ? { ...b, locationId: sucursalPorDefecto } : b
+      )));
       await saveTherapistAgendaPrefs(therapistId, prefs);
       setNotice('Horario y preferencias guardados.');
       cargadoPara.current = null;
@@ -251,6 +267,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
                       display: 'grid',
                       gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr) auto',
                       alignItems: 'center', gap: 6,
+                      ...(variasSucursales ? { paddingBottom: 6, borderBottom: '1px dashed var(--admin-border-soft)' } : {}),
                     }}>
                       <input
                         type="time" step={900} value={b.startTime}
@@ -273,6 +290,17 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
                       >
                         <Trash2 size={12} aria-hidden="true" />
                       </button>
+                      {variasSucursales && (
+                        <select
+                          value={b.locationId || ''}
+                          aria-label={`${dia.label} ${b.startTime}–${b.endTime}: sucursal`}
+                          onChange={(e) => updateBlock(b.id, 'locationId', e.target.value)}
+                          style={{ ...campo, gridColumn: '1 / -1', width: '100%', borderColor: b.locationId ? undefined : C.rust }}
+                        >
+                          <option value="">¿En qué sucursal?</option>
+                          {sucursales.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                      )}
                     </div>
                   ))}
                 </div>

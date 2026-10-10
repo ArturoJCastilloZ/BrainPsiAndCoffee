@@ -19,6 +19,7 @@ import {
   Wallet,
   ShieldCheck,
   LockKeyhole,
+    MapPin,
 } from 'lucide-react';
 import { C } from '../theme';
 import BrandMark from '../components/BrandMark';
@@ -34,6 +35,7 @@ import AdminArco from './AdminArco';
 import SecurityPanel from '../components/SecurityPanel';
 import { useMfaExigida } from '../components/useMfaExigida';
 import MfaAviso from '../components/MfaAviso';
+import AdminLocations from './AdminLocations';
 import { useAccountingData } from './useAccountingData';
 import { useAppData, useTheme } from '../context/AppContext';
 import {
@@ -94,6 +96,7 @@ export default function AdminApp({ switchToUser, logout }) {
                 canManageClinicCatalog(role) && { id: 'clinic-services', label: 'Servicios', icon: Brain },
                 canManageClinicCatalog(role) && { id: 'clinic-therapists', label: 'Especialistas', icon: Users },
                 canManageClinicCatalog(role) && { id: 'clinic-specialties', label: 'Especialidades', icon: Sparkles },
+                canManageClinicCatalog(role) && { id: 'clinic-locations', label: 'Sucursales', icon: MapPin },
                 canManageSchedules(role) && { id: 'clinic-schedules', label: 'Horarios', icon: Clock },
             ].filter(Boolean)
         },
@@ -300,6 +303,7 @@ export default function AdminApp({ switchToUser, logout }) {
                         {page === 'clinic-appointments' && canManageAppointments(role) && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} payments={contabilidad.datos.payments} canRecordPayments={canRecordPayment(role, 'cita')} onRegistrarCobro={contabilidad.registrarCobro} />}
                         {page === 'clinic-services' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="services" lockedTab heading="Servicios" description="Administra servicios del consultorio, duración, precio y público objetivo." />}
                         {page === 'clinic-therapists' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="therapists" lockedTab heading="Especialistas" description="Administra profesionales, cédulas, especialidades y servicios habilitados." />}
+                        {page === 'clinic-locations' && canManageClinicCatalog(role) && <AdminLocations catalogs={catalogs} catalogActions={catalogActions} />}
                         {page === 'clinic-specialties' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="specialties" lockedTab heading="Especialidades" description="Administra especialidades disponibles para clasificar al equipo clínico." />}
                     </div>
                 </main>

@@ -135,4 +135,76 @@ describe('BookingFlow', () => {
     await user.click(screen.getByRole('button', { name: 'Enviar solicitud' }));
     expect(screen.getByRole('alert').textContent).toBe(mensaje);
   });
+
+  describe('con sucursales', () => {
+    // Ana atiende en Lincoln de 9 a 13 y en San Nicolas de 15 a 18.
+    // Beto da Evaluacion, solo en San Nicolas.
+    const conSucursales = {
+      ...catalogs,
+      services: [
+        ...catalogs.services,
+        { id: 'ev', name: 'Evaluación neuropsicológica', duration: 50, price: 2500, active: true },
+      ],
+      therapists: [
+        ...catalogs.therapists,
+        { id: 'beto', name: 'Beto Ruiz', specialty: 'Neuropsicología', active: true, services: ['ev'], bufferBefore: 0, bufferAfter: 10, slotInterval: 0, minimumNotice: 0 },
+      ],
+      schedules: [0, 1, 2, 3, 4, 5, 6].flatMap((weekday) => [
+        { therapistId: 'tt', weekday, startTime: '09:00', endTime: '13:00', active: true, locationId: 'lin' },
+        { therapistId: 'tt', weekday, startTime: '15:00', endTime: '18:00', active: true, locationId: 'sn' },
+        { therapistId: 'beto', weekday, startTime: '15:00', endTime: '18:00', active: true, locationId: 'sn' },
+      ]),
+      locations: [
+        { id: 'lin', name: 'Lincoln', address: 'Av Lincoln 1600', hasCafe: true, active: true },
+        { id: 'sn', name: 'San Nicolás', address: 'Centro', hasCafe: false, active: true },
+      ],
+    };
+    const montarSuc = (ruta = '/reservar', setBookings = vi.fn(async (lista) => ({ ok: true, value: lista }))) => {
+      render(<MemoryRouter initialEntries={[ruta]}><BookingFlow setPage={vi.fn()} bookings={[]} setBookings={setBookings}
+        setLinkedBookingId={vi.fn()} dataLoading={false} catalogs={conSucursales} /></MemoryRouter>);
+      return setBookings;
+    };
+
+    it('empieza preguntando la sucursal, y solo muestra los servicios de ahi', async () => {
+      const user = userEvent.setup();
+      montarSuc();
+      expect(screen.getByRole('heading', { level: 1, name: 'Elige la sucursal' })).toBeTruthy();
+      expect(screen.getByText('Paso 1 de 6')).toBeTruthy();
+
+      await user.click(screen.getByRole('button', { name: /Lincoln/ }));
+      expect(screen.getByRole('heading', { level: 1, name: 'Elige el servicio' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Psicología infantil/ })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /Evaluación/ })).toBeNull();
+
+      await user.click(screen.getByRole('button', { name: 'Cambiar sucursal' }));
+      await user.click(screen.getByRole('button', { name: /San Nicolás/ }));
+      expect(screen.getByRole('button', { name: /Evaluación/ })).toBeTruthy();
+    });
+
+    it('los horarios son los de esa sucursal, la cita lleva la sucursal y sin cafeteria no ofrece cafe', async () => {
+      const user = userEvent.setup();
+      const guardar = montarSuc();
+      await user.click(screen.getByRole('button', { name: /San Nicolás/ }));
+      await user.click(screen.getByRole('button', { name: /Psicología infantil/ }));
+      await user.click(screen.getByRole('button', { name: /Ana López/ }));
+      const dia = screen.getAllByRole('button', { name: /horarios libres/ }).find((b) => !b.disabled && !/sin horarios/.test(b.getAttribute('aria-label')));
+      await user.click(dia);
+      expect(screen.queryByRole('button', { name: '09:00 horas' })).toBeNull();
+      await user.click(screen.getByRole('button', { name: '16:00 horas' }));
+      await user.click(screen.getByRole('button', { name: 'Continuar' }));
+      expect(screen.queryByText('Quiero un café para ese día')).toBeNull();
+      await llenarDatos(user);
+      await user.click(screen.getByRole('button', { name: 'Revisar mi solicitud' }));
+      expect(screen.getByText(/San Nicolás · Centro/)).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Enviar solicitud' }));
+      const enviada = guardar.mock.calls[0][0].at(-1);
+      expect(enviada).toMatchObject({ locationId: 'sn', therapistId: 'tt', time: '16:00', wantsCoffee: false });
+    });
+
+    it('el atajo de la portada sin sucursal encuentra la que tiene ese horario', () => {
+      montarSuc(`/reservar?servicio=sv&fecha=${FECHA}&hora=16:00`);
+      expect(screen.getByRole('heading', { level: 1, name: 'Elige día y hora' })).toBeTruthy();
+      expect(screen.getByText('San Nicolás')).toBeTruthy();
+    });
+  });
 });

@@ -6,19 +6,25 @@ import { activeOffers } from '../offerUtils.mjs';
 import { validateAppointment } from '../validation';
 import { businessFromSettings, hayWhatsapp, whatsappUrl } from '../businessInfo';
 import { trackEvent } from '../monitoring';
-import { poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
+import { atiendeEnSucursal, bloquesDeSucursal, poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
 import { precio } from './Pizarron';
 import './booking.css';
 
 const PASOS = ['Elige el servicio', 'Elige especialista', 'Elige día y hora', 'Tus datos', 'Revisa y envía'];
+// Con varias sucursales hay un paso 0 antes de todo (0040).
+const PASO_SUCURSAL = 'Elige la sucursal';
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const HORA = /^\d{2}:\d{2}$/;
 
 export default function BookingFlow({ setPage, bookings, setBookings, setLinkedBookingId, catalogs, dataLoading }) {
-  const services = (catalogs?.services || []).filter((item) => item.active !== false);
-  const therapists = (catalogs?.therapists || []).filter((item) => item.active !== false);
+  const todosLosServicios = useMemo(() => (catalogs?.services || []).filter((item) => item.active !== false), [catalogs?.services]);
+  const todosLosEspecialistas = useMemo(() => (catalogs?.therapists || []).filter((item) => item.active !== false), [catalogs?.therapists]);
   // El horario REAL del consultorio (policy publica de 0029).
-  const schedules = catalogs?.schedules || [];
+  const todosLosHorarios = useMemo(() => catalogs?.schedules || [], [catalogs?.schedules]);
+  // Sucursales (0040). Con dos o mas, el paciente elige primero DONDE; con
+  // una, va ahi sin preguntar; sin ninguna, todo funciona como antes.
+  const sucursales = useMemo(() => (catalogs?.locations || []).filter((l) => l.active !== false), [catalogs?.locations]);
+  const conSucursales = sucursales.length > 1;
   // Lo ocupado: el visitante no lee las citas, pero si los rangos que
   // ocupan (busy_slots, 0038). Sin esto se le ofrecian horarios tomados y
   // el choque aparecia hasta el final.
@@ -32,7 +38,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
 
   const [step, setStep] = useState(1);
   const [data, setData] = useState({
-    serviceId: null, therapistId: null, date: null, time: null,
+    locationId: '', serviceId: null, therapistId: null, date: null, time: null,
     forMinor: false, patientName: '',
     name: '', email: '', phone: '', notes: '', wantsCoffee: false, privacyAccepted: false,
   });
@@ -44,8 +50,43 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
     setData((prev) => ({ ...prev, [k]: v }));
     if (errors[k]) setErrors((prev) => ({ ...prev, [k]: '' }));
   };
+  // Una sola sucursal: va ahi sin preguntar. Varias: se pregunta (paso 0)
+  // mientras no se haya elegido.
+  const unicaSucursal = sucursales.length === 1 ? sucursales[0].id : '';
+  const locationId = conSucursales ? data.locationId : unicaSucursal;
+  const sucursal = sucursales.find((l) => l.id === locationId);
+
+  // Todo lo que sigue se ve DESDE la sucursal elegida: sus bloques, quien
+  // atiende ahi, y los servicios que ofrece alguno de ellos.
+  const schedules = useMemo(() => bloquesDeSucursal(todosLosHorarios, locationId), [todosLosHorarios, locationId]);
+  const therapists = useMemo(
+    () => (locationId ? todosLosEspecialistas.filter((t) => atiendeEnSucursal(todosLosHorarios, t.id, locationId)) : todosLosEspecialistas),
+    [todosLosEspecialistas, todosLosHorarios, locationId],
+  );
+  const services = locationId
+    ? todosLosServicios.filter((s) => therapists.some((t) => t.services?.includes(s.id)))
+    : todosLosServicios;
+  // El cafe solo donde hay cafeteria. Sin sucursales capturadas, como antes.
+  const hayCafe = sucursales.length === 0 || Boolean(sucursal?.hasCafe);
+
   const service = services.find((s) => s.id === data.serviceId);
   const therapist = therapists.find((t) => t.id === data.therapistId);
+
+  // Con varias sucursales y ninguna elegida, se empieza por ahi. El
+  // catalogo llega despues del primer render, por eso es un efecto.
+  useEffect(() => {
+    if (conSucursales && !data.locationId && step === 1 && !data.serviceId) setStep(0);
+  }, [conSucursales, data.locationId, data.serviceId, step]);
+
+  const elegirSucursal = (id) => {
+    // Cambiar de sucursal invalida lo elegido despues: el servicio,
+    // el especialista o el horario pueden no existir en la otra.
+    setData((prev) => (prev.locationId === id ? prev : {
+      ...prev, locationId: id, serviceId: null, therapistId: null, date: null, time: null,
+      wantsCoffee: sucursales.find((l) => l.id === id)?.hasCafe ? prev.wantsCoffee : false,
+    }));
+    setStep(1);
+  };
 
   // Atajo desde la portada: /reservar?servicio=..&fecha=..&hora=.. llega
   // con todo puesto y arranca en el paso del horario, para confirmarlo.
@@ -53,21 +94,42 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
   const [params] = useSearchParams();
   const aplicado = useRef(false);
   useEffect(() => {
-    if (aplicado.current || services.length === 0) return;
+    if (aplicado.current || todosLosServicios.length === 0) return;
     aplicado.current = true;
-    const servicio = services.find((s) => s.id === params.get('servicio'));
-    // Un servicio que nadie atiende se queda en el paso 1, donde se explica.
-    if (!servicio || !therapists.some((t) => t.services?.includes(servicio.id))) return;
+    const servicio = todosLosServicios.find((s) => s.id === params.get('servicio'));
     const fecha = params.get('fecha');
     const hora = params.get('hora');
-    if (FECHA.test(fecha || '') && HORA.test(hora || '')) {
-      setData((prev) => ({ ...prev, serviceId: servicio.id, therapistId: 'any', date: fecha, time: hora }));
+    const conHorario = FECHA.test(fecha || '') && HORA.test(hora || '');
+
+    // Con varias sucursales hay que saber DONDE. La de la URL si es
+    // valida; si no, la primera donde ese servicio tiene ese horario libre.
+    let lugar = '';
+    if (conSucursales) {
+      const pedida = sucursales.find((l) => l.id === params.get('sucursal'));
+      lugar = pedida?.id || (servicio && conHorario ? (sucursales.find((l) => {
+        const enLugar = todosLosEspecialistas.filter((t) => t.services?.includes(servicio.id) && atiendeEnSucursal(todosLosHorarios, t.id, l.id));
+        return poolAvailableSlots({
+          date: fecha, therapistId: 'any', serviceId: servicio.id, bookings: ocupadas,
+          services: todosLosServicios, eligibleTherapists: enLugar, schedules: bloquesDeSucursal(todosLosHorarios, l.id),
+        }).includes(hora);
+      })?.id || '') : '');
+      if (!lugar) return;
+    }
+    const enLugar = todosLosEspecialistas.filter((t) => !lugar || atiendeEnSucursal(todosLosHorarios, t.id, lugar));
+    // Un servicio que nadie atiende (ahi) se queda en el paso 1, donde se explica.
+    if (!servicio || !enLugar.some((t) => t.services?.includes(servicio.id))) {
+      if (lugar) { setData((prev) => ({ ...prev, locationId: lugar })); setStep(1); }
+      return;
+    }
+    if (conHorario) {
+      setData((prev) => ({ ...prev, locationId: lugar, serviceId: servicio.id, therapistId: 'any', date: fecha, time: hora }));
       setStep(3);
     } else {
-      setData((prev) => ({ ...prev, serviceId: servicio.id }));
+      setData((prev) => ({ ...prev, locationId: lugar, serviceId: servicio.id }));
       setStep(2);
     }
-  }, [params, services, therapists]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, todosLosServicios, todosLosEspecialistas, sucursales.length]);
 
   // Cada paso es una pantalla nueva: el foco va a su titulo para que el
   // lector de pantalla la anuncie, y la vista vuelve arriba.
@@ -132,6 +194,8 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
       phone: data.phone.trim(),
       patientName: data.forMinor ? data.patientName.trim() : '',
       therapistId: assignedTherapistId,
+      locationId: locationId || '',
+      wantsCoffee: hayCafe && data.wantsCoffee,
       durationMinutes,
       notes: '',
       // La base la guarda como solicitud de todos modos (0036); se manda
@@ -188,6 +252,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
         {/* El cierre como una comanda: lo que importa, grande. */}
         <div className="pub-ticket" aria-label="Resumen de tu solicitud">
           <p className="pub-ticket-sub">{service?.name} · {service?.duration} min</p>
+          {sucursal && <p className="pub-ticket-sub">{sucursal.name}{sucursal.address ? ` · ${sucursal.address}` : ''}</p>}
           <p className="pub-ticket-when">
             {data.date && localDate(data.date).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
             <br />{data.time} h
@@ -222,14 +287,53 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
 
   return (
     <div className="bk">
-      <button type="button" className="bk-back" onClick={() => (step > 1 ? setStep(step - 1) : setPage('home'))}>
+      <button type="button" className="bk-back"
+        onClick={() => (step > 1 ? setStep(step - 1) : step === 1 && conSucursales ? setStep(0) : setPage('home'))}>
         <ArrowLeft size={18} aria-hidden="true" /> Atrás
       </button>
-      <div className="bk-progress" aria-hidden="true">
-        {PASOS.map((p, i) => <span key={p} data-hecho={i < step} />)}
-      </div>
-      <p className="bk-step">Paso {step} de {PASOS.length}</p>
-      <h1 className="bk-title" ref={tituloRef} tabIndex={-1} style={{ outline: 'none' }}>{PASOS[step - 1]}</h1>
+      {(() => {
+        const pasos = conSucursales ? [PASO_SUCURSAL, ...PASOS] : PASOS;
+        const actual = conSucursales ? step + 1 : step;
+        return (
+          <>
+            <div className="bk-progress" aria-hidden="true">
+              {pasos.map((p, i) => <span key={p} data-hecho={i < actual} />)}
+            </div>
+            <p className="bk-step">Paso {actual} de {pasos.length}</p>
+            <h1 className="bk-title" ref={tituloRef} tabIndex={-1} style={{ outline: 'none' }}>{pasos[actual - 1]}</h1>
+          </>
+        );
+      })()}
+      {sucursal && conSucursales && step > 0 && (
+        <p className="bk-intro" style={{ marginTop: -6 }}>
+          En <strong>{sucursal.name}</strong>.{' '}
+          <button type="button" className="pub-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+            onClick={() => setStep(0)}>Cambiar sucursal</button>
+        </p>
+      )}
+
+      {step === 0 && (
+        <ul className="bk-options">
+          {sucursales.map((l) => {
+            const quienes = todosLosEspecialistas.filter((t) => atiendeEnSucursal(todosLosHorarios, t.id, l.id));
+            const cuantos = todosLosServicios.filter((s) => quienes.some((t) => t.services?.includes(s.id))).length;
+            return (
+              <li key={l.id}>
+                <button type="button" className="bk-option" aria-pressed={data.locationId === l.id}
+                  disabled={cuantos === 0} onClick={() => elegirSucursal(l.id)}>
+                  <span className="bk-option-name">{l.name}</span>
+                  <span />
+                  <span className="bk-option-meta">
+                    {l.address || 'Dirección por confirmar'}
+                    {cuantos ? ` · ${cuantos} ${cuantos === 1 ? 'servicio' : 'servicios'}` : ' · Por ahora sin citas en línea'}
+                    {l.hasCafe ? ' · Con cafetería' : ''}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {step === 1 && (
         services.length === 0 ? (
@@ -238,6 +342,10 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
             {dataLoading ? 'Cargando los servicios…' : `Todavía no hay servicios publicados.${conWhatsapp ? ' Escríbenos por WhatsApp y te agendamos.' : ''}`}
           </p>
         ) : (
+          <>
+          {locationId && todosLosServicios.length > services.length && (
+            <p className="bk-intro">Estos son los servicios que se atienden en {sucursal?.name || 'esta sucursal'}.</p>
+          )}
           <ul className="bk-options">
             {services.map((s) => {
               // Sin especialista que lo atienda no hay horarios: se dice
@@ -271,6 +379,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
               );
             })}
           </ul>
+          </>
         )
       )}
 
@@ -337,7 +446,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
             Para cuidar tu privacidad, no pedimos motivos de consulta, diagnósticos ni antecedentes. Eso se platica en persona.
           </p>
 
-          <label className="bk-check bk-panel">
+          {hayCafe && <label className="bk-check bk-panel">
             <input type="checkbox" checked={data.wantsCoffee} onChange={(e) => update('wantsCoffee', e.target.checked)} />
             <span>
               <strong>Quiero un café para ese día</strong><br />
@@ -346,7 +455,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
                 {comboOffer ? ` ${comboOffer.name}: ${precio(comboOffer.price)}.` : ''}
               </span>
             </span>
-          </label>
+          </label>}
 
           <div className="bk-panel" data-error={Boolean(errors.privacyAccepted)}>
             <label className="bk-check">
@@ -370,6 +479,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
           <div className="bk-summary">
             <h2 className="pub-h3" style={{ margin: 0 }}>{service?.name}</h2>
             <dl>
+              {sucursal && (<><dt>Sucursal</dt><dd>{sucursal.name}{sucursal.address ? ` · ${sucursal.address}` : ''}</dd></>)}
               <dt>Para</dt><dd>{paraQuien}</dd>
               {data.forMinor && (<><dt>Adulto responsable</dt><dd>{data.name.trim()}</dd></>)}
               <dt>Especialista</dt><dd>{therapist?.name || 'Te asignamos a quien tenga el horario libre'}</dd>

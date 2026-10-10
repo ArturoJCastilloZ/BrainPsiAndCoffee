@@ -113,3 +113,19 @@ assert.equal(fromMinutes(toMinutes('09:05')), '09:05');
 assert.equal(fromMinutes(toMinutes('18:40')), '18:40');
 
 console.log('agenda: motor de disponibilidad correcto');
+
+// 0040 · Sucursales: el motor recibe solo los bloques de la sucursal.
+{
+  const { bloquesDeSucursal, atiendeEnSucursal } = await import('../../src/agenda.mjs');
+  const bloques = [
+    { therapistId: 'ana', weekday: 2, startTime: '09:00', endTime: '13:00', active: true, locationId: 'lin' },
+    { therapistId: 'ana', weekday: 2, startTime: '15:00', endTime: '18:00', active: true, locationId: 'sn' },
+    { therapistId: 'beto', weekday: 2, startTime: '09:00', endTime: '18:00', active: true, locationId: '' },
+    { therapistId: 'caro', weekday: 2, startTime: '09:00', endTime: '18:00', active: false, locationId: 'sn' },
+  ];
+  assert.deepEqual(bloquesDeSucursal(bloques, 'sn').map((b) => `${b.therapistId}@${b.startTime}`), ['ana@15:00', 'beto@09:00', 'caro@09:00']);
+  assert.equal(bloquesDeSucursal(bloques, '').length, 4, 'sin sucursal elegida no se filtra');
+  assert.equal(atiendeEnSucursal(bloques, 'ana', 'lin'), true);
+  assert.equal(atiendeEnSucursal(bloques, 'beto', 'lin'), true, 'un bloque sin sucursal sirve para cualquiera');
+  assert.equal(atiendeEnSucursal(bloques, 'caro', 'sn'), false, 'un bloque inactivo no cuenta');
+}

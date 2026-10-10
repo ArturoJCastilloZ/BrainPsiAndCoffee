@@ -56,6 +56,8 @@ export const mapScheduleFromDb = (row) => ({
   startTime: String(row.start_time).slice(0, 5),
   endTime: String(row.end_time).slice(0, 5),
   active: row.active !== false,
+  // 0040: en que sucursal es este bloque. '' = cualquiera.
+  locationId: row.location_id || '',
 });
 
 // El id NO se incluye: la base lo genera.
@@ -72,6 +74,29 @@ export const mapScheduleToDb = (item) => ({
   start_time: item.startTime,
   end_time: item.endTime,
   active: item.active !== false,
+  location_id: item.locationId || null,
+  updated_at: new Date().toISOString(),
+});
+
+// 0040 · Sucursales.
+export const mapLocationFromDb = (row) => ({
+  id: row.id,
+  name: row.name,
+  address: row.address || '',
+  mapsUrl: row.maps_url || '',
+  hasCafe: Boolean(row.has_cafe),
+  active: row.active !== false,
+  sortOrder: Number(row.sort_order || 0),
+});
+
+export const mapLocationToDb = (item, i = 0) => ({
+  id: item.id,
+  name: String(item.name || '').trim(),
+  address: String(item.address || '').trim().slice(0, 300),
+  maps_url: String(item.mapsUrl || '').trim().slice(0, 500),
+  has_cafe: Boolean(item.hasCafe),
+  active: item.active !== false,
+  sort_order: Number.isFinite(Number(item.sortOrder)) ? Number(item.sortOrder) : i,
   updated_at: new Date().toISOString(),
 });
 
@@ -197,6 +222,9 @@ export const mapAppointmentFromDb = (row) => ({
   // 0038: cita para un menor. name es entonces el adulto responsable.
   forMinor: Boolean(row.for_minor),
   patientName: row.patient_name || '',
+  // 0040: sucursal de la cita. '' en citas de antes, o de una clinica sin
+  // sucursales.
+  locationId: row.location_id || '',
   notes: row.notes || '',
   wantsCoffee: row.wants_coffee,
   status: row.status,
@@ -235,6 +263,7 @@ export const mapAppointmentToDb = (item) => ({
   customer_phone: item.phone,
   for_minor: Boolean(item.forMinor),
   patient_name: item.forMinor ? String(item.patientName || '').trim() : null,
+  location_id: item.locationId || null,
   notes: String(item.notes || '').slice(0, 280),
   wants_coffee: Boolean(item.wantsCoffee),
   duration_minutes: Number(item.durationMinutes) > 0 ? Number(item.durationMinutes) : 50,

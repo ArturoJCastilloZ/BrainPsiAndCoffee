@@ -35,6 +35,20 @@ export const blocksForDate = (schedules, therapistId, date) => {
     .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
 };
 
+// Los bloques de UNA sucursal (0040). Un bloque sin sucursal sirve para
+// cualquiera — clinica de un solo lugar, o datos de antes. Sin sucursal
+// elegida no se filtra. Se aplica ANTES de todo lo demas: el resto del
+// motor no sabe de sucursales, solo recibe menos bloques.
+export const bloquesDeSucursal = (schedules, locationId) => (
+  locationId
+    ? (schedules || []).filter((b) => !b.locationId || b.locationId === locationId)
+    : (schedules || [])
+);
+
+// ¿Atiende este especialista en esa sucursal (algun bloque activo)?
+export const atiendeEnSucursal = (schedules, therapistId, locationId) =>
+  bloquesDeSucursal(schedules, locationId).some((b) => b.therapistId === therapistId && b.active !== false);
+
 export const isWorkingDay = (schedules, therapistId, date) =>
   blocksForDate(schedules, therapistId, date).length > 0;
 

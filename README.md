@@ -148,6 +148,23 @@ seguridad, redirecciones viejas (`/therapy`, `/coffee`) y cache.
 
 Cada push a `main` publica; cada push a otra rama crea una vista previa.
 
+## Sucursales
+
+Migracion `0040_locations.sql`. Consultorio → **Sucursales** da de alta
+cada lugar (nombre, direccion, enlace de mapa, si tiene cafeteria). En
+Consultorio → **Horarios** cada bloque dice en que sucursal es, asi un
+especialista puede estar en Lincoln por la mañana y en San Nicolas por la
+tarde. Lo que se ofrece en cada sucursal sale de esos horarios: un servicio
+aparece ahi si algun especialista que lo da tiene horario ahi.
+
+Con dos o mas sucursales activas, la reserva publica empieza por "Elige la
+sucursal" y solo muestra servicios, especialistas y horarios de esa; el
+cafe solo se ofrece donde hay cafeteria. La base lo valida
+(`fits_in_schedule` con sucursal en la policy de alta publica) y un
+especialista no puede quedar en dos sucursales a la vez (el EXCLUDE es por
+especialista). Los "motivos" (evaluacion, entrega de resultados) se dan de
+alta como servicios, con su duracion y precio.
+
 ## Correos de Supabase Auth
 
 Salen por SMTP propio (Resend, dominio `brainpsi.arturocastillo.dev`); la

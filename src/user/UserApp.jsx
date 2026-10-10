@@ -154,7 +154,7 @@ export default function UserApp() {
           } />
           <Route path="mis-citas" element={<MyBookings {...comunes} bookings={bookings} misCitas={misCitas} />} />
           <Route path="nosotros" element={<AboutPage {...comunes} />} />
-          <Route path="contacto" element={<ContactPage settings={catalogs?.settings} />} />
+          <Route path="contacto" element={<ContactPage settings={catalogs?.settings} locations={catalogs?.locations} />} />
           <Route path="privacidad" element={<PrivacyPage settings={catalogs?.settings} />} />
           <Route path="derechos-arco" element={<ArcoPage />} />
           {Object.entries(LEGACY_REDIRECTS).map(([vieja, nueva]) => (
@@ -169,7 +169,12 @@ export default function UserApp() {
           <div className="pub-footer-grid">
             <div>
               <h2>Brainpsi Coffee</h2>
-              {tieneDato(business.address) && <p>{business.address}</p>}
+              {/* Con sucursales (0040), cada una con su direccion. */}
+              {(catalogs?.locations || []).filter((l) => l.active !== false).length
+                ? (catalogs.locations.filter((l) => l.active !== false).map((l) => (
+                  <p key={l.id}>{l.name}{l.address ? `: ${l.address}` : ''}</p>
+                )))
+                : tieneDato(business.address) && <p>{business.address}</p>}
               {tieneDato(business.city) && <p>{business.city}</p>}
               <ul aria-label="Horario">
                 {business.hours.map((h) => <li key={h}>{h}</li>)}

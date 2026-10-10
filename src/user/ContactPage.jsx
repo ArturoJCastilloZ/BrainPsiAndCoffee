@@ -4,8 +4,11 @@ import { esExterna, hrefSeguro } from '../safeUrl.mjs';
 import { trackEvent } from '../monitoring';
 import ResenasGoogle from './ResenasGoogle';
 
-export default function ContactPage({ settings }) {
+export default function ContactPage({ settings, locations = [] }) {
   const business = businessFromSettings(settings);
+  // Sucursales (0040). Con alguna capturada, la direccion de Negocio se
+  // sustituye por la lista: cada una con su direccion y su mapa.
+  const sucursales = (locations || []).filter((l) => l.active !== false);
   const canales = [
     // Los dos campos que el admin escribe LIBRES pasan por el saneador:
     // su valor ocupa el href entero, asi que un esquema ejecutable ahi se
@@ -16,7 +19,14 @@ export default function ContactPage({ settings }) {
     // del admin va detras, asi que no puede introducir uno nuevo. Marcar
     // todo por igual escondaria cual es el que de verdad decide.
     hayWhatsapp(business) && { label: 'WhatsApp', value: 'Dudas, citas y pedidos de la cafetería.', href: whatsappUrl('Hola, quiero información de Brainpsi Coffee.', business) },
-    tieneDato(business.address) && { label: 'Dirección', value: business.address, href: hrefSeguro(business.mapsUrl), accion: 'Abrir en el mapa' },
+    ...(sucursales.length
+      ? sucursales.map((l) => ({
+        label: sucursales.length > 1 ? l.name : 'Dirección',
+        value: l.address || l.name,
+        href: hrefSeguro(l.mapsUrl),
+        nota: l.hasCafe && sucursales.length > 1 ? 'Con cafetería' : '',
+      }))
+      : [tieneDato(business.address) && { label: 'Dirección', value: business.address, href: hrefSeguro(business.mapsUrl), accion: 'Abrir en el mapa' }]),
     tieneDato(business.phone) && { label: 'Teléfono', value: business.phone, href: `tel:${business.phone}` },
     tieneDato(business.email) && { label: 'Correo', value: business.email, href: `mailto:${business.email}` },
     tieneDato(business.instagram) && { label: 'Instagram', value: usuarioInstagram(business.instagram) || 'Instagram', href: hrefSeguro(business.instagram) },
@@ -68,6 +78,7 @@ export default function ContactPage({ settings }) {
                     {c.value}
                   </a>
                 ) : <span>{c.value}</span>}
+                {c.nota && <span className="pub-hint">{c.nota}</span>}
               </li>
             ))}
           </ul>

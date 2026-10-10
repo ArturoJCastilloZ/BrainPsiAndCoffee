@@ -5,7 +5,7 @@ import { menuVacio } from '../menuCategorias.mjs';
 import { todayISO } from '../localDay.mjs';
 import { productosDelMenu, opcionesConPosicion } from '../listDiff.mjs';
 import { throwIfError, guardarLista } from './shared';
-import { mapServiceFromDb, mapServiceToDb, mapTherapistFromDb, mapScheduleFromDb, mapScheduleToDb, mapTherapistToDb, mapSpecialtyFromDb, mapSpecialtyToDb, mapProductFromDb, mapProductToDb, mapProductOptionFromDb, mapProductOptionToDb, mapOfferFromDb, mapOfferToDb, mapSettingsFromDb, mapSettingsToDb, mapBusySlotFromDb } from './mappers';
+import { mapServiceFromDb, mapServiceToDb, mapTherapistFromDb, mapScheduleFromDb, mapScheduleToDb, mapTherapistToDb, mapSpecialtyFromDb, mapSpecialtyToDb, mapProductFromDb, mapProductToDb, mapProductOptionFromDb, mapProductOptionToDb, mapOfferFromDb, mapOfferToDb, mapSettingsFromDb, mapSettingsToDb, mapBusySlotFromDb, mapLocationFromDb, mapLocationToDb } from './mappers';
 
 export const loadCatalogs = async () => {
   // Por REST plano, no por supabase-js: es la lectura de la PORTADA y no
@@ -18,7 +18,7 @@ export const loadCatalogs = async () => {
   // y RLS decide que filas le corresponden.
   const therapistsSource = conSesion ? 'therapists' : 'therapists_public';
 
-  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, optionsResult, offersResult, settingsResult, schedulesResult, busyResult] = await Promise.all([
+  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, optionsResult, offersResult, settingsResult, schedulesResult, busyResult, locationsResult] = await Promise.all([
     restSelect('therapy_services', { order: ['created_at'] }),
     restSelect(therapistsSource, { order: ['created_at'] }),
     restSelect('specialties', { order: ['created_at'] }),
@@ -38,6 +38,8 @@ export const loadCatalogs = async () => {
     conSesion
       ? Promise.resolve({ data: [], error: null })
       : restRpc('busy_slots', { p_from: todayISO(), p_days: 42 }),
+    // Sucursales (0040). El visitante ve las activas; el personal, todas.
+    restSelect('locations', { order: ['sort_order', 'name'] }),
   ]);
 
   [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, offersResult].forEach(throwIfError);
@@ -91,7 +93,24 @@ export const loadCatalogs = async () => {
     // sigue: el choque lo detecta la base al enviar, como antes. No se
     // tumba el catalogo entero por un atajo.
     busy: (busyResult.error ? [] : (busyResult.data || [])).map(mapBusySlotFromDb),
+    // Sin la tabla todavia (0040 sin aplicar, PGRST205) se sigue como
+    // clinica de un solo lugar. Cualquier otro error si se propaga.
+    locations: (locationsResult.error?.code === 'PGRST205' ? [] : (throwIfError(locationsResult) || locationsResult.data || [])).map(mapLocationFromDb),
   };
+};
+
+// Sucursales: alta, cambios y bajas. Una sucursal con horarios o citas no
+// se borra (la base lo impide, 0040): se desactiva.
+export const saveLocations = async (items, previousItems = []) => {
+  try {
+    await guardarLista('locations', items.map((item, i) => ({ ...item, sortOrder: i })), previousItems, mapLocationToDb);
+  } catch (error) {
+    if (error?.code === '23503') {
+      throw new Error('Esa sucursal tiene horarios o citas: no se puede borrar. Desactívala en su lugar.');
+    }
+    throw error;
+  }
+  return items;
 };
 
 export const saveServices = async (items, previousItems = []) => {

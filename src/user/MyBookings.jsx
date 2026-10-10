@@ -63,6 +63,7 @@ export default function MyBookings({ bookings, misCitas = [], catalogs }) {
             {mias.map((b) => {
               const service = services.find((s) => s.id === b.serviceId);
               const therapist = therapists.find((t) => t.id === b.therapistId);
+              const lugar = (catalogs?.locations || []).find((l) => l.id === b.locationId);
               const isPast = new Date(`${b.date}T${b.time}`) < new Date();
               const dia = fullDayLabel(localDate(b.date));
               const para = b.forMinor ? b.patientName : b.name;
@@ -77,6 +78,7 @@ export default function MyBookings({ bookings, misCitas = [], catalogs }) {
                     <dt>Día</dt><dd>{dia}</dd>
                     <dt>Hora</dt><dd>{b.time} h</dd>
                     <dt>Con</dt><dd>{therapist?.name || 'Por asignar'}</dd>
+                    {lugar && (<><dt>Dónde</dt><dd>{lugar.name}{lugar.address ? ` · ${lugar.address}` : ''}</dd></>)}
                   </dl>
                   {conWhatsapp && !isPast && b.status !== 'cancelled' && (
                     <p style={{ margin: '14px 0 0' }}>

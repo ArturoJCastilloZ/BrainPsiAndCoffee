@@ -5,7 +5,7 @@ import { addDays, todayISO, uid, weekdayLabelsFrom, localDate } from '../utils.j
 import { localISO } from '../localDay.mjs';
 // timeSlotStates faltaba: agendar con "cualquier especialista" tronaba con
 // un ReferenceError al guardar (lo encontro el linter, 2026-10-09).
-import { isWorkingDay, poolAvailableSlots, poolSlotStates, timeSlotStates } from '../agenda.mjs';
+import { atiendeEnSucursal, bloquesDeSucursal, isWorkingDay, poolAvailableSlots, poolSlotStates, timeSlotStates } from '../agenda.mjs';
 import { validateAppointment } from '../validation';
 import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
@@ -28,7 +28,14 @@ export default function AdminAppointments({
   // habia llegado. Es la clase de defecto que ya produjo un bucle aqui.
   const services = catalogs?.services || VACIO;
   const therapists = catalogs?.therapists || VACIO;
-  const schedules = catalogs?.schedules || VACIO;
+  const todosLosHorarios = catalogs?.schedules || VACIO;
+  // Sucursales (0040): con varias, la cita nueva dice donde y la lista
+  // muestra y filtra por sucursal.
+  const todasLasSucursales = catalogs?.locations || VACIO;
+  const sucursales = useMemo(() => todasLasSucursales.filter((l) => l.active !== false), [todasLasSucursales]);
+  const variasSucursales = sucursales.length > 1;
+  const nombreSucursal = (id) => todasLasSucursales.find((l) => l.id === id)?.name || '';
+  const [filtroSucursal, setFiltroSucursal] = useState('');
   const [filter, setFilter] = useState('upcoming');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
@@ -46,8 +53,23 @@ export default function AdminAppointments({
     phone: '',
     notes: '',
     wantsCoffee: false,
+    locationId: '',
   });
-  const eligibleTherapists = useMemo(() => therapists.filter(therapist => (!lockedTherapistId || therapist.id === lockedTherapistId) && (!draft.serviceId || therapist.services?.includes(draft.serviceId))), [draft.serviceId, lockedTherapistId, therapists]);
+  // Con una sola sucursal, ahi; con varias, la elegida en el formulario.
+  const sucursalDeLaCita = variasSucursales ? draft.locationId : (sucursales[0]?.id || '');
+  useEffect(() => {
+    if (variasSucursales && !draft.locationId && sucursales[0]) {
+      // Un especialista fijado (portal doctor) arranca donde atiende.
+      const suya = lockedTherapistId && sucursales.find((l) => atiendeEnSucursal(todosLosHorarios, lockedTherapistId, l.id));
+      setDraft((d) => ({ ...d, locationId: (suya || sucursales[0]).id }));
+    }
+  }, [variasSucursales, draft.locationId, sucursales, lockedTherapistId, todosLosHorarios]);
+  // Los horarios que valen para la cita nueva: los de su sucursal.
+  const schedules = useMemo(() => bloquesDeSucursal(todosLosHorarios, sucursalDeLaCita), [todosLosHorarios, sucursalDeLaCita]);
+  const eligibleTherapists = useMemo(() => therapists.filter(therapist => (!lockedTherapistId || therapist.id === lockedTherapistId)
+    && (!draft.serviceId || therapist.services?.includes(draft.serviceId))
+    && (!sucursalDeLaCita || atiendeEnSucursal(todosLosHorarios, therapist.id, sucursalDeLaCita))),
+  [draft.serviceId, lockedTherapistId, therapists, sucursalDeLaCita, todosLosHorarios]);
   // Desde donde arranca la rejilla. Empieza en hoy y se mueve con los
   // controles; no esta alineada a meses, asi que la primera columna es
   // siempre el dia de inicio y los encabezados se derivan de el.
@@ -173,9 +195,10 @@ export default function AdminAppointments({
     else if (filter === 'past') list = list.filter(b => new Date(b.date + 'T' + b.time) < new Date());
     else if (filter === 'cancelled') list = list.filter(b => b.status === 'cancelled');
 
+    if (filtroSucursal) list = list.filter(b => b.locationId === filtroSucursal);
     if (search) list = list.filter(b => b.name.toLowerCase().includes(search.toLowerCase()) || b.email.toLowerCase().includes(search.toLowerCase()));
     return list.sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
-  }, [bookings, filter, lockedTherapistId, search]);
+  }, [bookings, filter, lockedTherapistId, search, filtroSucursal]);
 
   const updateStatus = (id, status) => {
     setBookings(bookings.map(b => b.id === id ? { ...b, status } : b));
@@ -194,7 +217,8 @@ export default function AdminAppointments({
     const slot = poolSlotStates({
       date: rescheduleDraft.date, therapistId: booking.therapistId, serviceId: booking.serviceId,
       bookings: bookings.filter(item => item.id !== booking.id),
-      eligibleTherapists: serviceTherapists, services, schedules,
+      // Se reagenda en la MISMA sucursal: con sus bloques.
+      eligibleTherapists: serviceTherapists, services, schedules: bloquesDeSucursal(todosLosHorarios, booking.locationId),
     }).find(item => item.time === rescheduleDraft.time);
     if (!slot?.available) {
       setFormError('Ese horario ya no está disponible. Selecciona otro horario.');
@@ -245,6 +269,7 @@ export default function AdminAppointments({
       id: uid(),
       ...draft,
       therapistId: assignedTherapistId,
+      locationId: sucursalDeLaCita,
       durationMinutes,
       status: 'confirmed',
       createdAt: new Date().toISOString(),
@@ -279,6 +304,14 @@ export default function AdminAppointments({
             <AdminField label="Nombre" value={draft.name} onChange={name => { setFormError(''); setDraft({ ...draft, name }); }} required />
             <AdminField label="Correo" value={draft.email} onChange={email => { setFormError(''); setDraft({ ...draft, email }); }} type="email" required />
             <AdminField label="Teléfono" value={draft.phone} onChange={phone => { setFormError(''); setDraft({ ...draft, phone }); }} required />
+            {variasSucursales && (
+              <label style={fieldWrap}>
+                <span style={fieldLabel}>SUCURSAL</span>
+                <select value={draft.locationId} onChange={e => { setFormError(''); setDraft({ ...draft, locationId: e.target.value, time: '' }); }} className="admin-input" style={fieldInput}>
+                  {sucursales.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </label>
+            )}
             <label style={{ ...fieldWrap, gridColumn: 'span 2' }}>
               <span style={fieldLabel}>SERVICIO</span>
               <select value={draft.serviceId} onChange={e => { setFormError(''); setDraft({ ...draft, serviceId: e.target.value }); }} required className="admin-input" style={{ ...fieldInput, borderColor: !draft.serviceId ? C.rust : undefined }}>
@@ -362,6 +395,13 @@ export default function AdminAppointments({
         ))}
       </div>
 
+      {variasSucursales && (
+        <select value={filtroSucursal} onChange={e => setFiltroSucursal(e.target.value)} aria-label="Filtrar por sucursal" className="admin-input"
+          style={{ padding: '9px 12px', borderRadius: 10, fontSize: 13, marginBottom: 10, fontFamily: 'inherit' }}>
+          <option value="">Todas las sucursales</option>
+          {sucursales.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+      )}
       <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o correo..." className="admin-input" style={{
         width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16, fontFamily: 'inherit', boxSizing: 'border-box'
       }} />
@@ -450,7 +490,7 @@ export default function AdminAppointments({
                           fontSize: 12, color: 'var(--admin-muted)', marginTop: 2,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>
-                          {[s?.name, t?.name || 'Sin asignar', b.phone].filter(Boolean).join(' · ')}
+                          {[s?.name, t?.name || 'Sin asignar', variasSucursales ? nombreSucursal(b.locationId) : '', b.phone].filter(Boolean).join(' · ')}
                         </div>
                       </div>
 
