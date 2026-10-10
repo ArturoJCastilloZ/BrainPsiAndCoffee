@@ -198,7 +198,7 @@ function OrderField({ id, label, value, onChange, error, type = 'text', placehol
   return (
     <div className="pub-field">
       <label className="pub-label" htmlFor={id}>{label}</label>
-      <input id={id} className="pub-input" type={type} value={value} placeholder={placeholder} autoComplete={autoComplete}
+      <input id={id} className="pub-input" type={type} inputMode={type === 'email' ? 'email' : type === 'tel' ? 'tel' : undefined} spellCheck={type === 'email' ? false : undefined} value={value} placeholder={placeholder} autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} />
       {error && <span id={`${id}-error`} className="pub-error">{error}</span>}
     </div>

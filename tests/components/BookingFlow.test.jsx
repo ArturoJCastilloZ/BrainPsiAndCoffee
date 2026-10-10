@@ -70,11 +70,14 @@ describe('BookingFlow', () => {
     expect(screen.getByRole('link', { name: 'Pídela por WhatsApp' })).toBeTruthy();
   });
 
-  it('una hora que ya se ocupo no deja continuar, y lo dice', () => {
+  it('una hora que ya se ocupo no deja continuar, y lo dice', async () => {
+    const user = userEvent.setup();
     montar({ busy: [{ therapistId: 'tt', date: FECHA, time: '10:00', durationMinutes: 50, status: 'confirmed' }] });
     expect(screen.getByText(/Las 10:00 ya no está libre/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Continuar' }).disabled).toBe(true);
     expect(screen.getByRole('button', { name: /10:00 horas, ocupado/ }).disabled).toBe(true);
+    // Continuar no se apaga: presionarlo no avanza.
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Elige día y hora' })).toBeTruthy();
   });
 
   it('sin datos: errores junto a cada campo y el foco en el primero', async () => {

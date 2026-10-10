@@ -42,6 +42,9 @@ export default function AdminAppointments({
   const [reschedulingId, setReschedulingId] = useState(null);
   const [rescheduleDraft, setRescheduleDraft] = useState({ date: '', time: '' });
   const [formError, setFormError] = useState('');
+  // Los "Campo requerido" salen despues de intentar guardar: el
+  // formulario no abre en rojo, y el boton nunca se apaga sin razon.
+  const [intento, setIntento] = useState(false);
   const [cobrando, setCobrando] = useState(null);
   const [draft, setDraft] = useState({
     serviceId: services[0]?.id || '',
@@ -131,10 +134,17 @@ export default function AdminAppointments({
     bookings, eligibleTherapists, services, schedules,
   }), [bookings, draft.date, draft.serviceId, draft.therapistId, eligibleTherapists, schedules, services]);
   const selectedSlot = availableSlots.find(slot => slot.time === draft.time);
-  const canCreateBooking = Boolean(
-    Object.keys(validateAppointment(draft)).length === 0 &&
-    selectedSlot?.available
-  );
+  // validateAppointment habla al paciente ("Escribe tu nombre"); aqui
+  // quien escribe es el personal, sobre el paciente.
+  const erroresParaPersonal = (d) => {
+    const e = validateAppointment(d);
+    const vacio = (v) => !String(v || '').trim();
+    if (e.name) e.name = 'Escribe el nombre del paciente.';
+    if (e.email) e.email = vacio(d.email) ? 'Escribe el correo del paciente.' : 'Revisa el correo: no parece válido.';
+    if (e.phone) e.phone = vacio(d.phone) ? 'Escribe el teléfono del paciente.' : 'Revisa el teléfono: deben ser 10 dígitos.';
+    return e;
+  };
+  const erroresCita = intento ? erroresParaPersonal(draft) : {};
 
   useEffect(() => {
     if (!draft.serviceId && services[0]?.id) {
@@ -230,7 +240,8 @@ export default function AdminAppointments({
   };
 
   const createBooking = () => {
-    const nextErrors = validateAppointment(draft);
+    setIntento(true);
+    const nextErrors = erroresParaPersonal(draft);
     if (Object.keys(nextErrors).length) {
       setFormError(Object.values(nextErrors)[0]);
       return;
@@ -276,6 +287,7 @@ export default function AdminAppointments({
       reminderSent: false,
     }]);
     setDraft({ ...draft, name: '', email: '', phone: '', notes: '', wantsCoffee: false });
+    setIntento(false);
     setCreating(false);
   };
 
@@ -300,10 +312,13 @@ export default function AdminAppointments({
 
       {creating && (
         <div className="admin-card" style={{ borderRadius: 14, padding: 22, marginBottom: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(190px, 1fr))', gap: '18px 14px', alignItems: 'end' }}>
-            <AdminField label="Nombre" value={draft.name} onChange={name => { setFormError(''); setDraft({ ...draft, name }); }} required />
-            <AdminField label="Correo" value={draft.email} onChange={email => { setFormError(''); setDraft({ ...draft, email }); }} type="email" required />
-            <AdminField label="Teléfono" value={draft.phone} onChange={phone => { setFormError(''); setDraft({ ...draft, phone }); }} required />
+          {/* auto-fit con min(100%, …) para que en el celular se apile en vez
+              de desbordar; alignItems start para que un aviso bajo un campo
+              no descuadre a sus vecinos de fila. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '18px 14px', alignItems: 'start' }}>
+            <AdminField label="Nombre" value={draft.name} error={erroresCita.name} autoComplete="off" onChange={name => { setFormError(''); setDraft({ ...draft, name }); }} required />
+            <AdminField label="Correo" value={draft.email} error={erroresCita.email} autoComplete="off" spellCheck={false} onChange={email => { setFormError(''); setDraft({ ...draft, email }); }} type="email" required />
+            <AdminField label="Teléfono" value={draft.phone} error={erroresCita.phone} type="tel" inputMode="tel" autoComplete="off" onChange={phone => { setFormError(''); setDraft({ ...draft, phone }); }} required />
             {variasSucursales && (
               <label style={fieldWrap}>
                 <span style={fieldLabel}>SUCURSAL</span>
@@ -312,24 +327,24 @@ export default function AdminAppointments({
                 </select>
               </label>
             )}
-            <label style={{ ...fieldWrap, gridColumn: 'span 2' }}>
+            <label style={fieldWrap}>
               <span style={fieldLabel}>SERVICIO</span>
-              <select value={draft.serviceId} onChange={e => { setFormError(''); setDraft({ ...draft, serviceId: e.target.value }); }} required className="admin-input" style={{ ...fieldInput, borderColor: !draft.serviceId ? C.rust : undefined }}>
+              <select value={draft.serviceId} onChange={e => { setFormError(''); setDraft({ ...draft, serviceId: e.target.value }); }} required className="admin-input" style={{ ...fieldInput, borderColor: intento && !draft.serviceId ? C.rust : undefined }}>
+                <option value="">Elige el servicio…</option>
                 {services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}
               </select>
-              {!draft.serviceId && <span style={requiredHint}>Campo requerido</span>}
+              {intento && !draft.serviceId && <span style={requiredHint}>Elige el servicio.</span>}
             </label>
             {!lockedTherapistId && (
-              <label style={{ ...fieldWrap, minWidth: 240 }}>
+              <label style={fieldWrap}>
                 <span style={fieldLabel}>PROFESIONAL</span>
-                <select value={draft.therapistId} onChange={e => { setFormError(''); setDraft({ ...draft, therapistId: e.target.value }); }} required className="admin-input" style={{ ...fieldInput, borderColor: !draft.therapistId ? C.rust : undefined }}>
+                <select value={draft.therapistId} onChange={e => { setFormError(''); setDraft({ ...draft, therapistId: e.target.value }); }} required className="admin-input" style={fieldInput}>
                   <option value="any">Asignación automática</option>
                   {eligibleTherapists.map(therapist => <option key={therapist.id} value={therapist.id}>{therapist.name}</option>)}
                 </select>
-                {!draft.therapistId && <span style={requiredHint}>Campo requerido</span>}
               </label>
             )}
-            <div style={{ ...fieldWrap, gridColumn: 'span 2' }}>
+            <div style={{ ...fieldWrap, gridColumn: '1 / -1' }}>
               <span style={fieldLabel}>FECHA DISPONIBLE</span>
               <AvailabilityCalendar
                 days={calendarDays}
@@ -339,20 +354,21 @@ export default function AdminAppointments({
                 onToday={() => setCalendarStart(hoy)}
                 enHoy={calendarStart === hoy}
               />
-              {!draft.date && <span style={requiredHint}>Campo requerido</span>}
+              {intento && !draft.date && <span style={requiredHint}>Elige una fecha con horarios.</span>}
             </div>
-            <div style={{ ...fieldWrap, gridColumn: 'span 3' }}>
+            <div style={{ ...fieldWrap, gridColumn: '1 / -1' }}>
               <span style={fieldLabel}>HORARIO DISPONIBLE</span>
               <TimeSlotGrid slots={availableSlots} selectedTime={draft.time} onSelect={time => { setFormError(''); setDraft({ ...draft, time }); }} />
-              {!draft.time && <span style={requiredHint}>Campo requerido</span>}
+              {intento && !draft.time && <span style={requiredHint}>Elige un horario.</span>}
             </div>
-            <label style={{ ...fieldWrap, gridColumn: 'span 2' }}>
+            <label style={{ ...fieldWrap, gridColumn: '1 / -1' }}>
               <span style={fieldLabel}>NOTAS</span>
-              <input value={draft.notes || ''} onChange={e => setDraft({ ...draft, notes: e.target.value })} className="admin-input" style={fieldInput} />
+              <input value={draft.notes || ''} maxLength={280} onChange={e => setDraft({ ...draft, notes: e.target.value })} className="admin-input" style={fieldInput} />
+              {erroresCita.notes && <span style={requiredHint}>{erroresCita.notes}</span>}
             </label>
           </div>
           {formError && (
-            <div style={{
+            <div role="alert" style={{
               marginTop: 14,
               color: C.rust,
               background: C.rustAlpha20,
@@ -366,10 +382,9 @@ export default function AdminAppointments({
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
-            <button onClick={createBooking} disabled={!canCreateBooking} style={{
+            <button type="button" onClick={createBooking} style={{
               background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9,
-              padding: '9px 14px', cursor: canCreateBooking ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
-              opacity: canCreateBooking ? 1 : 0.45
+              padding: '9px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
             }}>Guardar cita</button>
           </div>
         </div>
@@ -402,7 +417,7 @@ export default function AdminAppointments({
           {sucursales.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
       )}
-      <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o correo..." className="admin-input" style={{
+      <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o correo…" aria-label="Buscar citas por nombre o correo" className="admin-input" style={{
         width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16, fontFamily: 'inherit', boxSizing: 'border-box'
       }} />
 
@@ -549,7 +564,7 @@ export default function AdminAppointments({
                           setDraft={setRescheduleDraft}
                           bookings={bookings}
                           therapists={therapists}
-                          services={services} schedules={schedules}
+                          services={services} schedules={bloquesDeSucursal(todosLosHorarios, b.locationId)}
                           onSave={() => saveExistingReschedule(b)}
                           onClose={() => setReschedulingId(null)}
                         />
@@ -710,20 +725,33 @@ function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, 
     bookings: bookings.filter(item => item.id !== booking.id),
     eligibleTherapists: therapistPool, services, schedules,
   }).filter(slot => slot.available);
+  const [falta, setFalta] = useState('');
+  // La fecha original puede no estar en la lista (ya paso o ese dia ya no
+  // atiende): se muestra igual. Si no, el select ensenaba otro dia y los
+  // horarios eran del dia escondido.
+  const opcionesDia = days.includes(draft.date) || !draft.date ? days : [draft.date, ...days];
+  const guardar = () => {
+    if (!draft.time) {
+      setFalta(slots.length ? 'Elige un horario.' : 'Ese día no tiene horarios libres: elige otra fecha.');
+      return;
+    }
+    setFalta('');
+    onSave();
+  };
 
   return (
     <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid var(--admin-border)', background: 'var(--admin-surface-soft)' }}>
       <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>REAGENDAR CITA</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(180px, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 10, alignItems: 'start' }}>
         <label style={fieldWrap}>
           <span style={fieldLabel}>FECHA</span>
-          <select value={draft.date} onChange={event => setDraft({ date: event.target.value, time: '' })} className="admin-input" style={fieldInput}>
-            {days.map(day => <option key={day} value={day}>{day}</option>)}
+          <select value={draft.date} onChange={event => { setFalta(''); setDraft({ date: event.target.value, time: '' }); }} className="admin-input" style={fieldInput}>
+            {opcionesDia.map(day => <option key={day} value={day}>{day}{days.includes(day) ? '' : ' (fecha actual)'}</option>)}
           </select>
         </label>
         <label style={fieldWrap}>
           <span style={fieldLabel}>HORARIO</span>
-          <select value={draft.time} onChange={event => setDraft({ ...draft, time: event.target.value })} className="admin-input" style={fieldInput}>
+          <select value={draft.time} onChange={event => { setFalta(''); setDraft({ ...draft, time: event.target.value }); }} className="admin-input" style={{ ...fieldInput, borderColor: falta ? C.rust : undefined }}>
             <option value="">Selecciona horario</option>
             {slots.map(slot => <option key={slot.time} value={slot.time}>{slot.time}</option>)}
           </select>
@@ -731,8 +759,9 @@ function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, 
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-accent-text)', borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Cerrar</button>
-        <button onClick={onSave} disabled={!draft.time} style={{ background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9, padding: '8px 12px', cursor: draft.time ? 'pointer' : 'not-allowed', opacity: draft.time ? 1 : 0.45, fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Guardar</button>
+        <button type="button" onClick={guardar} style={{ background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Guardar</button>
       </div>
+      {falta && <p role="alert" style={{ ...requiredHint, margin: '8px 0 0', textAlign: 'right' }}>{falta}</p>}
     </div>
   );
 }
@@ -741,18 +770,22 @@ const fieldWrap = { display: 'grid', gap: 6 };
 const fieldLabel = { color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 };
 const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' };
 
-function AdminField({ label, value, onChange, type = 'text', required = false }) {
-  const missing = required && String(value || '').trim().length === 0;
+// error: el mensaje de validateAppointment para este campo, ya filtrado
+// por "intento" en quien llama. Sin error no se pinta nada: el formulario
+// no abre en rojo.
+function AdminField({ label, value, onChange, type = 'text', required = false, error = '', inputMode, autoComplete, spellCheck }) {
   return (
-    <label style={fieldWrap}>
+    <label style={{ ...fieldWrap, alignContent: 'start' }}>
       <span style={fieldLabel}>{label.toUpperCase()}</span>
-      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} required={required} className="admin-input" style={{ ...fieldInput, borderColor: missing ? C.rust : undefined }} />
-      {missing && <span style={requiredHint}>Campo requerido</span>}
+      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} required={required}
+        inputMode={inputMode} autoComplete={autoComplete} spellCheck={spellCheck} aria-invalid={Boolean(error)}
+        className="admin-input" style={{ ...fieldInput, borderColor: error ? C.rust : undefined }} />
+      {error && <span style={requiredHint}>{error}</span>}
     </label>
   );
 }
 
-const requiredHint = { color: C.rust, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 };
+const requiredHint = { color: C.rustText, fontSize: 12, fontWeight: 700 };
 
 function AvailabilityCalendar({ days, selectedDate, onSelect, onMove, onToday, enHoy }) {
   const primero = days[0]?.date;

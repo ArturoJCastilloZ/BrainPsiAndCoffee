@@ -82,7 +82,9 @@ describe('ARCO en el panel', () => {
     expect(screen.getByText(/Venció hace/)).toBeTruthy();
 
     const cerrar = screen.getAllByRole('button', { name: 'Cerrar como respondida' })[0];
-    expect(cerrar.disabled).toBe(true);
+    await user.click(cerrar);
+    expect(screen.getByText(/mínimo 10 caracteres/)).toBeTruthy();
+    expect(actualizar).not.toHaveBeenCalled();
     await user.type(screen.getAllByLabelText(/Qué se respondió/)[0], 'Se cancelaron sus datos de contacto.');
     await user.click(screen.getAllByRole('button', { name: 'Cerrar como respondida' })[0]);
     expect(actualizar).toHaveBeenCalledWith('b', { status: 'respondida', responseSummary: 'Se cancelaron sus datos de contacto.' });

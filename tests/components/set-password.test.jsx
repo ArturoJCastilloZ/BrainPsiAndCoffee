@@ -47,7 +47,9 @@ describe('SetPassword', () => {
     const codigo = await screen.findByLabelText('CÓDIGO DE VERIFICACIÓN');
     await escribirClaves(user);
     const guardar = screen.getByRole('button', { name: /Guardar contraseña/ });
-    expect(guardar.disabled).toBe(true);
+    await user.click(guardar);
+    expect(screen.getByText(/Escribe los 6 dígitos/)).toBeTruthy();
+    expect(auth.updatePassword).not.toHaveBeenCalled();
     await user.type(codigo, '123 456');
     await user.click(guardar);
     expect(auth.verificarSegundoFactor).toHaveBeenCalledWith('123 456');

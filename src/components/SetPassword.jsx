@@ -30,8 +30,10 @@ export default function SetPassword({ session, onComplete, theme, toggleTheme })
   const codigoIncompleto = pideCodigo && codigo.replace(/\s/g, '').length !== 6;
   const canSubmit = Boolean(session) && !passwordMissing && !confirmMissing && !passwordTooShort && !passwordsDiffer && !codigoIncompleto && !loading;
 
+  const [intento, setIntento] = useState(false);
   const submit = async (event) => {
     event.preventDefault();
+    setIntento(true);
     if (!canSubmit) return;
 
     setLoading(true);
@@ -129,7 +131,8 @@ export default function SetPassword({ session, onComplete, theme, toggleTheme })
 
         {error && <div role="alert" style={{ color: C.rust, fontSize: 12, fontWeight: 600, marginBottom: 14 }}>{error}</div>}
 
-        <button type="submit" disabled={!canSubmit} style={{
+        {intento && codigoIncompleto && <Hint>Escribe los 6 dígitos de tu app de autenticación.</Hint>}
+        <button type="submit" disabled={loading} style={{
           width: '100%',
           border: 'none',
           borderRadius: 14,
@@ -137,8 +140,7 @@ export default function SetPassword({ session, onComplete, theme, toggleTheme })
           background: 'var(--bp-primary)',
           color: 'var(--bp-primary-contrast)',
           fontWeight: 700,
-          cursor: canSubmit ? 'pointer' : 'not-allowed',
-          opacity: canSubmit ? 1 : 0.65,
+          cursor: loading ? 'wait' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

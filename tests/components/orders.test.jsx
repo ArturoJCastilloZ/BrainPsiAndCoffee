@@ -71,3 +71,18 @@ describe('Entregar pedido', () => {
     expect(barista).toHaveBeenCalledWith([expect.objectContaining({ status: 'delivered' })]);
   });
 });
+
+describe('Nuevo pedido', () => {
+  it('el boton se puede presionar y dice que falta; no guarda', async () => {
+    const user = userEvent.setup();
+    const setOrders = vi.fn();
+    render(<AdminOrders orders={[]} setOrders={setOrders} session={{ user: { role: 'owner' } }}
+      catalogs={{ menu: { hot: { title: 'Calientes', items: [{ id: 'cafe', name: 'Americano', price: 40, active: true }] } } }} />);
+    await user.click(screen.getByRole('button', { name: /Nuevo pedido/ }));
+    const guardar = screen.getByRole('button', { name: 'Guardar pedido' });
+    expect(guardar.disabled).toBe(false);
+    await user.click(guardar);
+    expect(screen.getAllByText('Ingresa el nombre del cliente.').length).toBeGreaterThan(0);
+    expect(setOrders).not.toHaveBeenCalled();
+  });
+});

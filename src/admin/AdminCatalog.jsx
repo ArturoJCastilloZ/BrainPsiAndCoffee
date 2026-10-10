@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Brain, Building2, Coffee, Gift, Heart, Milk, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { C } from '../theme';
 import { safeUrl } from '../safeUrl.mjs';
@@ -6,6 +6,7 @@ import { uid } from '../utils.jsx';
 import { isValidEmail, isValidMoney, isValidPositiveInteger } from '../validation';
 import { canManageBusinessSettings, canManageCafeCatalog, canManageClinicCatalog } from '../auth/permissions';
 import { useConfirm } from '../components/ConfirmDialog';
+import FormModal from '../components/FormModal';
 
 const PRODUCT_TABS = [
   { id: 'hot', label: 'Calientes' },
@@ -37,6 +38,16 @@ const selectedPill = {
   color: '#1E1B18',
   border: '#E8D9C5',
 };
+// A quien va dirigido un servicio. Lista corta y fija: antes era texto
+// libre y cada quien escribia "Adultos / Niños", "adultos y niños" o
+// "Niñ@s", y la pagina lo mostraba tal cual.
+const SERVICE_AUDIENCES = ['Niños', 'Adolescentes', 'Adultos', 'Adultos / Niños', 'Parejas', 'Familias', 'Todas las edades'];
+
+// Los errores del formulario se muestran DESPUES de intentar guardar, no
+// mientras se escribe: un formulario nuevo no debe abrir en rojo. Lo
+// comparten Field y SelectField sin pasar props por cada formulario.
+const FormularioCtx = createContext({ intento: true, errores: {} });
+
 const SERVICE_ICONS = [
   { id: 'heart', label: 'Corazon', icon: Heart },
   { id: 'brain', label: 'Cerebro', icon: Brain },
@@ -164,8 +175,8 @@ function OptionsManager({ options, setOptions }) {
 
 function OptionForm({ draft, setDraft }) {
   return <FormGrid>
-    <Field label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
-    <Field label="PRECIO EXTRA" type="number" value={draft.priceDelta}
+    <Field label="NOMBRE" campo="name" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+    <Field label="PRECIO EXTRA" campo="priceDelta" type="number" value={draft.priceDelta} inputMode="decimal" step="0.5"
            onChange={priceDelta => setDraft({ ...draft, priceDelta })} required min={0} />
   </FormGrid>;
 }
@@ -174,23 +185,44 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
   const { confirmar, dialogo } = useConfirm();
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState(emptyItem);
+  const [intento, setIntento] = useState(false);
+  const formRef = useRef(null);
 
   const startNew = () => {
     setEditing('new');
+    setIntento(false);
     setDraft({ ...emptyItem, id: uid() });
   };
 
   const startEdit = (item) => {
     setEditing(item.id);
+    setIntento(false);
     setDraft({ active: true, ...item });
   };
 
+  const errores = erroresDeBorrador(draft);
   const save = () => {
-    if (!isDraftValid(draft)) return;
-    const clean = { ...draft, price: Number(draft.price || 0), duration: draft.duration ? Number(draft.duration) : draft.duration, sessionDuration: draft.sessionDuration ? Number(draft.sessionDuration) : draft.sessionDuration };
+    // El boton SIEMPRE se puede presionar. Antes se apagaba si algo no
+    // cumplia —un correo mal escrito, un color sin elegir— y no decia
+    // que, asi que parecia que el boton no servia. Ahora dice que falta,
+    // junto a cada campo, y lleva el cursor al primero.
+    if (Object.keys(errores).length) {
+      setIntento(true);
+      window.setTimeout(() => formRef.current?.querySelector('[aria-invalid="true"]')?.focus(), 0);
+      return;
+    }
+    const clean = {
+      ...draft,
+      ...(('icon' in draft || 'for' in draft) ? { icon: draft.icon || 'heart' } : {}),
+      ...('sessionDuration' in draft ? { color: draft.color || C.sageDark } : {}),
+      price: Number(draft.price || 0),
+      duration: draft.duration ? Number(draft.duration) : draft.duration,
+      sessionDuration: draft.sessionDuration ? Number(draft.sessionDuration) : draft.sessionDuration,
+    };
     if (editing === 'new') setItems([...items, clean]);
     else setItems(items.map(item => item.id === clean.id ? clean : item));
     setEditing(null);
+    setIntento(false);
   };
 
   const remove = async (id) => {
@@ -204,7 +236,6 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
     setItems(items.filter(item => item.id !== id));
   };
   const toggleActive = (item) => setItems(items.map(row => row.id === item.id ? { ...row, active: row.active === false } : row));
-  const canSave = isDraftValid(draft);
 
   return (
     <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
@@ -217,13 +248,27 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
       </div>
 
       {editing && (
-        <div style={{ background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border)', borderRadius: 14, padding: 14, marginBottom: 14 }}>
-          <Form draft={draft} setDraft={setDraft} />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-            <button onClick={() => setEditing(null)} style={adminButton('ghost')}><X size={14} /> Cancelar</button>
-            <button onClick={save} disabled={!canSave} style={{ ...adminButton('primary'), opacity: canSave ? 1 : 0.45, cursor: canSave ? 'pointer' : 'not-allowed' }}>Guardar</button>
-          </div>
-        </div>
+        <FormModal
+          titulo={`${editing === 'new' ? 'Nuevo' : 'Editar'} · ${title}`}
+          onCerrar={() => { setEditing(null); setIntento(false); }}
+          pie={(
+            <>
+              {intento && Object.keys(errores).length > 0 && (
+                <div role="alert" style={{ ...requiredHint, marginBottom: 12 }}>
+                  Para guardar, corrige: {Object.values(errores).join(' ')}
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" onClick={() => { setEditing(null); setIntento(false); }} style={adminButton('ghost')}><X size={14} /> Cancelar</button>
+                <button type="button" onClick={save} style={adminButton('primary')}>Guardar</button>
+              </div>
+            </>
+          )}
+        >
+          <FormularioCtx.Provider value={{ intento, errores }}>
+            <div ref={formRef}><Form draft={draft} setDraft={setDraft} /></div>
+          </FormularioCtx.Provider>
+        </FormModal>
       )}
 
       <div style={{ display: 'grid', gap: 10 }}>
@@ -245,15 +290,21 @@ function ListManager({ title, items, setItems, emptyItem, renderForm: Form, summ
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder, required = false, min, className = '', aviso = '' }) {
-  const missing = required && String(value || '').trim().length === 0;
-  const conAviso = Boolean(aviso);
+// campo: la clave del borrador, para mostrar SU mensaje (erroresDeBorrador)
+// en vez de un "Campo requerido" generico. align-content:start: si el
+// vecino de fila muestra un error, este no se estira ni se descuadra.
+function Field({ label, value, onChange, type = 'text', placeholder, required = false, min, step, className = '', aviso = '', campo, inputMode, autoComplete, spellCheck }) {
+  const { intento, errores } = useContext(FormularioCtx);
+  const vacio = String(value ?? '').trim().length === 0;
+  const error = intento ? ((campo && errores[campo]) || (required && vacio ? 'Campo requerido' : '')) : '';
+  const mensaje = error || aviso;
   return (
-    <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
+    <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0, alignContent: 'start' }}>
       <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>{label}</span>
-      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} placeholder={placeholder} required={required} min={min} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', borderColor: missing || conAviso ? C.rust : undefined }} />
-      {missing && <span style={requiredHint}>Campo requerido</span>}
-      {!missing && conAviso && <span style={requiredHint}>{aviso}</span>}
+      <input value={value ?? ''} onChange={e => onChange(e.target.value)} type={type} placeholder={placeholder} required={required} min={min} step={step}
+        inputMode={inputMode} autoComplete={autoComplete} spellCheck={spellCheck} aria-invalid={Boolean(error)}
+        className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', borderColor: mensaje ? C.rust : undefined }} />
+      {mensaje && <span style={requiredHint}>{mensaje}</span>}
     </label>
   );
 }
@@ -271,31 +322,39 @@ const avisoUrl = (valor) => (
 
 function ProductForm({ draft, setDraft }) {
   return <FormGrid>
-    <Field label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+    <Field label="NOMBRE" campo="name" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
     <Field label="DESCRIPCIÓN" value={draft.sub} onChange={sub => setDraft({ ...draft, sub })} />
-    <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
+    <Field label="PRECIO" campo="price" type="number" inputMode="decimal" step="0.5" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
   </FormGrid>;
 }
 
 function ServiceForm({ draft, setDraft }) {
   return <>
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 2fr) minmax(160px, 1fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr)', gap: '14px 12px', alignItems: 'end' }}>
-      <Field label="SERVICIO" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
-      <Field label="DIRIGIDO A" value={draft.for} onChange={value => setDraft({ ...draft, for: value })} required />
-      <Field label="DURACIÓN" type="number" value={draft.duration} onChange={duration => setDraft({ ...draft, duration })} required min={1} />
-      <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
-      <label style={{ display: 'grid', gap: 6, gridColumn: 'span 2' }}>
+    {/* auto-fit con min(100%, …): en el celular se apila en una columna
+        en vez de desbordar. alignItems start: un error bajo un campo ya no
+        empuja hacia abajo a sus vecinos de fila. */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: '14px 12px', alignItems: 'start' }}>
+      <Field label="SERVICIO" campo="name" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+      <SelectField label="DIRIGIDO A" campo="for" value={draft.for} onChange={value => setDraft({ ...draft, for: value })} required>
+        <option value="">Elige a quién…</option>
+        {/* Un valor de antes que no esta en la lista se conserva, para no
+            borrarlo al editar. */}
+        {[...SERVICE_AUDIENCES, ...(draft.for && !SERVICE_AUDIENCES.includes(draft.for) ? [draft.for] : [])].map((a) => <option key={a} value={a}>{a}</option>)}
+      </SelectField>
+      <Field label="DURACIÓN (MIN)" campo="duration" type="number" inputMode="numeric" step="5" value={draft.duration} onChange={duration => setDraft({ ...draft, duration })} required min={5} />
+      <Field label="PRECIO" campo="price" type="number" inputMode="decimal" step="1" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
+      <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1', alignContent: 'start' }}>
         <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>DESCRIPCIÓN</span>
         <input value={draft.desc || ''} onChange={e => setDraft({ ...draft, desc: e.target.value })} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' }} />
       </label>
-      <div style={{ display: 'grid', gap: 8, gridColumn: 'span 2' }}>
+      <div style={{ display: 'grid', gap: 8, gridColumn: '1 / -1' }}>
         <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>ICONO</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {SERVICE_ICONS.map(item => {
             const Icon = item.icon;
             const selected = (draft.icon || 'heart') === item.id;
             return (
-              <button key={item.id} type="button" onClick={() => setDraft({ ...draft, icon: item.id })} style={{
+              <button key={item.id} type="button" aria-pressed={selected} onClick={() => setDraft({ ...draft, icon: item.id })} style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
@@ -319,16 +378,18 @@ function ServiceForm({ draft, setDraft }) {
   </>;
 }
 
-function SelectField({ label, value, onChange, children, required = false, className = '', ayuda = null }) {
-  const missing = required && String(value || '').trim().length === 0;
+function SelectField({ label, value, onChange, children, required = false, className = '', ayuda = null, campo }) {
+  const { intento, errores } = useContext(FormularioCtx);
+  const vacio = String(value ?? '').trim().length === 0;
+  const error = intento ? ((campo && errores[campo]) || (required && vacio ? 'Campo requerido' : '')) : '';
   return (
-    <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
+    <label className={className} style={{ display: 'grid', gap: 6, minWidth: 0, alignContent: 'start' }}>
       <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>{label}</span>
-      <select value={value || ''} onChange={e => onChange(e.target.value)} required={required} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', borderColor: missing ? C.rust : undefined }}>
+      <select value={value ?? ''} onChange={e => onChange(e.target.value)} required={required} aria-invalid={Boolean(error)} className="admin-input" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', borderColor: error ? C.rust : undefined }}>
         {children}
       </select>
       {ayuda && <span style={campoAyuda}>{ayuda}</span>}
-      {missing && <span style={requiredHint}>Campo requerido</span>}
+      {error && <span style={requiredHint}>{error}</span>}
     </label>
   );
 }
@@ -368,21 +429,29 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
       }
     `}</style>
     <div className="therapist-form-grid">
-      <Field className="therapist-form-name" label="NOMBRE" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
-      <Field className="therapist-form-email" label="CORREO DE ACCESO" type="email" value={draft.email} onChange={email => setDraft({ ...draft, email })} required />
-      <Field className="therapist-form-cedula" label="CÉDULA" value={draft.cedula} onChange={cedula => setDraft({ ...draft, cedula })} required />
+      <Field className="therapist-form-name" label="NOMBRE" campo="name" value={draft.name} onChange={name => setDraft({ ...draft, name })} required autoComplete="off" />
+      <Field className="therapist-form-email" label="CORREO DE ACCESO" campo="email" type="email" value={draft.email} onChange={email => setDraft({ ...draft, email })} required autoComplete="off" spellCheck={false} />
+      <Field className="therapist-form-cedula" label="CÉDULA" campo="cedula" value={draft.cedula} onChange={cedula => setDraft({ ...draft, cedula })} required autoComplete="off" spellCheck={false} />
       <SelectField
         className="therapist-form-specialty"
         label="ESPECIALIDAD QUE VE EL PACIENTE"
         ayuda="Solo se muestra: aparece bajo su nombre al agendar, junto a la cédula."
+        campo="specialty"
         value={draft.specialty || ''}
         onChange={specialty => setDraft({ ...draft, specialty })}
         required
       >
         <option value="">Selecciona especialidad</option>
         {activeSpecialties.map(specialty => <option key={specialty.id} value={specialty.name}>{specialty.name}</option>)}
+        {/* La que ya tenia y ya no esta activa se muestra tal cual: si no,
+            el campo se veia vacio aunque tuviera valor. */}
+        {draft.specialty && !activeSpecialties.some((sp) => sp.name === draft.specialty) && (
+          <option value={draft.specialty}>{draft.specialty} (inactiva)</option>
+        )}
       </SelectField>
-      <Field className="therapist-form-duration" label="DURACIÓN SESIÓN (MIN)" type="number" value={draft.sessionDuration || 50} onChange={sessionDuration => setDraft({ ...draft, sessionDuration })} required min={1} />
+      {/* Sin "|| 50": el campo muestra lo que de verdad hay. Antes, al
+          borrarlo seguia diciendo 50 y el guardado fallaba sin decir por que. */}
+      <Field className="therapist-form-duration" label="DURACIÓN SESIÓN (MIN)" campo="sessionDuration" type="number" inputMode="numeric" step="5" value={draft.sessionDuration ?? ''} onChange={sessionDuration => setDraft({ ...draft, sessionDuration })} required min={5} />
     </div>
     <div style={{ marginTop: 12 }}>
       <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>COLOR</div>
@@ -390,7 +459,7 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
         {THERAPIST_COLORS.map(color => {
           const selected = (draft.color || C.sageDark) === color.value;
           return (
-            <button key={color.value} type="button" onClick={() => setDraft({ ...draft, color: color.value })} style={{
+            <button key={color.value} type="button" aria-pressed={selected} onClick={() => setDraft({ ...draft, color: color.value })} style={{
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -427,7 +496,7 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
           // servicios del catalogo viejo, sin que nada lo dijera.
           const apagado = service.active === false;
           return (
-            <button key={service.id} onClick={() => setDraft({ ...draft, services: checked ? draft.services.filter(id => id !== service.id) : [...(draft.services || []), service.id] })} style={{
+            <button key={service.id} type="button" aria-pressed={Boolean(checked)} onClick={() => setDraft({ ...draft, services: checked ? draft.services.filter(id => id !== service.id) : [...(draft.services || []), service.id] })} style={{
               border: `1px solid ${checked ? selectedPill.border : 'var(--admin-border)'}`,
               background: checked ? selectedPill.background : 'var(--admin-surface)',
               color: checked ? selectedPill.color : 'var(--admin-row-text)',
@@ -440,7 +509,7 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
           );
         })}
       </div>
-      {!(draft.services || []).length && <span style={{ ...requiredHint, display: 'block', marginTop: 6 }}>Campo requerido</span>}
+      <ErrorDe campo="services" />
       {(draft.services || []).length > 0 && sinServicioActivo(draft, services) && (
         <span style={{ ...requiredHint, display: 'block', marginTop: 6 }}>
           Solo tiene servicios desactivados: en la web nadie puede agendarle. Marca al menos uno activo.
@@ -452,16 +521,16 @@ function TherapistForm({ draft, setDraft, services, specialties }) {
 
 function SpecialtyForm({ draft, setDraft }) {
   return <FormGrid>
-    <Field label="ESPECIALIDAD" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+    <Field label="ESPECIALIDAD" campo="name" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
   </FormGrid>;
 }
 
 function OfferForm({ draft, setDraft }) {
   return <FormGrid>
-    <Field label="OFERTA" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
-    <Field label="PRECIO" type="number" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
+    <Field label="OFERTA" campo="name" value={draft.name} onChange={name => setDraft({ ...draft, name })} required />
+    <Field label="PRECIO" campo="price" type="number" inputMode="decimal" step="1" value={draft.price} onChange={price => setDraft({ ...draft, price })} required min={0} />
     <Field label="INICIA" type="date" value={draft.startsAt || ''} onChange={startsAt => setDraft({ ...draft, startsAt })} />
-    <Field label="TERMINA" type="date" value={draft.endsAt || ''} onChange={endsAt => setDraft({ ...draft, endsAt })} />
+    <Field label="TERMINA" campo="endsAt" type="date" value={draft.endsAt || ''} onChange={endsAt => setDraft({ ...draft, endsAt })} />
     <Field label="DESCRIPCIÓN" value={draft.desc} onChange={desc => setDraft({ ...draft, desc })} />
     {/* Cual de las promociones DESCUENTA. Antes se tomaba "la primera
         activa", asi que una promo informativa cualquiera acababa
@@ -485,11 +554,21 @@ function BusinessSettings({ settings, setSettings }) {
     hoursText: (settings?.hours || []).join('\n'),
   });
   const [saved, setSaved] = useState(false);
+  const [intento, setIntento] = useState(false);
   const update = (key, value) => {
     setSaved(false);
     setDraft({ ...draft, [key]: value });
   };
+  // Los dos nombres son obligatorios: el aviso de privacidad y el pie de
+  // pagina los usan. Antes estaban marcados como requeridos pero se
+  // guardaba con ellos vacios.
+  const errores = {
+    ...(String(draft.name || '').trim() ? {} : { name: 'Escribe el nombre comercial.' }),
+    ...(String(draft.legalName || '').trim() ? {} : { legalName: 'Escribe la razón o nombre legal.' }),
+    ...(String(draft.email || '').trim() && !isValidEmail(draft.email) ? { email: 'Revisa el correo: no parece válido.' } : {}),
+  };
   const save = () => {
+    if (Object.keys(errores).length) { setIntento(true); return; }
     const next = {
       name: draft.name || '',
       legalName: draft.legalName || '',
@@ -510,26 +589,29 @@ function BusinessSettings({ settings, setSettings }) {
   return (
     <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
       <h2 style={{ margin: '0 0 14px', color: 'var(--admin-text)', fontSize: 15 }}>Informacion del negocio</h2>
+      <FormularioCtx.Provider value={{ intento, errores }}>
       <FormGrid>
-        <Field label="NOMBRE COMERCIAL" value={draft.name} onChange={value => update('name', value)} required />
-        <Field label="RAZON/NOMBRE LEGAL" value={draft.legalName} onChange={value => update('legalName', value)} required />
+        <Field label="NOMBRE COMERCIAL" campo="name" value={draft.name} onChange={value => update('name', value)} required />
+        <Field label="RAZÓN / NOMBRE LEGAL" campo="legalName" value={draft.legalName} onChange={value => update('legalName', value)} required />
         <Field label="CIUDAD" value={draft.city} onChange={value => update('city', value)} />
-        <Field label="DIRECCION" value={draft.address} onChange={value => update('address', value)} />
-        <Field label="TELEFONO" value={draft.phone} onChange={value => update('phone', value)} />
-        <Field label="WHATSAPP CON PAIS" value={draft.whatsapp} onChange={value => update('whatsapp', value)} />
-        <Field label="CORREO" type="email" value={draft.email} onChange={value => update('email', value)} />
-        <Field label="INSTAGRAM URL" value={draft.instagram} onChange={value => update('instagram', value)} aviso={avisoUrl(draft.instagram)} />
-        <Field label="GOOGLE MAPS URL" value={draft.mapsUrl} onChange={value => update('mapsUrl', value)} aviso={avisoUrl(draft.mapsUrl)} />
-        <Field label="ENLACE PARA DEJAR RESEÑA (GOOGLE)" value={draft.reviewUrl} onChange={value => update('reviewUrl', value)}
-          placeholder='Perfil de Negocio de Google → "Pedir reseñas"' aviso={avisoUrl(draft.reviewUrl)} />
+        <Field label="DIRECCIÓN" value={draft.address} onChange={value => update('address', value)} />
+        <Field label="TELÉFONO" type="tel" inputMode="tel" placeholder="81 1234 5678" value={draft.phone} onChange={value => update('phone', value)} />
+        <Field label="WHATSAPP (CON 52)" type="tel" inputMode="tel" placeholder="528112345678" value={draft.whatsapp} onChange={value => update('whatsapp', value)} />
+        <Field label="CORREO" campo="email" type="email" spellCheck={false} value={draft.email} onChange={value => update('email', value)} />
+        <Field label="INSTAGRAM (ENLACE)" type="url" inputMode="url" spellCheck={false} placeholder="https://instagram.com/…" value={draft.instagram} onChange={value => update('instagram', value)} aviso={avisoUrl(draft.instagram)} />
+        <Field label="GOOGLE MAPS (ENLACE)" type="url" inputMode="url" spellCheck={false} placeholder="https://maps.app.goo.gl/…" value={draft.mapsUrl} onChange={value => update('mapsUrl', value)} aviso={avisoUrl(draft.mapsUrl)} />
+        <Field label="ENLACE PARA RESEÑAS" type="url" inputMode="url" spellCheck={false} value={draft.reviewUrl} onChange={value => update('reviewUrl', value)}
+          placeholder='Google → "Pedir reseñas"' aviso={avisoUrl(draft.reviewUrl)} />
       </FormGrid>
+      </FormularioCtx.Provider>
       <label style={{ display: 'grid', gap: 6, marginTop: 10 }}>
         <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>HORARIOS, UNO POR LINEA</span>
         <textarea value={draft.hoursText || ''} onChange={event => update('hoursText', event.target.value)} rows={4} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', resize: 'vertical' }} />
       </label>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginTop: 14 }}>
         {saved && <span style={{ color: 'var(--admin-accent-text)', fontSize: 12, fontWeight: 800 }}>Guardado</span>}
-        <button onClick={save} style={adminButton('primary')}>Guardar negocio</button>
+        {intento && Object.keys(errores).length > 0 && <span role="alert" style={requiredHint}>Corrige los campos marcados.</span>}
+        <button type="button" onClick={save} style={adminButton('primary')}>Guardar negocio</button>
       </div>
     </div>
   );
@@ -541,7 +623,13 @@ function offerWindowLabel(item) {
 }
 
 function FormGrid({ children }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>{children}</div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '12px 10px', alignItems: 'start' }}>{children}</div>;
+}
+
+// El error de un campo que no es un input (servicios, color).
+function ErrorDe({ campo }) {
+  const { intento, errores } = useContext(FormularioCtx);
+  return intento && errores[campo] ? <span style={{ ...requiredHint, display: 'block', marginTop: 6 }}>{errores[campo]}</span> : null;
 }
 
 function adminButton(kind) {
@@ -571,31 +659,47 @@ const sinServicioActivo = (therapist, services = []) => {
   return !(therapist.services || []).some((id) => activos.has(id));
 };
 
-function isDraftValid(draft) {
-  const hasText = (value) => String(value || '').trim().length > 0;
+// Que le falta a un borrador para poder guardarse, campo por campo y en
+// palabras. Vacio = se puede guardar. Aplica los mismos valores por
+// defecto que la pantalla MUESTRA (icono, color): antes la pantalla
+// mostraba "Corazón" o "Verde" elegidos y la validacion los exigia
+// vacios, y el boton se apagaba sin razon a la vista.
+export function erroresDeBorrador(draft) {
+  const hasText = (value) => String(value ?? '').trim().length > 0;
+  const e = {};
 
-  if ('sessionDuration' in draft) {
-    return hasText(draft.name) &&
-      isValidEmail(draft.email) &&
-      hasText(draft.cedula) &&
-      hasText(draft.specialty) &&
-      isValidPositiveInteger(draft.sessionDuration) &&
-      hasText(draft.color) &&
-      (draft.services || []).length > 0;
+  if ('sessionDuration' in draft || 'cedula' in draft) {
+    if (!hasText(draft.name)) e.name = 'Escribe el nombre.';
+    if (!hasText(draft.email)) e.email = 'Escribe el correo de acceso.';
+    else if (!isValidEmail(draft.email)) e.email = 'Revisa el correo: no parece válido.';
+    if (!hasText(draft.cedula)) e.cedula = 'Escribe la cédula profesional.';
+    if (!hasText(draft.specialty)) e.specialty = 'Elige la especialidad.';
+    if (!isValidPositiveInteger(draft.sessionDuration)) e.sessionDuration = 'La duración debe ser un número entero de minutos.';
+    if (!(draft.services || []).length) e.services = 'Marca al menos un servicio que atiende.';
+    return e;
   }
 
   if ('duration' in draft && 'for' in draft) {
-    return hasText(draft.name) &&
-      hasText(draft.for) &&
-      hasText(draft.icon) &&
-      isValidPositiveInteger(draft.duration) &&
-      isValidMoney(draft.price);
+    if (!hasText(draft.name)) e.name = 'Escribe el nombre del servicio.';
+    if (!hasText(draft.for)) e.for = 'Elige a quién va dirigido.';
+    if (!isValidPositiveInteger(draft.duration)) e.duration = 'La duración debe ser un número entero de minutos.';
+    if (!isValidMoney(draft.price)) e.price = 'El precio debe ser 0 o más.';
+    return e;
+  }
+
+  if ('priceDelta' in draft) {
+    if (!hasText(draft.name)) e.name = 'Escribe el nombre.';
+    if (!isValidMoney(draft.priceDelta)) e.priceDelta = 'El precio extra debe ser 0 o más (0 = sin costo).';
+    return e;
   }
 
   if ('price' in draft) {
-    const validDates = !draft.startsAt || !draft.endsAt || draft.startsAt <= draft.endsAt;
-    return hasText(draft.name) && isValidMoney(draft.price) && validDates;
+    if (!hasText(draft.name)) e.name = 'Escribe el nombre.';
+    if (!isValidMoney(draft.price)) e.price = 'El precio debe ser 0 o más.';
+    if (draft.startsAt && draft.endsAt && draft.startsAt > draft.endsAt) e.endsAt = 'La fecha de término es antes de la de inicio.';
+    return e;
   }
 
-  return hasText(draft.name);
+  if (!hasText(draft.name)) e.name = 'Escribe el nombre.';
+  return e;
 }

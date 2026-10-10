@@ -41,10 +41,8 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
   const passwordMissing = (submitted || passwordTouched) && password.length === 0;
   const emailMissing = (submitted || emailTouched) && identifier.length === 0;
   const emailInvalid = emailTouched && isEmailIdentifier && identifier.length > 0 && !emailPattern.test(identifier);
-  const canSubmit = identifier.length > 0 && !emailInvalid && password.length > 0 && !loading;
   const resetIdentifier = resetEmail.trim();
   const resetInvalid = resetIdentifier.length > 0 && !emailPattern.test(resetIdentifier);
-  const canReset = resetIdentifier.length > 0 && !resetInvalid && !loading;
 
   const submit = async (event) => {
     event.preventDefault();
@@ -78,7 +76,8 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
 
   const submitCodigo = async (event) => {
     event.preventDefault();
-    if (!codigoValido || loading) return;
+    if (loading) return;
+    if (!codigoValido) { setError('Escribe los 6 dígitos que muestra tu app de autenticación.'); return; }
     setLoading(true);
     try {
       const session = await authService.verificarSegundoFactor(codigo);
@@ -94,7 +93,9 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
 
   const submitReset = async (event) => {
     event.preventDefault();
-    if (!canReset) return;
+    if (loading) return;
+    if (!resetIdentifier) { setError('Escribe tu correo para enviarte el enlace.'); return; }
+    if (resetInvalid) { setError('Revisa el correo: no parece válido.'); return; }
 
     setLoading(true);
     try {
@@ -153,7 +154,7 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
             <label htmlFor="reset-correo" style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Correo</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, border: `1px solid ${resetInvalid ? C.rust : (isDark ? '#2A332A' : C.sagePale)}`, marginBottom: resetInvalid ? 6 : 14, background: isDark ? '#0F1410' : C.ivory }}>
               <Mail size={16} />
-              <input id="reset-correo" value={resetEmail} onChange={event => { setResetEmail(event.target.value); setResetSent(false); setError(''); }} type="email" autoComplete="email" aria-invalid={resetInvalid} aria-describedby={resetInvalid ? 'reset-correo-error' : undefined} required style={{ flex: 1, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit' }} />
+              <input id="reset-correo" value={resetEmail} onChange={event => { setResetEmail(event.target.value); setResetSent(false); setError(''); }} type="email" autoComplete="email" spellCheck={false} autoCapitalize="none" aria-invalid={resetInvalid} aria-describedby={resetInvalid ? 'reset-correo-error' : undefined} required style={{ flex: 1, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit' }} />
             </div>
             {resetInvalid && <div id="reset-correo-error" role="alert" style={errorTextStyle}>Ese correo no tiene un formato válido.</div>}
             {resetSent && (
@@ -167,7 +168,7 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
         <label htmlFor="login-identificador" style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Correo o nombre</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, border: `1px solid ${emailMissing || emailInvalid ? C.rust : (isDark ? '#2A332A' : C.sagePale)}`, marginBottom: emailMissing || emailInvalid ? 6 : 14, background: isDark ? '#0F1410' : C.ivory }}>
           <User size={16} />
-          <input id="login-identificador" value={username} onChange={e => { setUsername(e.target.value); if (error === 'Ingresa un correo válido.') setError(''); }} onBlur={() => setEmailTouched(true)} type="text" autoComplete="username" autoFocus aria-invalid={emailMissing || emailInvalid} aria-describedby={emailMissing ? 'login-identificador-error' : (emailInvalid ? 'login-identificador-formato' : undefined)} required style={{ flex: 1, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit' }} />
+          <input id="login-identificador" value={username} onChange={e => { setUsername(e.target.value); if (error === 'Ingresa un correo válido.') setError(''); }} onBlur={() => setEmailTouched(true)} type="text" autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus aria-invalid={emailMissing || emailInvalid} aria-describedby={emailMissing ? 'login-identificador-error' : (emailInvalid ? 'login-identificador-formato' : undefined)} required style={{ flex: 1, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit' }} />
         </div>
         {emailMissing && <div id="login-identificador-error" role="alert" style={errorTextStyle}>Escribe tu correo o tu nombre de usuario.</div>}
         {emailInvalid && <div id="login-identificador-formato" role="alert" style={errorTextStyle}>Ese correo no tiene un formato válido.</div>}
@@ -187,13 +188,14 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
         {error && <div role="alert" style={{ color: C.rustText, fontSize: 13, fontWeight: 600, marginBottom: 14, lineHeight: 1.45 }}>{error}</div>}
 
         {(() => {
-          const habilitado = mode === 'login' ? canSubmit : mode === 'mfa' ? codigoValido && !loading : canReset;
+          // Solo se apaga mientras trabaja: si falta algo, al presionarlo
+          // se dice que (antes se apagaba y no decia por que).
           const texto = mode === 'login'
             ? (loading ? 'Entrando…' : 'Entrar al admin')
             : mode === 'mfa' ? (loading ? 'Verificando…' : 'Verificar y entrar')
               : (loading ? 'Enviando…' : 'Enviar enlace');
           return (
-            <button type="submit" disabled={!habilitado} style={{ width: '100%', border: 'none', borderRadius: 14, padding: 14, background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', fontWeight: 700, cursor: loading ? 'wait' : (habilitado ? 'pointer' : 'not-allowed'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', opacity: habilitado ? 1 : 0.65 }}>
+            <button type="submit" disabled={loading} style={{ width: '100%', border: 'none', borderRadius: 14, padding: 14, background: 'var(--bp-primary)', color: 'var(--bp-primary-contrast)', fontWeight: 700, cursor: loading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', opacity: loading ? 0.65 : 1 }}>
               {mode === 'reset' ? <Mail size={16} /> : <LogIn size={16} />} {texto}
             </button>
           );

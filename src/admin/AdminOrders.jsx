@@ -32,11 +32,16 @@ export default function AdminOrders({
     customerName: '',
     customerPhone: '',
   });
-  const canCreateOrder = Boolean(
-    draft.productId &&
-    Number(draft.qty || 0) > 0 &&
-    Object.keys(validateOrder(draft)).length === 0
-  );
+  // Que falta para crear el pedido, en palabras. El boton nunca se apaga:
+  // al presionarlo se dice que falta junto a cada campo.
+  const [intento, setIntento] = useState(false);
+  const erroresPedido = (() => {
+    const e = { ...validateOrder(draft) };
+    if (!products.some((p) => p.id === draft.productId)) e.productId = 'Elige un producto.';
+    if (!(Number.isInteger(Number(draft.qty)) && Number(draft.qty) > 0)) e.qty = 'La cantidad debe ser 1 o más.';
+    return e;
+  })();
+  const errores = intento ? erroresPedido : {};
 
   useEffect(() => {
     if (!draft.productId && products[0]?.id) {
@@ -78,12 +83,11 @@ export default function AdminOrders({
   };
 
   const createOrder = () => {
-    const nextErrors = validateOrder(draft);
-    if (Object.keys(nextErrors).length) {
-      setFormError(Object.values(nextErrors)[0]);
+    setIntento(true);
+    if (Object.keys(erroresPedido).length) {
+      setFormError(Object.values(erroresPedido)[0]);
       return;
     }
-    if (!canCreateOrder) return;
     const product = products.find(item => item.id === draft.productId);
     if (!product) return;
     const qty = Math.max(1, Number(draft.qty || 1));
@@ -103,6 +107,7 @@ export default function AdminOrders({
       createdAt: new Date().toISOString(),
     }, ...orders]);
     setDraft({ ...draft, qty: 1, customerName: '', customerPhone: '' });
+    setIntento(false);
     setFormError('');
     setCreating(false);
   };
@@ -124,28 +129,30 @@ export default function AdminOrders({
 
       {canCreate && creating && (
         <div className="admin-card" style={{ borderRadius: 14, padding: 22, marginBottom: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(170px, 1fr))', gap: '18px 14px', alignItems: 'end' }}>
-            <label style={{ ...fieldWrap, gridColumn: 'span 2' }}>
+          {/* Se apila en el celular (min(100%, …)) y alinea arriba: un aviso
+              bajo un campo no descuadra a los demas. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: '18px 14px', alignItems: 'start' }}>
+            <label style={{ ...fieldWrap, gridColumn: '1 / -1' }}>
               <span style={fieldLabel}>Producto</span>
-              <select value={draft.productId} onChange={e => { setFormError(''); setDraft({ ...draft, productId: e.target.value }); }} required className="admin-input" style={{ ...fieldInput, borderColor: !draft.productId ? C.rust : undefined }}>
+              <select value={draft.productId} onChange={e => { setFormError(''); setDraft({ ...draft, productId: e.target.value }); }} required aria-invalid={Boolean(errores.productId)} className="admin-input" style={{ ...fieldInput, borderColor: errores.productId ? C.rust : undefined }}>
+                <option value="">Elige un producto…</option>
                 {products.map(product => <option key={product.id} value={product.id}>{product.categoryTitle} · {product.name} (${product.price})</option>)}
               </select>
-              {!draft.productId && <span style={requiredHint}>Campo requerido</span>}
+              {errores.productId && <span style={requiredHint}>{errores.productId}</span>}
             </label>
-            <AdminField label="Cantidad" value={draft.qty} onChange={qty => { setFormError(''); setDraft({ ...draft, qty }); }} type="number" required />
-            <AdminField label="Cliente" value={draft.customerName} onChange={customerName => { setFormError(''); setDraft({ ...draft, customerName }); }} required />
-            <AdminField label="Teléfono" value={draft.customerPhone} onChange={customerPhone => { setFormError(''); setDraft({ ...draft, customerPhone }); }} required />
+            <AdminField label="Cantidad" value={draft.qty} error={errores.qty} inputMode="numeric" onChange={qty => { setFormError(''); setDraft({ ...draft, qty }); }} type="number" required />
+            <AdminField label="Cliente" value={draft.customerName} error={errores.customerName} autoComplete="off" onChange={customerName => { setFormError(''); setDraft({ ...draft, customerName }); }} required />
+            <AdminField label="Teléfono" value={draft.customerPhone} error={errores.customerPhone} type="tel" inputMode="tel" autoComplete="off" onChange={customerPhone => { setFormError(''); setDraft({ ...draft, customerPhone }); }} required />
           </div>
           {formError && (
-            <div style={{ marginTop: 14, color: C.rust, background: C.rustAlpha20, border: `1px solid ${C.rustAlpha40}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, fontWeight: 700 }}>
+            <div role="alert" style={{ marginTop: 14, color: C.rustText, background: C.rustAlpha20, border: `1px solid ${C.rustAlpha40}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, fontWeight: 700 }}>
               {formError}
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
-            <button onClick={createOrder} disabled={!canCreateOrder} style={{
+            <button type="button" onClick={createOrder} style={{
               background: C.caramel, color: actionText, border: 'none', borderRadius: 9,
-              padding: '9px 14px', cursor: canCreateOrder ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
-              opacity: canCreateOrder ? 1 : 0.45
+              padding: '9px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
             }}>Guardar pedido</button>
           </div>
         </div>
@@ -346,13 +353,14 @@ const fieldLabel = { color: 'var(--admin-row-text)', fontSize: 13, fontWeight: 7
 const fieldInput = { width: '100%', minHeight: 40, boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' };
 const requiredHint = { color: C.rustText, fontSize: 13, fontWeight: 700 };
 
-function AdminField({ label, value, onChange, type = 'text', required = false }) {
-  const missing = required && String(value || '').trim().length === 0;
+function AdminField({ label, value, onChange, type = 'text', required = false, error = '', inputMode, autoComplete }) {
   return (
-    <label style={fieldWrap}>
+    <label style={{ ...fieldWrap, alignContent: 'start' }}>
       <span style={fieldLabel}>{label}</span>
-      <input value={value || ''} onChange={e => onChange(e.target.value)} type={type} min={type === 'number' ? 1 : undefined} required={required} className="admin-input" style={{ ...fieldInput, borderColor: missing ? C.rust : undefined }} />
-      {missing && <span style={requiredHint}>Campo requerido</span>}
+      <input value={value ?? ''} onChange={e => onChange(e.target.value)} type={type} min={type === 'number' ? 1 : undefined} step={type === 'number' ? 1 : undefined}
+        required={required} inputMode={inputMode} autoComplete={autoComplete} aria-invalid={Boolean(error)}
+        className="admin-input" style={{ ...fieldInput, borderColor: error ? C.rust : undefined }} />
+      {error && <span style={requiredHint}>{error}</span>}
     </label>
   );
 }

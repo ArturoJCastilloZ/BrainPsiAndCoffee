@@ -59,6 +59,8 @@ function Dialogo({
   }, [onAceptar, onCancelar, opciones]);
 
   const puedeAceptar = !opciones || Boolean(seleccion);
+  const [pidio, setPidio] = useState(false);
+  const aceptar1 = () => { if (puedeAceptar) onAceptar(); else setPidio(true); };
 
   return (
     <div
@@ -98,6 +100,8 @@ function Dialogo({
         {opciones && (
           <select
             value={seleccion || ''}
+            aria-label={titulo}
+            aria-invalid={pidio && !puedeAceptar}
             onChange={(e) => onSeleccion(e.target.value)}
             style={{
               width: '100%', marginTop: 14, boxSizing: 'border-box',
@@ -111,6 +115,9 @@ function Dialogo({
             {opciones.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
         )}
+        {opciones && pidio && !puedeAceptar && (
+          <p role="alert" style={{ margin: '8px 0 0', fontSize: 12.5, fontWeight: 700, color: C.rustText }}>Elige una opción para continuar.</p>
+        )}
 
         <div style={{
           display: 'flex', justifyContent: 'flex-end', gap: 8,
@@ -120,13 +127,8 @@ function Dialogo({
           <button
             ref={aceptarRef}
             type="button"
-            onClick={onAceptar}
-            disabled={!puedeAceptar}
-            style={{
-              ...boton(destructivo ? 'peligro' : 'primario'),
-              opacity: puedeAceptar ? 1 : 0.45,
-              cursor: puedeAceptar ? 'pointer' : 'not-allowed',
-            }}
+            onClick={aceptar1}
+            style={boton(destructivo ? 'peligro' : 'primario')}
           >{aceptar}</button>
         </div>
       </div>

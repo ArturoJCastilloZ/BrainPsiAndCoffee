@@ -164,6 +164,8 @@ export default function PaymentDialog({
                 <input
                   className="admin-input"
                   value={draft.reference}
+                  spellCheck={false}
+                  autoComplete="off"
                   onChange={(e) => setDraft({ ...draft, reference: e.target.value })}
                   style={input}
                 />

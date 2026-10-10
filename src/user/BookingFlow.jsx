@@ -514,7 +514,7 @@ function Field({ id, label, value, onChange, type = 'text', placeholder, error, 
     <div className="pub-field">
       <label className="pub-label" htmlFor={id}>{label}</label>
       {hint && <span id={`${id}-hint`} className="pub-hint">{hint}</span>}
-      <input id={id} className="pub-input" type={type} value={value} placeholder={placeholder}
+      <input id={id} className="pub-input" type={type} spellCheck={type === 'email' ? false : undefined} value={value} placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} inputMode={inputMode}
         aria-invalid={Boolean(error)} aria-describedby={descr} />
       {error && <span id={`${id}-error`} className="pub-error">{error}</span>}
@@ -555,6 +555,7 @@ function DateTimePicker({ data, update, error, onContinue, bookings, therapists,
   // Una hora que llego puesta (atajo de la portada) puede haberse ocupado
   // desde entonces. Solo se avanza con una hora que HOY esta libre.
   const horaLibre = delDia.some((s) => s.time === data.time && s.available);
+  const [pidioSinHora, setPidioSinHora] = useState(false);
   const hoy = new Date(new Date().setHours(0, 0, 0, 0));
   const rango = `${days[0].toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} al ${days[6].toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}`;
 
@@ -615,7 +616,9 @@ function DateTimePicker({ data, update, error, onContinue, bookings, therapists,
           {!error && data.time && !horaLibre && (
             <p role="status" className="pub-hint" style={{ margin: '12px 0 0' }}>Las {data.time} ya no está libre ese día. Elige otra hora.</p>
           )}
-          <button type="button" className="pub-btn pub-btn-primary bk-submit" onClick={onContinue} disabled={!horaLibre}>
+          {pidioSinHora && !data.time && <p role="alert" className="pub-error" style={{ margin: '12px 0 0' }}>Elige una hora para continuar.</p>}
+          <button type="button" className="pub-btn pub-btn-primary bk-submit"
+            onClick={() => { if (horaLibre) onContinue(); else setPidioSinHora(true); }}>
             Continuar
           </button>
         </>
