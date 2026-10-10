@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { authService } from '../auth/authService';
 import { clinicalMfaRequired, setClinicalMfa } from '../api/supabaseData';
 import { C } from '../theme';
+import { avisar } from './Avisos';
 
 // Verificacion en dos pasos (0039).
 //
@@ -47,6 +48,7 @@ export default function SecurityPanel({ session, puedeExigir = false, modo = 'aj
   const empezarAlta = () => accion(async () => setAlta(await authService.iniciarAltaSegundoFactor()));
   const confirmar = (factorId) => accion(async () => {
     await authService.verificarSegundoFactor(codigo, factorId);
+    avisar.exito(alta ? 'Verificación en dos pasos activada.' : 'Sesión verificada con tu código.');
     setAlta(null);
     setCodigo('');
     await cargar();
@@ -54,24 +56,30 @@ export default function SecurityPanel({ session, puedeExigir = false, modo = 'aj
   });
   const desactivar = (factorId) => accion(async () => {
     await authService.desactivarSegundoFactor(factorId);
+    avisar.exito('Verificación en dos pasos desactivada.');
     await cargar();
   });
   const cambiarExigencia = (valor) => accion(async () => {
     await setClinicalMfa(valor);
     setExigida(valor);
+    avisar.exito(valor ? 'Ahora la clínica exige verificación en dos pasos para abrir expedientes.' : 'La clínica ya no exige verificación en dos pasos.');
   });
 
   const tieneFactor = (factores || []).length > 0;
   const codigoValido = /^\d{6}$/.test(codigo.replace(/\s/g, ''));
 
   const campoCodigo = (onEnviar) => (
-    <form onSubmit={(e) => { e.preventDefault(); if (codigoValido) onEnviar(); }} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'end' }}>
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      if (codigoValido) onEnviar();
+      else setError('Escribe los 6 dígitos que muestra tu app de autenticación.');
+    }} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'end' }}>
       <label style={{ display: 'grid', gap: 6, fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>
         Código de 6 dígitos
         <input value={codigo} onChange={(e) => setCodigo(e.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={7}
           className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, fontSize: 20, letterSpacing: 4, width: 160, fontVariantNumeric: 'tabular-nums' }} />
       </label>
-      <button type="submit" disabled={!codigoValido || ocupado} style={boton}>{ocupado ? 'Verificando…' : 'Verificar'}</button>
+      <button type="submit" disabled={ocupado} style={boton}>{ocupado ? 'Verificando…' : 'Verificar'}</button>
     </form>
   );
 

@@ -6,6 +6,7 @@ import { C } from '../theme';
 import { listTenantMembers, revokeTenantMember, inviteStaff, generateTempPassword, resetStaffMfa, setTenantMemberRole } from '../api/supabaseData';
 import { getSupabase } from '../api/supabaseClient';
 import { useConfirm } from '../components/ConfirmDialog';
+import { avisar } from '../components/Avisos';
 import TempPasswordPanel from './TempPasswordPanel';
 
 const ROLE_OPTIONS = [
@@ -71,6 +72,7 @@ export default function AdminAccess() {
     try {
       await accion();
       setNotice(exito);
+      avisar.exito(exito);
       await load();
     } catch (err) {
       setError(err.message || 'No se pudo completar la operacion.');
@@ -89,7 +91,17 @@ export default function AdminAccess() {
   const grant = async (event) => {
     event.preventDefault();
     const correo = email.trim();
-    if (!correo) return;
+    // El boton no se apaga: si falta algo, se dice que.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+      setNotice('');
+      setError(correo ? 'Revisa el correo: no parece válido.' : 'Escribe el correo de la persona a la que le das acceso.');
+      return;
+    }
+    if (faltaFicha) {
+      setNotice('');
+      setError('Elige la ficha de terapeuta de este especialista.');
+      return;
+    }
 
     setBusy(true);
     setError('');
@@ -100,9 +112,12 @@ export default function AdminAccess() {
       if (r?.estado === 'creado') {
         setTemporal({ email: r.email, clave: r.temporal, caduca: r.caduca });
         setCopiado(false);
+        avisar.exito(`Cuenta creada para ${r.email}. Entrega la contraseña temporal en persona.`);
       } else if (r?.estado === 'correo') {
+        avisar.exito(`Invitación enviada a ${correo}.`);
         setNotice(`Le mandamos a ${correo} un correo para crear su contraseña. Si no le llega en unos minutos, que revise spam; si aun asi no aparece, usa "Generar nueva contraseña temporal" en su fila.`);
       } else {
+        avisar.exito(`Invitación enviada a ${correo}.`);
         setNotice(`${correo} ya tenia cuenta, asi que se le envio una invitacion. Entra en vigor cuando la acepte.`);
       }
       setEmail('');
@@ -134,6 +149,7 @@ export default function AdminAccess() {
     try {
       const r = await generateTempPassword(correo);
       setTemporal({ email: r.email, clave: r.temporal, caduca: r.caduca });
+      avisar.exito('Contraseña temporal generada.');
       setCopiado(false);
       await load();
     } catch (err) {
@@ -159,6 +175,7 @@ export default function AdminAccess() {
     setNotice('');
     try {
       const r = await resetStaffMfa(correo);
+      avisar.exito(r?.factores ? 'Verificación en dos pasos reiniciada.' : 'No había verificación que reiniciar.');
       setNotice(r?.factores
         ? `Listo: ${correo} ya puede entrar con su contraseña y configurar su verificación de nuevo.`
         : `${correo} no tenía verificación en dos pasos configurada: no hubo nada que reiniciar.`);
@@ -209,19 +226,22 @@ export default function AdminAccess() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="correo@ejemplo.mx"
+            aria-label="Correo de la persona"
+            autoComplete="off"
+            spellCheck={false}
             style={{ ...campo, flex: '1 1 240px' }}
           />
-          <select value={role} onChange={(e) => setRole(e.target.value)} style={{ ...campo, flex: '0 1 220px' }}>
+          <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Rol" style={{ ...campo, flex: '0 1 220px' }}>
             {ROLE_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
           </select>
-          <button type="submit" disabled={busy || !email.trim() || faltaFicha} style={boton('primary', busy || !email.trim() || faltaFicha)}>
+          <button type="submit" disabled={busy} style={boton('primary', busy)}>
             <KeyRound size={14} /> Asignar
           </button>
         </div>
 
         {role === 'doctor' && (
           <div style={{ marginTop: 10 }}>
-            <select value={therapistId} onChange={(e) => setTherapistId(e.target.value)} style={{ ...campo, width: '100%' }}>
+            <select value={therapistId} onChange={(e) => setTherapistId(e.target.value)} aria-label="Ficha de terapeuta" style={{ ...campo, width: '100%' }}>
               <option value="">Elige su ficha de terapeuta…</option>
               {therapists.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
@@ -333,6 +353,7 @@ export default function AdminAccess() {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <select
                   value={m.role}
+                  aria-label={`Rol de ${m.email}`}
                   disabled={busy}
                   onChange={async (e) => {
                     const nuevo = e.target.value;

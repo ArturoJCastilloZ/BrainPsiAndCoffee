@@ -3,6 +3,7 @@ import { C } from '../theme';
 import { loadPatientConsents, registerClinicalConsent, revokeConsent } from '../api/supabaseData';
 import { CONSENTIMIENTO_CLINICO } from '../legal/avisoPrivacidad.mjs';
 import { useConfirm } from '../components/ConfirmDialog';
+import { avisar } from '../components/Avisos';
 
 const fechaHora = (iso) => new Date(iso).toLocaleString('es-MX', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -59,6 +60,7 @@ export default function ConsentimientoClinico({
     setError('');
     try {
       await registrar({ patientId: patient.id, email: patient.email, ...formulario });
+      avisar.exito('Consentimiento registrado.');
       setFormulario(null);
       await recargar();
     } catch (err) {
@@ -78,6 +80,7 @@ export default function ConsentimientoClinico({
     setOcupado(true);
     try {
       await revocar(vigente.id);
+      avisar.exito('Revocación registrada.');
       await recargar();
     } catch (err) {
       setError(err?.message || 'No se pudo registrar la revocación.');

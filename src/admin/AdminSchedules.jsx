@@ -3,6 +3,7 @@ import { Clock, Copy, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { C } from '../theme';
 import { saveTherapistAgendaPrefs, saveTherapistSchedules } from '../api/supabaseData';
 import { useConfirm } from '../components/ConfirmDialog';
+import { avisar } from '../components/Avisos';
 import { fromMinutes, timeSlotStates, toMinutes } from '../agenda.mjs';
 
 // weekday 0 = domingo, igual que getDay() y que la columna en la base.
@@ -29,6 +30,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
   const sucursalPorDefecto = sucursales[0]?.id || '';
   const [blocks, setBlocks] = useState([]);
   const [prefs, setPrefs] = useState(null);
+  const [modoRejilla, setModoRejilla] = useState('auto');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -51,6 +53,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
     setBlocks((catalogs?.schedules || [])
       .filter((b) => b.therapistId === therapist.id)
       .map((b) => ({ ...b })));
+    setModoRejilla(Number(therapist.slotInterval) > 0 ? 'fijo' : 'auto');
     setPrefs({
       bufferBefore: therapist.bufferBefore ?? 0,
       bufferAfter: therapist.bufferAfter ?? 30,
@@ -131,6 +134,17 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
   // constraint.
   const problemas = useMemo(() => {
     const fallas = [];
+    // Las preferencias, con los mismos limites que la base (0016): vacio o
+    // fuera de rango se dice aqui, no como un error de constraint.
+    const fueraDe = (v, min, max) => v === '' || v === null || v === undefined || !Number.isInteger(Number(v)) || Number(v) < min || Number(v) > max;
+    if (prefs) {
+      if (fueraDe(prefs.bufferAfter, 0, 240)) fallas.push('Descanso después de cada cita: escribe un número de minutos entre 0 y 240.');
+      if (fueraDe(prefs.bufferBefore, 0, 240)) fallas.push('Preparación antes: escribe un número de minutos entre 0 y 240.');
+      if (modoRejilla === 'fijo' && fueraDe(prefs.slotInterval, 5, 240)) fallas.push('Rejilla fija: escribe cada cuántos minutos (entre 5 y 240).');
+      if (fueraDe(prefs.minimumNotice, 0, 525600)) fallas.push('Anticipación mínima: escribe un número de minutos (0 o más).');
+      if (fueraDe(prefs.bookingWindowDays, 1, 730)) fallas.push('Se puede reservar hasta: escribe un número de días entre 1 y 730.');
+      if (prefs.maxBookingsPerDay !== undefined && fueraDe(prefs.maxBookingsPerDay, 1, 100)) fallas.push('Máximo de citas por día: escribe un número entre 1 y 100.');
+    }
     if (variasSucursales && blocks.some((b) => !b.locationId)) {
       fallas.push('Elige la sucursal de cada bloque: con varias sucursales, la reserva necesita saber dónde atiende.');
     }
@@ -150,10 +164,17 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
       }
     }
     return fallas;
-  }, [blocks, variasSucursales]);
+  }, [blocks, variasSucursales, prefs, modoRejilla]);
 
+  const avisoRef = useRef(null);
   const guardar = async () => {
-    if (problemas.length) return;
+    // Con problemas no se guarda, pero el boton no se apaga: lleva a la
+    // lista de lo que hay que corregir.
+    if (problemas.length) {
+      avisoRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      avisoRef.current?.focus();
+      return;
+    }
     // Guardar sin bloques BORRA el horario. Es una opcion legitima —cerrar
     // toda la semana— pero tambien lo que pasa si la lista no alcanzo a
     // cargar, y en ese caso el borrado seria accidental y silencioso.
@@ -174,7 +195,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
         !variasSucursales && sucursalPorDefecto ? { ...b, locationId: sucursalPorDefecto } : b
       )));
       await saveTherapistAgendaPrefs(therapistId, prefs);
-      setNotice('Horario y preferencias guardados.');
+      avisar.exito('Horario y preferencias guardados.');
       cargadoPara.current = null;
       await reload?.();
     } catch (err) {
@@ -207,12 +228,12 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
       {notice && <Aviso tono="ok">{notice}</Aviso>}
 
       {!lockedTherapistId && (
-        <div style={{ marginBottom: 14 }}>
+        <label style={{ display: 'block', marginBottom: 14 }}>
           <span style={etiqueta}>Especialista</span>
           <select value={therapistId} onChange={(e) => setTherapistId(e.target.value)} style={{ ...campo, width: '100%', marginTop: 6 }}>
             {therapists.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-        </div>
+        </label>
       )}
 
       {/* auto-fit apila en una sola columna cuando no caben dos, sin
@@ -349,18 +370,27 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
               valor={prefs?.bufferBefore} onChange={(v) => setPrefs({ ...prefs, bufferBefore: v })} />
 
             <div style={{ marginTop: 10, gridColumn: '1 / -1' }}>
-              <span style={etiqueta}>Cómo se ofrecen los horarios</span>
-              <select
-                value={prefs?.slotInterval === 0 ? 'auto' : 'fijo'}
-                onChange={(e) => setPrefs({ ...prefs, slotInterval: e.target.value === 'auto' ? 0 : 15 })}
-                style={{ ...campo, width: '100%', marginTop: 6 }}
-              >
-                <option value="auto">Encadenados (uno tras otro)</option>
-                <option value="fijo">Rejilla fija</option>
-              </select>
-              {prefs?.slotInterval > 0 && (
-                <Campo etiquetaTexto="CADA CUÁNTOS MINUTOS"
-                  valor={prefs.slotInterval} onChange={(v) => setPrefs({ ...prefs, slotInterval: v })} />
+              <label style={{ display: 'block' }}>
+                <span style={etiqueta}>Cómo se ofrecen los horarios</span>
+                {/* El modo se guarda aparte del numero: antes era
+                    "slotInterval === 0 ? auto : fijo", asi que al BORRAR los
+                    minutos el select decia "Rejilla fija" y el campo
+                    desaparecia, sin forma de arreglarlo. */}
+                <select
+                  value={modoRejilla}
+                  onChange={(e) => {
+                    setModoRejilla(e.target.value);
+                    setPrefs({ ...prefs, slotInterval: e.target.value === 'auto' ? 0 : (Number(prefs?.slotInterval) > 0 ? prefs.slotInterval : 15) });
+                  }}
+                  style={{ ...campo, width: '100%', marginTop: 6 }}
+                >
+                  <option value="auto">Encadenados (uno tras otro)</option>
+                  <option value="fijo">Rejilla fija</option>
+                </select>
+              </label>
+              {modoRejilla === 'fijo' && (
+                <Campo etiquetaTexto="CADA CUÁNTOS MINUTOS" min={5} max={240}
+                  valor={prefs?.slotInterval} onChange={(v) => setPrefs({ ...prefs, slotInterval: v })} />
               )}
             </div>
 
@@ -381,7 +411,7 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
       </div>
 
       {problemas.length > 0 && (
-        <div style={{ marginTop: 14 }}>
+        <div ref={avisoRef} tabIndex={-1} style={{ marginTop: 14, outline: 'none' }}>
           <Aviso tono="error">
             {problemas.map((p) => <div key={p}>{p}</div>)}
           </Aviso>
@@ -397,12 +427,12 @@ export default function AdminSchedules({ catalogs, reload, lockedTherapistId = n
         >
           <RefreshCw size={12} /> Descartar
         </button>
-        <button type="button" onClick={guardar} disabled={busy || problemas.length > 0} style={{
+        <button type="button" onClick={guardar} disabled={busy} style={{
           ...botonChico,
           background: C.sageDeep,
           color: C.ivory,
           border: `1px solid ${C.sageDeep}`,
-          opacity: busy || problemas.length ? 0.45 : 1,
+          opacity: busy ? 0.45 : 1,
           padding: '9px 14px',
         }}>
           <Save size={13} /> Guardar horario
@@ -585,20 +615,27 @@ function Encabezado({ embedded = false }) {
   );
 }
 
-function Campo({ etiquetaTexto, valor, onChange, ayuda }) {
+// <label> envolviendo: tocar el texto lleva al campo, y el lector de
+// pantalla lo anuncia. Vacio se queda vacio ('' y no 0): Number('') era 0
+// y borrar un campo lo guardaba como cero sin avisar.
+function Campo({ etiquetaTexto, valor, onChange, ayuda, min = 0, max }) {
   return (
-    <div style={{ marginTop: 10 }}>
+    <label style={{ display: 'block', marginTop: 10 }}>
       <span style={etiqueta}>{etiquetaTexto}</span>
       <input
         type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        step={1}
         value={valor ?? ''}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
         style={{ ...campo, width: '100%', marginTop: 6 }}
       />
       {/* Alto minimo para que un campo con ayuda no empuje al de al lado
           y las filas queden alineadas. */}
       <p style={{ fontSize: 11, color: 'var(--admin-muted)', margin: '4px 0 0', minHeight: 15 }}>{ayuda || ''}</p>
-    </div>
+    </label>
   );
 }
 

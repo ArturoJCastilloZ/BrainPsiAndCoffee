@@ -19,6 +19,8 @@ import { useAppData, useTheme } from '../context/AppContext';
 import SecurityPanel from '../components/SecurityPanel';
 import { useMfaExigida } from '../components/useMfaExigida';
 import MfaAviso from '../components/MfaAviso';
+import Avisos, { avisar } from '../components/Avisos';
+import { useAccionesConAviso } from '../admin/useAccionesConAviso';
 import ConsentimientoClinico from './ConsentimientoClinico';
 import {
   addNoteAddendum, createClinicalNote, ensureEncounter, loadClinicalNotes, logClinicalNoteAccess,
@@ -26,7 +28,9 @@ import {
 } from '../api/supabaseData';
 
 export default function DoctorApp({ logout }) {
-  const { bookings, setBookings, catalogs, session, catalogActions } = useAppData();
+  const datosApp = useAppData();
+  const { bookings, catalogs, session } = datosApp;
+  const { setBookings, catalogActions } = useAccionesConAviso(datosApp);
   const { theme, toggleTheme } = useTheme();
   const mfaPendiente = useMfaExigida(session);
   const therapistId = session?.user?.therapistId;
@@ -241,6 +245,7 @@ export default function DoctorApp({ logout }) {
           />
         )}
       </main>
+      <Avisos />
     </div>
   );
 }
@@ -515,7 +520,12 @@ function DoctorPatients({
 function ClinicalNoteEditor({ patient, appointments, session, therapistId, setNotes, setError }) {
   const [appointmentId, setAppointmentId] = useState('');
   const [content, setContent] = useState('');
-  const canSave = Boolean(patient?.id && appointmentId && content.trim().length > 0 && content.trim().length <= 5000);
+  // Que falta para guardar, en palabras. El boton no se apaga: al
+  // presionarlo, si falta algo, lo dice.
+  const falta = !appointmentId ? 'Elige la cita a la que corresponde la nota.'
+    : !content.trim() ? 'Escribe la nota antes de guardarla.'
+      : content.trim().length > 5000 ? 'La nota pasa de 5,000 caracteres: recórtala.' : '';
+  const [mostrarFalta, setMostrarFalta] = useState(false);
 
   // Depende del ID de la primera cita y del paciente, no del ARREGLO: un
   // arreglo recreado no debe vaciar lo que el doctor lleva escrito.
@@ -526,7 +536,9 @@ function ClinicalNoteEditor({ patient, appointments, session, therapistId, setNo
   }, [primeraCitaId, patient?.id]);
 
   const save = async () => {
-    if (!canSave) return;
+    if (!patient?.id) return;
+    if (falta) { setMostrarFalta(true); return; }
+    setMostrarFalta(false);
     setError('');
     try {
       // La nota cuelga del ENCUENTRO, no de la cita: primero se registra
@@ -544,6 +556,7 @@ function ClinicalNoteEditor({ patient, appointments, session, therapistId, setNo
       }, session);
       setNotes((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
       setContent('');
+      avisar.exito('Nota clínica guardada.');
     } catch (error) {
       setError(error.message || 'No se pudo guardar la nota clínica.');
     }
@@ -588,9 +601,12 @@ function ClinicalNoteEditor({ patient, appointments, session, therapistId, setNo
           <span style={{ color: content.length > 4500 ? C.caramel : 'var(--admin-muted)', fontSize: 11.5 }}>
             {content.length.toLocaleString('es-MX')} / 5,000
           </span>
-          <button onClick={save} disabled={!canSave} style={{ ...smallButtonStyle, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed' }}>
-            <Plus size={14} aria-hidden="true" /> Guardar nota
-          </button>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {mostrarFalta && falta && <span role="alert" style={{ color: C.rustText, fontSize: 12.5, fontWeight: 700 }}>{falta}</span>}
+            <button type="button" onClick={save} style={smallButtonStyle}>
+              <Plus size={14} aria-hidden="true" /> Guardar nota
+            </button>
+          </span>
         </div>
       </div>
     </div>
@@ -610,6 +626,7 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
       const saved = await updateClinicalNote(note.id, content);
       setNotes((current) => current.map((item) => item.id === saved.id ? saved : item));
       setEditing(false);
+      avisar.exito('Nota actualizada.');
     } catch (error) {
       // El mensaje de la base dice cuando se firmo y que hacer en su
       // lugar. Sustituirlo por uno generico esconderia justo eso.
@@ -629,6 +646,7 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
     try {
       const saved = await signClinicalNote(note.id, session);
       setNotes((current) => current.map((item) => item.id === saved.id ? saved : item));
+      avisar.exito('Nota firmada.');
     } catch (error) {
       setError(error.message || 'No se pudo firmar la nota clínica.');
     }
@@ -636,7 +654,7 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
 
   const addAddendum = async () => {
     const texto = addendum.trim();
-    if (!texto) return;
+    if (!texto) { setError('Escribe el addendum antes de guardarlo.'); return; }
     setError('');
     try {
       const creado = await addNoteAddendum(note.id, texto, session);
@@ -645,6 +663,7 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
       )));
       setAddendum('');
       setAddingAddendum(false);
+      avisar.exito('Addendum agregado.');
     } catch (error) {
       setError(error.message || 'No se pudo agregar el addendum.');
     }
@@ -708,7 +727,7 @@ function ClinicalNoteCard({ note, session, setNotes, setError }) {
         {note.locked ? (
           addingAddendum ? (
             <>
-              <button onClick={addAddendum} disabled={!addendum.trim()} style={smallButtonStyle}>Guardar addendum</button>
+              <button type="button" onClick={addAddendum} style={smallButtonStyle}>Guardar addendum</button>
               <button onClick={() => { setAddingAddendum(false); setAddendum(''); }} style={textButtonStyle}>Cancelar</button>
             </>
           ) : (

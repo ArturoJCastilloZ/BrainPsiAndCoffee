@@ -80,7 +80,7 @@ export default function AdminLocations({ catalogs, catalogActions }) {
       return;
     }
     setLista(final);
-    setAviso('Sucursales guardadas. Ahora asigna cada bloque de horario a su sucursal en Consultorio → Horarios.');
+    setAviso('Ahora asigna cada bloque de horario a su sucursal en Consultorio → Horarios.');
   };
 
   return (
@@ -120,7 +120,7 @@ export default function AdminLocations({ catalogs, catalogActions }) {
                   onChange={(e) => cambiar(i, 'address', e.target.value)} />
               </Campo>
               <Campo etiqueta="Enlace de Google Maps">
-                <input className="admin-input" style={campo} value={l.mapsUrl} placeholder="https://maps.app.goo.gl/…"
+                <input className="admin-input" style={campo} type="url" inputMode="url" spellCheck={false} value={l.mapsUrl} placeholder="https://maps.app.goo.gl/…"
                   onChange={(e) => cambiar(i, 'mapsUrl', e.target.value)} />
               </Campo>
             </div>

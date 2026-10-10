@@ -430,6 +430,26 @@ export default function GlobalStyle() {
           font-weight: 700;
         }
 
+        /* Avisos del panel (components/Avisos.jsx): abajo a la derecha, y
+           en movil por ENCIMA de la barra inferior, que si no los tapa. */
+        .admin-avisos { bottom: 16px; }
+
+        /* Ventana de formulario (components/FormModal.jsx). */
+        .admin-modal {
+          width: min(760px, calc(100vw - 32px));
+          max-height: calc(100vh - 48px);
+          overflow: auto;
+          box-sizing: border-box;
+          padding: 20px;
+          border-radius: 16px;
+          border: 1px solid var(--admin-border);
+          background: var(--admin-surface);
+          color: var(--admin-text);
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+        }
+        .admin-modal::backdrop { background: rgba(0, 0, 0, 0.55); }
+        @media (max-width: 767px) { .admin-avisos { bottom: 96px; } }
+
         .admin-barra-inferior {
           position: fixed;
           bottom: 0;

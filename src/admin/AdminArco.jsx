@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { C } from '../theme';
 import { loadArcoRequests, updateArcoRequest } from '../api/supabaseData';
+import { avisar } from '../components/Avisos';
 import { CERRADOS, ESTADOS_ARCO, TIPOS_ARCO, diasHabilesRestantes } from '../arcoPlazos.mjs';
 
 const nombreTipo = (id) => TIPOS_ARCO.find((t) => t.id === id)?.nombre || id;
@@ -37,6 +38,9 @@ export default function AdminArco({ cargar = loadArcoRequests, actualizar = upda
     try {
       const nueva = await actualizar(id, cambios);
       if (nueva) setSolicitudes((prev) => prev.map((s) => (s.id === id ? nueva : s)));
+      avisar.exito(cambios?.status === 'respondida' ? 'Solicitud cerrada como respondida.'
+        : cambios?.status === 'rechazada' ? 'Solicitud cerrada como rechazada.'
+          : 'Solicitud actualizada.');
       return true;
     } catch (err) {
       setError(err?.message || 'No se pudo guardar el cambio.');
@@ -98,7 +102,15 @@ function Solicitud({ s, onGuardar }) {
     : vencida ? `Venció hace ${-restantes} ${-restantes === 1 ? 'día hábil' : 'días hábiles'}`
       : restantes === 0 ? 'Vence hoy' : `Vence en ${restantes} ${restantes === 1 ? 'día hábil' : 'días hábiles'} (${fecha(`${s.dueOn}T12:00:00`)})`;
 
+  const [falta, setFalta] = useState('');
   const cerrar = async (status) => {
+    // Lo que se respondio queda como evidencia: sin ello no se cierra, y
+    // se DICE (antes el boton solo se apagaba).
+    if (respuesta.trim().length < 10) {
+      setFalta('Escribe qué se respondió (mínimo 10 caracteres): queda como evidencia.');
+      return;
+    }
+    setFalta('');
     if (await onGuardar(s.id, { status, responseSummary: respuesta })) setRespuesta('');
   };
 
@@ -130,9 +142,10 @@ function Solicitud({ s, onGuardar }) {
               style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', fontSize: 15, resize: 'vertical' }} />
           </label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button type="button" style={botonPrimario} disabled={respuesta.trim().length < 10} onClick={() => cerrar('respondida')}>Cerrar como respondida</button>
-            <button type="button" style={botonSecundario} disabled={respuesta.trim().length < 10} onClick={() => cerrar('improcedente')}>Cerrar como improcedente</button>
+            <button type="button" style={botonPrimario} onClick={() => cerrar('respondida')}>Cerrar como respondida</button>
+            <button type="button" style={botonSecundario} onClick={() => cerrar('improcedente')}>Cerrar como improcedente</button>
           </div>
+          {falta && <p role="alert" style={{ margin: 0, color: C.rustText, fontSize: 13, fontWeight: 700 }}>{falta}</p>}
         </div>
       )}
     </article>

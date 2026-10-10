@@ -36,6 +36,8 @@ import SecurityPanel from '../components/SecurityPanel';
 import { useMfaExigida } from '../components/useMfaExigida';
 import MfaAviso from '../components/MfaAviso';
 import AdminLocations from './AdminLocations';
+import Avisos from '../components/Avisos';
+import { useAccionesConAviso, hechoConAviso } from './useAccionesConAviso';
 import { useAccountingData } from './useAccountingData';
 import { useAppData, useTheme } from '../context/AppContext';
 import {
@@ -57,13 +59,21 @@ import {
 } from '../auth/permissions';
 
 export default function AdminApp({ switchToUser, logout }) {
-  const { bookings, setBookings, orders, setOrders, session, catalogs, catalogActions } = useAppData();
+  const datosApp = useAppData();
+  const { bookings, orders, session, catalogs } = datosApp;
+  // Los mismos guardados, con aviso de exito (useAccionesConAviso): asi
+  // toda pantalla del panel dice "guardado", "eliminado", "confirmada".
+  const { setBookings, setOrders, catalogActions } = useAccionesConAviso(datosApp);
   const { theme, toggleTheme } = useTheme();
     const role = session?.user?.role;
     const [page, setPage] = useState(firstAllowedAdminPage(role) || 'cafe-orders');
     // Los cobros viven aqui y no en cada pantalla: citas, pedidos y el
     // panel tienen que ver el MISMO saldo. Ver useAccountingData.
-    const contabilidad = useAccountingData(role);
+    const contabilidadBase = useAccountingData(role);
+    const contabilidad = useMemo(() => ({
+        ...contabilidadBase,
+        registrarCobro: hechoConAviso(contabilidadBase.registrarCobro, 'Cobro registrado.'),
+    }), [contabilidadBase]);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const sidebarWidth = sidebarCollapsed ? 78 : 240;
     const navSections = useMemo(() => ([
@@ -307,6 +317,7 @@ export default function AdminApp({ switchToUser, logout }) {
                         {page === 'clinic-specialties' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="specialties" lockedTab heading="Especialidades" description="Administra especialidades disponibles para clasificar al equipo clínico." />}
                     </div>
                 </main>
+                <Avisos />
 
                 {/* Mobile bottom nav */}
                 <nav aria-label={`Secciones de ${seccionActiva?.label || 'la administracion'}`}

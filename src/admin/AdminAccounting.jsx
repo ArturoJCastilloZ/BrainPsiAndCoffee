@@ -7,6 +7,7 @@ import { accountingAreas, recordablePaymentKinds } from '../auth/permissions';
 import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
 import { saveExpense, deleteExpense } from '../api/supabaseData';
+import { avisar } from '../components/Avisos';
 import {
   periodRange, previousRange, billedClinic, billedCafe, collected,
   receivableClinic, receivableCafe, expensesOf, profit, variation,
@@ -35,7 +36,6 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
   // que esta pantalla, la de citas y la de pedidos vean el mismo saldo.
   const { datos, cargando, recargar, registrarCobro } = contabilidad;
   const [error, setError] = useState('');
-  const [aviso, setAviso] = useState('');
   // Los tipos de cobro que el rol puede registrar. Si no puede ninguno,
   // no se dibuja el boton: RLS lo negaria igual.
   const tiposCobrables = recordablePaymentKinds(role);
@@ -138,7 +138,6 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
       </p>
 
       {error && <Aviso tono="error">{error}</Aviso>}
-      {aviso && <Aviso tono="ok">{aviso}</Aviso>}
 
       <Controles
         areas={areas} area={area} setArea={setArea}
@@ -186,7 +185,6 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
           descripcion={cobrando.etiqueta}
           onGuardar={async (fila) => {
             await registrarCobro(fila);
-            setAviso('Cobro registrado.');
           }}
           onCerrar={() => setCobrando(null)}
         />
@@ -200,13 +198,13 @@ export default function AdminAccounting({ bookings = [], orders = [], catalogs =
             // Sin id: lo pone la base. uid() da 7 caracteres base36 y la
             // columna es uuid — por eso reventaba al guardar.
             await saveExpense(gasto);
-            setAviso('Gasto registrado.');
+            avisar.exito('Gasto registrado.');
             await recargar();
             return true;
           } catch (err) { setError(err.message); return false; }
         }}
         onBorrar={async (id) => {
-          try { await deleteExpense(id); await recargar(); }
+          try { await deleteExpense(id); avisar.exito('Gasto eliminado.'); await recargar(); }
           catch (err) { setError(err.message); }
         }}
       />
