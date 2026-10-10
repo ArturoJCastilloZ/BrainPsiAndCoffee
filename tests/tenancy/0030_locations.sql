@@ -182,3 +182,48 @@ begin
   end;
   raise notice 'ok · una sucursal en uso no se borra';
 end $$;
+
+-- 7 · El dueño da de alta una sucursal desde el panel SIN mandar
+--     tenant_id (lo pone la base, 0041). Con 0040 sola fallaba con "new
+--     row violates row-level security policy". Y un barista no puede.
+insert into auth.users (id,email) values
+  ('c9100000-0000-0000-0000-0000000000f1','owner.loc@ex.mx'),
+  ('c9100000-0000-0000-0000-0000000000b1','barista.loc@ex.mx');
+insert into public.tenant_members (tenant_id,user_id,role) values
+  ('t_loc','c9100000-0000-0000-0000-0000000000f1','owner'),
+  ('t_loc','c9100000-0000-0000-0000-0000000000b1','barista');
+
+create or replace function pg_temp.sesion_loc(p_sub text, p_rol text) returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object(
+    'sub', p_sub, 'aal', 'aal1',
+    'app_metadata', json_build_object('memberships', json_build_object('t_loc', p_rol))
+  )::text, true);
+  perform set_config('request.tenant','t_loc', true);
+end $$;
+
+do $$
+declare v_tenant text;
+begin
+  perform pg_temp.sesion_loc('c9100000-0000-0000-0000-0000000000f1', 'owner');
+  set local role authenticated;
+  -- Como lo manda el panel: upsert, sin tenant_id.
+  insert into public.locations (id,name,address,maps_url,has_cafe,active,sort_order)
+  values ('san-nicolas','Sucursal San Nicolas','Centro','',false,true,3)
+  on conflict (tenant_id, id) do update set name = excluded.name;
+  reset role;
+  select tenant_id into v_tenant from public.locations where id = 'san-nicolas';
+  if v_tenant is distinct from 't_loc' then
+    raise exception 'FALLA: la sucursal nueva quedo en la clinica "%"', v_tenant;
+  end if;
+
+  perform pg_temp.sesion_loc('c9100000-0000-0000-0000-0000000000b1', 'barista');
+  set local role authenticated;
+  begin
+    insert into public.locations (id,name) values ('del-barista','Del barista');
+    raise exception 'FUGA: un barista dio de alta una sucursal';
+  exception when insufficient_privilege then null;
+  end;
+  reset role;
+  raise notice 'ok · el dueño da de alta sucursales sin mandar la clinica; el barista no';
+end $$;
