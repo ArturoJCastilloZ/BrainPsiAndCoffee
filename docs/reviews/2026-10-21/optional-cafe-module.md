@@ -24,4 +24,6 @@ The disposable PostgreSQL suite passed all 34 SQL files plus the two-connection 
 
 A local fixture with synthetic data was inspected using temporary Chrome profiles at exact 390 px and 1440 px viewports. Both reported no horizontal overflow and no cafe links. No real clinic configuration, orders or patients were changed. The fixture and development processes were removed after inspection.
 
-Apply 0047 before publishing the frontend with this control. This delivery is local on `feature/optional-cafe-module`; migration and frontend publication are pending. Existing clinics stay enabled until their owner explicitly disables the module. The migration does not rename the business, delete historical records or remove old cafe roles.
+Apply 0047 before publishing the frontend with this control. The implementation branch is `feature/optional-cafe-module`; frontend releases are published through `main`. Existing clinics stay enabled until their owner explicitly disables the module. The migration does not rename the business, delete historical records or remove old cafe roles.
+
+0047 was applied to BrainPsiSaaS after verifying all 46 earlier migration checksums. Its checksum and the settings trigger plus three module triggers were verified independently. The trigger-only definer is not executable directly by anon or authenticated. The remote configuration check showed zero disabled clinics; no owner preferences were changed during deployment.
