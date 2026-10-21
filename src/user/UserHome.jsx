@@ -15,6 +15,7 @@ export default function UserHome({ catalogs, dataLoading }) {
   const services = (catalogs?.services || []).filter((s) => s.active !== false);
   const therapists = (catalogs?.therapists || []).filter((t) => t.active !== false);
   const business = businessFromSettings(catalogs?.settings);
+  const ciudad = String(business.city || '').trim() || 'tu ciudad';
   const cafeEnabled = !dataLoading && isCafeEnabled(catalogs?.settings);
   const combo = activeOffers(catalogs?.offers || []).find((o) => o.kind === 'combo');
   const menu = catalogs?.menu || {};
@@ -39,7 +40,7 @@ export default function UserHome({ catalogs, dataLoading }) {
           <div>
             <h1 className="pub-hero-title">{cafeEnabled ? 'Un cafecito y lo hablamos.' : 'Un espacio para tu bienestar.'}</h1>
             <p className="pub-hero-lead">
-              Psicología y neuropsicología infantil en Monterrey. <strong>Precio a la vista</strong>,
+              Psicología y neuropsicología infantil en {ciudad}. <strong>Precio a la vista</strong>,
               {' '}{cafeEnabled ? 'solicitud en línea y un café para quien acompaña mientras su hijo o hija está en sesión.' : 'solicitud en línea y atención en un consultorio privado.'}
             </p>
             <div className="pub-actions">
@@ -88,7 +89,7 @@ export default function UserHome({ catalogs, dataLoading }) {
         </div>
       </section>
 
-      <section className="pub-section" aria-label="Por qué Brainpsi">
+      <section className="pub-section" aria-label={`Por qué ${business.name}`}>
         <div className="pub-wrap">
           <ul className="pub-facts">
             {/* "Especialistas con cedula verificable" queda pendiente: la vista
