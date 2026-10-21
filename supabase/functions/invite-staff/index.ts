@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { puedeAdministrarMfa } from './mfa-assurance.mjs';
 // La generacion de la temporal y la forma del app_metadata viven fuera
 // para poder probarlas. Ver password.mjs.
 import {
@@ -163,6 +164,10 @@ const manejar = async (req: Request): Promise<Response> => {
   // clinica le creo la cuenta y que la perdio antes de entrar. Ver la
   // rama de abajo y puedeRegenerarTemporal.
   const accion = String(body.accion ?? 'alta');
+  // Antes de buscar la cuenta destino o tocar factores con service_role.
+  if (accion === 'reiniciar_mfa' && !await puedeAdministrarMfa(callerClient, authorization, callerData.user.id)) {
+    return json({ error: 'Verifica tu sesión con tu código en Mi cuenta → Seguridad antes de reiniciar la verificación del personal.' }, 403);
+  }
   // Solo para cuentas NUEVAS: 'correo' (por defecto) o 'temporal'.
   const metodo = body.metodo === 'temporal' ? 'temporal' : 'correo';
 

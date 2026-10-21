@@ -13,6 +13,8 @@ const api = vi.hoisted(() => ({
   resetStaffMfa: vi.fn(),
   setTenantMemberRole: vi.fn(),
 }));
+const auth = vi.hoisted(() => ({ session: { aal: 'aal2' } }));
+vi.mock('../../src/auth/useAuth', () => ({ useAuthSession: () => auth.session }));
 vi.mock('../../src/api/supabaseData', () => api);
 vi.mock('../../src/api/supabaseClient', () => ({
   getSupabase: async () => ({
@@ -32,6 +34,7 @@ const miembros = [
 describe('Accesos', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    auth.session = { aal: 'aal2' };
     api.listTenantMembers.mockResolvedValue(miembros);
   });
 
@@ -60,6 +63,16 @@ describe('Accesos', () => {
     await user.click(within(dialogo).getByRole('button', { name: 'Reiniciar' }));
     expect(api.resetStaffMfa).toHaveBeenCalledWith('barista@ex.mx');
     expect(await screen.findByText(/barista@ex.mx ya puede entrar con su contraseña/)).toBeTruthy();
+  });
+
+  it('sin segundo factor explica cómo verificar y no invoca el reinicio', async () => {
+    auth.session = { aal: 'aal1' };
+    const user = userEvent.setup();
+    render(<AdminAccess />);
+    await user.click(await screen.findByRole('button', { name: /Reiniciar verificación en dos pasos/ }));
+    expect(await screen.findByText(/Verifica tu sesión con tu código en Mi cuenta/)).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(api.resetStaffMfa).not.toHaveBeenCalled();
   });
 });
 

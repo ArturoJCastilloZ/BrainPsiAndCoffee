@@ -8,6 +8,7 @@ import { getSupabase } from '../api/supabaseClient';
 import { useConfirm } from '../components/ConfirmDialog';
 import { avisar } from '../components/Avisos';
 import TempPasswordPanel from './TempPasswordPanel';
+import { useAuthSession } from '../auth/useAuth';
 
 const ROLE_OPTIONS = [
   { id: 'owner', label: 'Dueño', help: 'Todo, incluido administrar accesos' },
@@ -20,6 +21,7 @@ const ROLE_OPTIONS = [
 const roleLabel = (id) => ROLE_OPTIONS.find((r) => r.id === id)?.label || id;
 
 export default function AdminAccess() {
+  const session = useAuthSession();
   const [therapists, setTherapists] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -163,6 +165,10 @@ export default function AdminAccess() {
   // La Edge Function vuelve a decidir (puedeReiniciarMfa); aqui solo se
   // ofrece a quien tiene sentido.
   const reiniciarMfa = async (correo) => {
+    if (session?.aal !== 'aal2') {
+      setError('Verifica tu sesión con tu código en Mi cuenta → Seguridad antes de reiniciar la verificación del personal.');
+      return;
+    }
     const ok = await confirmar({
       titulo: 'Reiniciar verificación en dos pasos',
       mensaje: `Se le quita a ${correo} la verificación en dos pasos que tenga configurada. Úsalo solo si perdió o cambió de celular y tú confirmaste que es esa persona. Podrá entrar solo con su contraseña y deberá configurarla de nuevo en Mi cuenta → Seguridad.`,
