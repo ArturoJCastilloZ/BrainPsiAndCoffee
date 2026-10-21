@@ -183,6 +183,9 @@ export const useSupabaseCrud = (session) => {
 
   useEffect(() => {
     reload();
+    // Un workspace desmontado no debe iniciar la segunda etapa de carga
+    // con el header de la clínica nueva ni adoptar respuestas pendientes.
+    return () => { cargaRef.current += 1; };
   }, [reload]);
 
   // Al cerrar sesion (o perder el permiso) las citas y los pedidos se
@@ -220,7 +223,7 @@ export const useSupabaseCrud = (session) => {
         const turno = ++ordenRef.current;
         try {
           const remotos = await loadOrders();
-          if (turno === ordenRef.current) setOrdersRaw(remotos);
+          if (!cancelado && turno === ordenRef.current) setOrdersRaw(remotos);
         } catch (error) {
           console.error(error);
         }
@@ -242,6 +245,7 @@ export const useSupabaseCrud = (session) => {
 
     return () => {
       cancelado = true;
+      ordenRef.current += 1;
       window.clearTimeout(espera);
       if (cliente && channel) cliente.removeChannel(channel);
     };

@@ -16,6 +16,7 @@ import { myPendingInvitations, acceptTenantInvitation, declineTenantInvitation }
 import GlobalStyle, { themeVars } from './GlobalStyle';
 import { useRouteHead } from './seo/useRouteHead';
 import { AppProviders } from './context/AppContext';
+import SessionScope from './auth/SessionScope';
 // El sitio publico va en el paquete inicial, NO lazy: es lo que ve todo
 // visitante, y cargarlo aparte cambiaba el HTML prerenderizado por un
 // "Cargando…" mientras llegaba el chunk. Admin y doctor siguen aparte.
@@ -27,8 +28,12 @@ const Login = lazy(() => import('./components/Login'));
 const SetPassword = lazy(() => import('./components/SetPassword'));
 
 export default function App() {
-  const [theme, setTheme] = useStorage('brainpsi:theme', 'light');
   const session = useAuthSession();
+  return <SessionScope session={session}><AppWorkspace session={session} /></SessionScope>;
+}
+
+function AppWorkspace({ session }) {
+  const [theme, setTheme] = useStorage('brainpsi:theme', 'light');
   const authReady = useAuthReady();
   const [errorCerrado, setErrorCerrado] = React.useState(null);
   const crud = useSupabaseCrud(session);
