@@ -36,6 +36,7 @@ import SecurityPanel from '../components/SecurityPanel';
 import { useMfaExigida } from '../components/useMfaExigida';
 import MfaAviso from '../components/MfaAviso';
 import AdminLocations from './AdminLocations';
+import { isCafeEnabled } from '../modules.mjs';
 import Avisos from '../components/Avisos';
 import { useAccionesConAviso, hechoConAviso } from './useAccionesConAviso';
 import { useAccountingData } from './useAccountingData';
@@ -66,7 +67,8 @@ export default function AdminApp({ switchToUser, logout }) {
   const { setBookings, setOrders, catalogActions } = useAccionesConAviso(datosApp);
   const { theme, toggleTheme } = useTheme();
     const role = session?.user?.role;
-    const [page, setPage] = useState(firstAllowedAdminPage(role) || 'cafe-orders');
+    const cafeEnabled = isCafeEnabled(catalogs?.settings);
+    const [page, setPage] = useState(firstAllowedAdminPage(role, cafeEnabled) || 'cafe-orders');
     // Los cobros viven aqui y no en cada pantalla: citas, pedidos y el
     // panel tienen que ver el MISMO saldo. Ver useAccountingData.
     const contabilidadBase = useAccountingData(role);
@@ -120,7 +122,7 @@ export default function AdminApp({ switchToUser, logout }) {
                 canManageOwnSecurity(role) && { id: 'cuenta-seguridad', label: 'Seguridad', icon: LockKeyhole },
             ].filter(Boolean)
         }
-    ].filter((section) => section.items.length)), [role]);
+    ].filter((section) => section.items.length && (cafeEnabled || section.contexto !== 'cafe'))), [role, cafeEnabled]);
 
     // M3 · Los dos ejes de la navegacion son distintos y estaban mezclados:
     // CONTEXTO (en que negocio estoy) y SECCION (que pantalla veo). La barra
@@ -146,10 +148,10 @@ export default function AdminApp({ switchToUser, logout }) {
     const mfaPendiente = useMfaExigida(session);
 
     useEffect(() => {
-        if (!canAccessAdminPage(role, page)) {
-            setPage(firstAllowedAdminPage(role) || 'cafe-orders');
+        if (!canAccessAdminPage(role, page, cafeEnabled)) {
+            setPage(firstAllowedAdminPage(role, cafeEnabled) || 'cafe-orders');
         }
-    }, [page, role]);
+    }, [page, role, cafeEnabled]);
 
     return (
         // data-contexto pinta el acento del area: caramelo en Cafeteria,
@@ -305,10 +307,10 @@ export default function AdminApp({ switchToUser, logout }) {
                         {page === 'general-arco' && canManageArco(role) && <AdminArco />}
                         {page === 'cuenta-seguridad' && canManageOwnSecurity(role) && <SecurityPanel session={session} puedeExigir={canRequireClinicalMfa(role)} />}
                         {page === 'general-business' && canManageBusinessSettings(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="business" lockedTab heading="Negocio" description="Administra información general del negocio, contacto, redes, mapa y horarios." />}
-                        {page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} payments={contabilidad.datos.payments} canRecordPayments={canRecordPayment(role, 'pedido')} onRegistrarCobro={contabilidad.registrarCobro} />}
-                        {page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}
-                        {page === 'cafe-options' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="options" lockedTab heading="Personalización" description="Tipos de leche, sabores y extras que el cliente puede elegir al pedir un café, con lo que suma cada uno al precio." />}
-                        {page === 'cafe-offers' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="offers" lockedTab heading="Promociones" description="Administra ofertas y vigencia de promociones de cafetería." />}
+                        {cafeEnabled && page === 'cafe-orders' && canManageOrders(role) && <AdminOrders orders={orders} setOrders={setOrders} catalogs={catalogs} session={session} payments={contabilidad.datos.payments} canRecordPayments={canRecordPayment(role, 'pedido')} onRegistrarCobro={contabilidad.registrarCobro} />}
+                        {cafeEnabled && page === 'cafe-products' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="products" lockedTab heading="Menú / productos" description="Administra productos, precios y disponibilidad básica del menú." />}
+                        {cafeEnabled && page === 'cafe-options' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="options" lockedTab heading="Personalización" description="Tipos de leche, sabores y extras que el cliente puede elegir al pedir un café, con lo que suma cada uno al precio." />}
+                        {cafeEnabled && page === 'cafe-offers' && canManageCafeCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="offers" lockedTab heading="Promociones" description="Administra ofertas y vigencia de promociones de cafetería." />}
                         {page === 'clinic-schedules' && canManageSchedules(role) && <AdminSchedules catalogs={catalogs} reload={catalogActions?.reload} />}
                         {page === 'clinic-appointments' && canManageAppointments(role) && <AdminAppointments bookings={bookings} setBookings={setBookings} catalogs={catalogs} payments={contabilidad.datos.payments} canRecordPayments={canRecordPayment(role, 'cita')} onRegistrarCobro={contabilidad.registrarCobro} />}
                         {page === 'clinic-services' && canManageClinicCatalog(role) && <AdminCatalog catalogs={catalogs} catalogActions={catalogActions} session={session} initialTab="services" lockedTab heading="Servicios" description="Administra servicios del consultorio, duración, precio y público objetivo." />}

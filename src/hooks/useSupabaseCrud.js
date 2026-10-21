@@ -17,6 +17,7 @@ import {
 import { BUSINESS } from '../businessInfo';
 import { getSupabase, hasSupabaseConfig } from '../api/supabaseClient';
 import { canManageAppointments, canManageOrders } from '../auth/permissions';
+import { isCafeEnabled } from '../modules.mjs';
 
 const resolveNext = (value, next) => (typeof next === 'function' ? next(value) : next);
 
@@ -97,6 +98,7 @@ export const useSupabaseCrud = (session) => {
   const [offers, setOffersRaw, setOffers, offersError] = useRemoteState([], saveOffers);
   const [productOptions, setProductOptionsRaw, setProductOptions, productOptionsError] = useRemoteState([], saveProductOptions);
   const [settings, setSettingsRaw, setSettings, settingsError] = useRemoteState(BUSINESS, saveSettings);
+  const cafeEnabled = isCafeEnabled(settings);
   const [locations, setLocationsRaw, setLocations, locationsError] = useRemoteState([], saveLocations);
   const [schedules, setSchedules] = useState([]);
   // Rangos ocupados para la reserva publica (0038). Sin datos de nadie.
@@ -211,7 +213,7 @@ export const useSupabaseCrud = (session) => {
   //     contenido; el filtro evita recibir eventos ajenos de entrada).
   const ordenRef = useRef(0);
   useEffect(() => {
-    if (!hasSupabaseConfig || !canLoadOrders || !tenantId) return undefined;
+    if (!hasSupabaseConfig || !canLoadOrders || !tenantId || !cafeEnabled) return undefined;
 
     let espera = null;
     let cancelado = false;
@@ -249,7 +251,7 @@ export const useSupabaseCrud = (session) => {
       window.clearTimeout(espera);
       if (cliente && channel) cliente.removeChannel(channel);
     };
-  }, [canLoadOrders, setOrdersRaw, tenantId]);
+  }, [canLoadOrders, setOrdersRaw, tenantId, cafeEnabled]);
 
   const error = loadError || servicesError || specialtiesError || therapistsError || menuError || offersError || productOptionsError || settingsError || locationsError || bookingsError || ordersError;
 

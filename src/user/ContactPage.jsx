@@ -5,6 +5,7 @@ import { trackEvent } from '../monitoring';
 import ResenasGoogle from './ResenasGoogle';
 
 export default function ContactPage({ settings, locations = [] }) {
+  const cafeEnabled = settings?.cafeEnabled !== false;
   const business = businessFromSettings(settings);
   // Sucursales (0040). Con alguna capturada, la direccion de Negocio se
   // sustituye por la lista: cada una con su direccion y su mapa.
@@ -18,13 +19,13 @@ export default function ContactPage({ settings, locations = [] }) {
     // 'mailto:' y el de WhatsApp el esquema esta FIJO en el codigo y lo
     // del admin va detras, asi que no puede introducir uno nuevo. Marcar
     // todo por igual escondaria cual es el que de verdad decide.
-    hayWhatsapp(business) && { label: 'WhatsApp', value: 'Dudas, citas y pedidos de la cafetería.', href: whatsappUrl('Hola, quiero información de Brainpsi Coffee.', business) },
+    hayWhatsapp(business) && { label: 'WhatsApp', value: cafeEnabled ? 'Dudas, citas y pedidos de la cafetería.' : 'Dudas y citas del consultorio.', href: whatsappUrl(`Hola, quiero información de ${business.name}.`, business) },
     ...(sucursales.length
       ? sucursales.map((l) => ({
         label: sucursales.length > 1 ? l.name : 'Dirección',
         value: l.address || l.name,
         href: hrefSeguro(l.mapsUrl),
-        nota: l.hasCafe && sucursales.length > 1 ? 'Con cafetería' : '',
+        nota: cafeEnabled && l.hasCafe && sucursales.length > 1 ? 'Con cafetería' : '',
       }))
       : [tieneDato(business.address) && { label: 'Dirección', value: business.address, href: hrefSeguro(business.mapsUrl), accion: 'Abrir en el mapa' }]),
     tieneDato(business.phone) && { label: 'Teléfono', value: business.phone, href: `tel:${business.phone}` },
@@ -43,7 +44,7 @@ export default function ContactPage({ settings, locations = [] }) {
             <p className="pub-hero-lead">
               {/* "Por WhatsApp respondemos mas rapido" solo si hay WhatsApp:
                   sin numero, prometia un canal que no existe. */}
-              {hayWhatsapp(business)
+              {!cafeEnabled ? 'Contáctanos para resolver dudas sobre terapia, horarios y citas del consultorio.' : hayWhatsapp(business)
                 ? 'Escríbenos para confirmar disponibilidad, resolver dudas sobre terapia o preguntar por la cafetería. Por WhatsApp respondemos más rápido.'
                 : 'Aquí están nuestro horario, dónde encontrarnos y cómo contactarnos para dudas sobre terapia o la cafetería.'}
             </p>

@@ -175,6 +175,23 @@ seguridad, redirecciones viejas (`/therapy`, `/coffee`) y cache.
 
 Cada push a `main` publica; cada push a otra rama crea una vista previa.
 
+## Cafetería opcional por clínica
+
+Tras aplicar `0047_optional_cafe_module.sql` y publicar el frontend compatible,
+el dueño puede cambiar **Negocio → Cafetería activa → Guardar negocio**.
+La opción se guarda en `business_settings.content.cafeEnabled` para la clínica
+activa. Si no existe, continúa activa para conservar las instalaciones actuales.
+
+Desactivarla oculta menú, carrito, promociones y operación de cafetería;
+las reservas del consultorio continúan y no ofrecen café. La base bloquea
+pedidos nuevos y cambios/borrados de sus productos incluso desde clientes
+antiguos. No se eliminan pedidos, productos ni cobros: la contabilidad histórica
+sigue disponible para los roles autorizados. Reactivarla recupera los catálogos.
+Los datos de marca y nombre legal se conservan; el dueño puede editarlos aparte.
+
+Aplicar 0047 antes de habilitar este control en el frontend. Instalar la
+migración no desactiva por sí sola ninguna cafetería.
+
 ## Sucursales
 
 Migracion `0040_locations.sql`. Consultorio → **Sucursales** da de alta

@@ -93,17 +93,20 @@ export const canRecordPayment = (role, kind) => {
 export const recordablePaymentKinds = (role) =>
   ['cita', 'pedido'].filter((kind) => canRecordPayment(role, kind));
 
-export const firstAllowedAdminPage = (role) => {
+export const firstAllowedAdminPage = (role, cafeEnabled = true) => {
   if (canViewDashboard(role)) return 'general-dashboard';
-  if (canManageOrders(role)) return 'cafe-orders';
+  if (cafeEnabled && canManageOrders(role)) return 'cafe-orders';
   if (canManageAppointments(role)) return 'clinic-appointments';
-  if (canManageCafeCatalog(role)) return 'cafe-products';
+  if (cafeEnabled && canManageCafeCatalog(role)) return 'cafe-products';
   if (canManageClinicCatalog(role)) return 'clinic-services';
   if (canManageBusinessSettings(role)) return 'general-business';
+  if (canViewAccounting(role)) return 'general-accounting';
+  if (canManageOwnSecurity(role)) return 'cuenta-seguridad';
   return null;
 };
 
-export const canAccessAdminPage = (role, page) => {
+export const canAccessAdminPage = (role, page, cafeEnabled = true) => {
+  if (!cafeEnabled && String(page).startsWith('cafe-')) return false;
   if (page === 'general-dashboard') return canViewDashboard(role);
   if (page === 'general-business') return canManageBusinessSettings(role);
   if (page === 'general-access') return canManageAccess(role);

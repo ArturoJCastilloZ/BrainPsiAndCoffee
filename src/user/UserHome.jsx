@@ -7,6 +7,7 @@ import { localDate } from '../utils.jsx';
 import { trackEvent } from '../monitoring';
 import Pizarron, { precio } from './Pizarron';
 import ResenasGoogle from './ResenasGoogle';
+import { isCafeEnabled } from '../modules.mjs';
 
 const etiquetaDia = (iso) => localDate(iso).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
 
@@ -14,6 +15,7 @@ export default function UserHome({ catalogs, dataLoading }) {
   const services = (catalogs?.services || []).filter((s) => s.active !== false);
   const therapists = (catalogs?.therapists || []).filter((t) => t.active !== false);
   const business = businessFromSettings(catalogs?.settings);
+  const cafeEnabled = !dataLoading && isCafeEnabled(catalogs?.settings);
   const combo = activeOffers(catalogs?.offers || []).find((o) => o.kind === 'combo');
   const menu = catalogs?.menu || {};
   const bebidas = [...(menu.hot?.items || []), ...(menu.cold?.items || [])]
@@ -35,10 +37,10 @@ export default function UserHome({ catalogs, dataLoading }) {
       <section className="pub-hero">
         <div className="pub-wrap pub-hero-grid">
           <div>
-            <h1 className="pub-hero-title">Un cafecito y lo hablamos.</h1>
+            <h1 className="pub-hero-title">{cafeEnabled ? 'Un cafecito y lo hablamos.' : 'Un espacio para tu bienestar.'}</h1>
             <p className="pub-hero-lead">
               Psicología y neuropsicología infantil en Monterrey. <strong>Precio a la vista</strong>,
-              {' '}solicitud en línea y un café para quien acompaña mientras su hijo o hija está en sesión.
+              {' '}{cafeEnabled ? 'solicitud en línea y un café para quien acompaña mientras su hijo o hija está en sesión.' : 'solicitud en línea y atención en un consultorio privado.'}
             </p>
             <div className="pub-actions">
               <Link to="/reservar" className="pub-btn pub-btn-primary">Ver horarios disponibles</Link>
@@ -93,14 +95,14 @@ export default function UserHome({ catalogs, dataLoading }) {
                 publica no expone la cedula (decision de 0005), y afirmarlo sin
                 mostrarla seria prometer algo que la pagina no cumple. */}
             <li className="pub-fact"><strong>Precio a la vista</strong><span>Duración y costo antes de dejar ningún dato.</span></li>
-            <li className="pub-fact"><strong>Consultorio privado</strong><span>La sesión es a puerta cerrada; el café, afuera.</span></li>
+            <li className="pub-fact"><strong>Consultorio privado</strong><span>{cafeEnabled ? 'La sesión es a puerta cerrada; el café, afuera.' : 'Atención en un espacio privado.'}</span></li>
             <li className="pub-fact"><strong>Pagas en sitio</strong><span>Nada se cobra por internet.</span></li>
             <li className="pub-fact"><strong>Te confirmamos por WhatsApp</strong><span>Una persona revisa cada solicitud.</span></li>
           </ul>
         </div>
       </section>
 
-      <section className="pub-section pub-section-alt">
+      {cafeEnabled && <section className="pub-section pub-section-alt">
         <div className="pub-wrap pub-two">
           <div>
             <h2 className="pub-h2">Mientras está en sesión, tú te tomas un café.</h2>
@@ -120,7 +122,7 @@ export default function UserHome({ catalogs, dataLoading }) {
             pie={combo ? `${combo.name}: ${precio(combo.price)}. ${combo.desc || ''}`.trim() : null}
           />
         </div>
-      </section>
+      </section>}
 
       <section className="pub-section">
         <div className="pub-wrap">
@@ -146,7 +148,7 @@ export default function UserHome({ catalogs, dataLoading }) {
 
       <section className="pub-section pub-section-alt">
         <div className="pub-wrap">
-          <p className="pub-quote">Que ir a terapia sea tan cotidiano como ir por un café.</p>
+          <p className="pub-quote">{cafeEnabled ? 'Que ir a terapia sea tan cotidiano como ir por un café.' : 'Cuidar tu salud mental puede formar parte de tu vida diaria.'}</p>
           <p style={{ margin: '20px 0 0' }}><Link className="pub-link" to="/nosotros">Quiénes somos y por qué lo hacemos así</Link></p>
         </div>
       </section>

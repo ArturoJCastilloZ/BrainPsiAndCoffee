@@ -1,15 +1,16 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { isCafeEnabled } from '../modules.mjs';
 
-export default function AboutPage() {
+export default function AboutPage({ catalogs }) {
+  const cafeEnabled = isCafeEnabled(catalogs?.settings);
   return (
     <>
       <section className="pub-hero">
         <div className="pub-wrap">
           <h1 className="pub-hero-title">Quiénes somos</h1>
           <p className="pub-hero-lead">
-            Un consultorio de psicología y neuropsicología con una cafetería al frente. La idea es sencilla:
-            que ir a terapia se sienta tan normal como quedar para un café.
+            {cafeEnabled ? 'Un consultorio de psicología y neuropsicología con una cafetería al frente. La idea es sencilla: que ir a terapia se sienta tan normal como quedar para un café.' : 'Un consultorio de psicología y neuropsicología para cuidar tu salud mental en un espacio cercano y privado.'}
           </p>
         </div>
       </section>
@@ -29,8 +30,7 @@ export default function AboutPage() {
           <h2 className="pub-h2">Qué hacemos</h2>
           <p className="pub-lead" style={{ margin: 0 }}>
             Atención psicológica y neuropsicológica para niñas, niños y adultos, en un espacio cálido y
-            cercano. La cafetería invita a hacer una pausa: antes de la sesión, después, o mientras esperas
-            a quien acompañas.
+            cercano. {cafeEnabled && 'La cafetería invita a hacer una pausa: antes de la sesión, después, o mientras esperas a quien acompañas.'}
           </p>
         </div>
       </section>

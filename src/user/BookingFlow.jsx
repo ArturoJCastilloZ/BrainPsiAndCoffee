@@ -8,6 +8,7 @@ import { businessFromSettings, hayWhatsapp, whatsappUrl } from '../businessInfo'
 import { trackEvent } from '../monitoring';
 import { atiendeEnSucursal, bloquesDeSucursal, poolAvailableSlots, poolSlotStates } from '../agenda.mjs';
 import { precio } from './Pizarron';
+import { isCafeEnabled } from '../modules.mjs';
 import './booking.css';
 
 const PASOS = ['Elige el servicio', 'Elige especialista', 'Elige día y hora', 'Tus datos', 'Revisa y envía'];
@@ -67,7 +68,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
     ? todosLosServicios.filter((s) => therapists.some((t) => t.services?.includes(s.id)))
     : todosLosServicios;
   // El cafe solo donde hay cafeteria. Sin sucursales capturadas, como antes.
-  const hayCafe = sucursales.length === 0 || Boolean(sucursal?.hasCafe);
+  const hayCafe = isCafeEnabled(catalogs?.settings) && (sucursales.length === 0 || Boolean(sucursal?.hasCafe));
 
   const service = services.find((s) => s.id === data.serviceId);
   const therapist = therapists.find((t) => t.id === data.therapistId);
@@ -263,7 +264,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
           <div className="pub-ticket-row"><span>Con</span><span>{therapist?.name || 'Por asignar'}</span></div>
           <div className="pub-ticket-row"><span>Pagas en sitio</span><span>{precio(service?.price)}</span></div>
           <div className="pub-ticket-row"><span>Estado</span><span>Por confirmar</span></div>
-          {data.wantsCoffee && (
+          {hayCafe && data.wantsCoffee && (
             <>
               <hr className="pub-ticket-rule" />
               <p className="pub-ticket-sub">Pide tu café ahora y estará listo 10 minutos antes de la cita.</p>
@@ -278,7 +279,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
               Confirmar por WhatsApp
             </a>
           )}
-          {data.wantsCoffee && <Link className="pub-btn pub-btn-ghost" to="/cafeteria">Pedir mi café</Link>}
+          {hayCafe && data.wantsCoffee && <Link className="pub-btn pub-btn-ghost" to="/cafeteria">Pedir mi café</Link>}
           <Link className="pub-btn pub-btn-ghost" to="/mis-citas">Ver mis citas</Link>
         </div>
       </div>
@@ -326,7 +327,7 @@ export default function BookingFlow({ setPage, bookings, setBookings, setLinkedB
                   <span className="bk-option-meta">
                     {l.address || 'Dirección por confirmar'}
                     {cuantos ? ` · ${cuantos} ${cuantos === 1 ? 'servicio' : 'servicios'}` : ' · Por ahora sin citas en línea'}
-                    {l.hasCafe ? ' · Con cafetería' : ''}
+                    {isCafeEnabled(catalogs?.settings) && l.hasCafe ? ' · Con cafetería' : ''}
                   </span>
                 </button>
               </li>

@@ -5,6 +5,7 @@ import { safeUrl } from '../safeUrl.mjs';
 import { uid } from '../utils.jsx';
 import { isValidEmail, isValidMoney, isValidPositiveInteger } from '../validation';
 import { canManageBusinessSettings, canManageCafeCatalog, canManageClinicCatalog } from '../auth/permissions';
+import { isCafeEnabled } from '../modules.mjs';
 import { useConfirm } from '../components/ConfirmDialog';
 import FormModal from '../components/FormModal';
 
@@ -56,15 +57,16 @@ const SERVICE_ICONS = [
 
 export default function AdminCatalog({ catalogs, catalogActions, session, initialTab, lockedTab = false, heading = 'Catálogos', description = 'Administra productos, servicios, ofertas, especialistas y precios.' }) {
   const role = session?.user?.role;
+  const cafeEnabled = isCafeEnabled(catalogs?.settings);
   const tabs = useMemo(() => [
-    canManageCafeCatalog(role) && { id: 'products', label: 'Productos', icon: Coffee },
+    cafeEnabled && canManageCafeCatalog(role) && { id: 'products', label: 'Productos', icon: Coffee },
     canManageClinicCatalog(role) && { id: 'services', label: 'Servicios', icon: Brain },
     canManageClinicCatalog(role) && { id: 'therapists', label: 'Especialistas', icon: Users },
     canManageClinicCatalog(role) && { id: 'specialties', label: 'Especialidades', icon: Sparkles },
-    canManageCafeCatalog(role) && { id: 'options', label: 'Personalización', icon: Milk },
-    canManageCafeCatalog(role) && { id: 'offers', label: 'Ofertas', icon: Gift },
+    cafeEnabled && canManageCafeCatalog(role) && { id: 'options', label: 'Personalización', icon: Milk },
+    cafeEnabled && canManageCafeCatalog(role) && { id: 'offers', label: 'Ofertas', icon: Gift },
     canManageBusinessSettings(role) && { id: 'business', label: 'Negocio', icon: Building2 },
-  ].filter(Boolean), [role]);
+  ].filter(Boolean), [role, cafeEnabled]);
   const [tab, setTab] = useState(initialTab || tabs[0]?.id || 'products');
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export default function AdminCatalog({ catalogs, catalogActions, session, initia
       {tab === 'specialties' && <ListManager title="Especialidades" items={catalogs.specialties || []} setItems={catalogActions.setSpecialties} emptyItem={emptySpecialty} renderForm={SpecialtyForm} summary={(item) => item.active === false ? 'Inactiva' : 'Activa'} />}
       {tab === 'options' && <OptionsManager options={catalogs.productOptions || []} setOptions={catalogActions.setProductOptions} />}
       {tab === 'offers' && <ListManager title="Ofertas" items={catalogs.offers} setItems={catalogActions.setOffers} emptyItem={emptyOffer} renderForm={OfferForm} summary={(item) => `$${item.price} · ${item.desc}${offerWindowLabel(item)}`} />}
-      {tab === 'business' && <BusinessSettings settings={catalogs.settings} setSettings={catalogActions.setSettings} />}
+      {tab === 'business' && <BusinessSettings settings={catalogs.settings} setSettings={catalogActions.setSettings} reload={catalogActions.reload} />}
     </div>
   );
 }
@@ -548,12 +550,14 @@ function OfferForm({ draft, setDraft }) {
   </FormGrid>;
 }
 
-function BusinessSettings({ settings, setSettings }) {
+function BusinessSettings({ settings, setSettings, reload }) {
   const [draft, setDraft] = useState({
     ...settings,
     hoursText: (settings?.hours || []).join('\n'),
   });
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [intento, setIntento] = useState(false);
   const update = (key, value) => {
     setSaved(false);
@@ -567,9 +571,15 @@ function BusinessSettings({ settings, setSettings }) {
     ...(String(draft.legalName || '').trim() ? {} : { legalName: 'Escribe la razón o nombre legal.' }),
     ...(String(draft.email || '').trim() && !isValidEmail(draft.email) ? { email: 'Revisa el correo: no parece válido.' } : {}),
   };
-  const save = () => {
+  const save = async () => {
+    if (saving) return;
     if (Object.keys(errores).length) { setIntento(true); return; }
+    setSaved(false);
+    setSaveError('');
+    setSaving(true);
     const next = {
+      ...settings,
+      cafeEnabled: isCafeEnabled(draft),
       name: draft.name || '',
       legalName: draft.legalName || '',
       city: draft.city || '',
@@ -582,13 +592,24 @@ function BusinessSettings({ settings, setSettings }) {
       reviewUrl: draft.reviewUrl || '',
       hours: String(draft.hoursText || '').split('\n').map((line) => line.trim()).filter(Boolean),
     };
-    setSettings(next);
-    setSaved(true);
+    try {
+      const result = await setSettings(next);
+      if (result?.ok === false) { setSaveError(result.error?.message || 'No se pudo guardar el negocio.'); return; }
+      setSaved(true);
+      if (isCafeEnabled(settings) !== next.cafeEnabled) await reload?.();
+    } catch (error) {
+      setSaveError(error.message || 'No se pudo guardar el negocio.');
+    } finally { setSaving(false); }
   };
 
   return (
     <div className="admin-card" style={{ borderRadius: 16, padding: 18 }}>
       <h2 style={{ margin: '0 0 14px', color: 'var(--admin-text)', fontSize: 15 }}>Informacion del negocio</h2>
+      <label style={{ display: 'flex', gap: 10, marginBottom: 10, color: 'var(--admin-text)' }}>
+        <input type="checkbox" checked={isCafeEnabled(draft)} onChange={(e) => update('cafeEnabled', e.target.checked)} />
+        Cafetería activa
+      </label>
+      <p style={{ color: 'var(--admin-muted)', fontSize: 13 }}>Al desactivarla se ocultan el menú, el carrito y la operación de cafetería. El consultorio sigue disponible y se conserva el historial contable.</p>
       <FormularioCtx.Provider value={{ intento, errores }}>
       <FormGrid>
         <Field label="NOMBRE COMERCIAL" campo="name" value={draft.name} onChange={value => update('name', value)} required />
@@ -609,9 +630,10 @@ function BusinessSettings({ settings, setSettings }) {
         <textarea value={draft.hoursText || ''} onChange={event => update('hoursText', event.target.value)} rows={4} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', resize: 'vertical' }} />
       </label>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginTop: 14 }}>
+        {saveError && <span role="alert">{saveError}</span>}
         {saved && <span style={{ color: 'var(--admin-accent-text)', fontSize: 12, fontWeight: 800 }}>Guardado</span>}
         {intento && Object.keys(errores).length > 0 && <span role="alert" style={requiredHint}>Corrige los campos marcados.</span>}
-        <button type="button" onClick={save} style={adminButton('primary')}>Guardar negocio</button>
+        <button type="button" onClick={save} disabled={saving} style={adminButton('primary')}>{saving ? 'Guardando…' : 'Guardar negocio'}</button>
       </div>
     </div>
   );

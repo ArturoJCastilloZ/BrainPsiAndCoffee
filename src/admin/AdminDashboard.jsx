@@ -2,6 +2,7 @@ import React from 'react';
 import { Coffee, Calendar as CalendarIcon, Users, Bell, ArrowRight, DollarSign } from 'lucide-react';
 import { C } from '../theme';
 import StatusBadge from './OrderStatusBadge';
+import { isCafeEnabled } from '../modules.mjs';
 import { fullDayLabel, todayISO } from '../utils.jsx';
 import { solicitudVencida, etiquetaPaciente } from '../appointmentStatus.mjs';
 import {
@@ -44,6 +45,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
   });
   const consultorio = cobradoDe(CONSULTORIO);
   const cafeteria = cobradoDe(CAFETERIA);
+  const cafeEnabled = isCafeEnabled(catalogs?.settings);
 
   // `cambio` solo lleva texto cuando ese texto es CIERTO. Antes decia '+12%'
   // y '+5', dos literales escritos a mano: los unicos numeros inventados que
@@ -53,10 +55,10 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
     { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, page: 'clinic-appointments' },
     { label: 'Solicitudes por confirmar', value: porConfirmar.length, icon: Bell, color: C.sage, cambio: porConfirmar.length > 0 ? 'Revisar' : 'Al día', page: 'clinic-appointments' },
     { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.sage, page: 'clinic-appointments' },
-    { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, cambio: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'cafe-orders' },
+    cafeEnabled && { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, cambio: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'cafe-orders' },
     { label: 'Cobrado · consultorio', value: formatMoney(consultorio.valor), icon: DollarSign, color: C.sageLight, variacion: consultorio.variacion, ayuda: rangoMes.label, page: 'general-accounting' },
-    { label: 'Cobrado · cafetería', value: formatMoney(cafeteria.valor), icon: Coffee, color: C.caramel, variacion: cafeteria.variacion, ayuda: rangoMes.label, page: 'general-accounting' },
-  ];
+    cafeEnabled && { label: 'Cobrado · cafetería', value: formatMoney(cafeteria.valor), icon: Coffee, color: C.caramel, variacion: cafeteria.variacion, ayuda: rangoMes.label, page: 'general-accounting' },
+  ].filter(Boolean);
 
   return (
     <div>
@@ -125,7 +127,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
         </div>
 
         {/* Pending orders */}
-        <div className="admin-card" style={{ borderRadius: 16, padding: 20 }}>
+        {cafeEnabled && <div className="admin-card" style={{ borderRadius: 16, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 14, color: 'var(--admin-text)', margin: 0, fontWeight: 600, letterSpacing: 0.5 }}>PEDIDOS PENDIENTES</h2>
             <button onClick={() => setPage('cafe-orders')} style={{ background: 'none', border: 'none', color: 'var(--admin-accent-text)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
@@ -148,7 +150,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
               ))}
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
     </div>

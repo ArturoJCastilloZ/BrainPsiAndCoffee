@@ -18,8 +18,8 @@ export function businessJsonLd({ settings = null, defaults = {}, siteUrl = '', s
   };
 
   const negocio = {
-    // Las dos cosas que es: consultorio y cafeteria.
-    '@type': ['MedicalClinic', 'CafeOrCoffeeShop'],
+    // Reflect the active modules without advertising a disabled cafe.
+    '@type': settings?.cafeEnabled === false ? ['MedicalClinic'] : ['MedicalClinic', 'CafeOrCoffeeShop'],
     '@id': siteUrl ? `${siteUrl}/#negocio` : '#negocio',
     name: real('name') || 'Brainpsi Coffee',
     areaServed: { '@type': 'City', name: 'Monterrey' },

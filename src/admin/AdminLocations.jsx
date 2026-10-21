@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapPin, Plus, Save } from 'lucide-react';
 import { C } from '../theme';
 import { safeUrl } from '../safeUrl.mjs';
+import { isCafeEnabled } from '../modules.mjs';
 
 // Sucursales (0040).
 //
@@ -125,10 +126,10 @@ export default function AdminLocations({ catalogs, catalogActions }) {
               </Campo>
             </div>
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 12, alignItems: 'center' }}>
-              <label style={casilla}>
+              {isCafeEnabled(catalogs?.settings) && <label style={casilla}>
                 <input type="checkbox" checked={Boolean(l.hasCafe)} onChange={(e) => cambiar(i, 'hasCafe', e.target.checked)} />
                 Tiene cafetería (se ofrece pedir café con la cita)
-              </label>
+              </label>}
               <label style={casilla}>
                 <input type="checkbox" checked={l.active !== false} onChange={(e) => cambiar(i, 'active', e.target.checked)} />
                 Activa (aparece al pedir cita)

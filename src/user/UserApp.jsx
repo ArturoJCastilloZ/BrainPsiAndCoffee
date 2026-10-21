@@ -20,6 +20,7 @@ import PrivacyPage from './PrivacyPage';
 import NotFoundPage from './NotFoundPage';
 import ArcoPage from './ArcoPage';
 import './public.css';
+import { isCafeEnabled } from '../modules.mjs';
 
 // Las pantallas del flujo (reserva, carrito) siguen pidiendo "la pagina
 // X" por nombre; aqui se traduce a su URL. Antes la navegacion publica
@@ -62,6 +63,13 @@ export default function UserApp() {
   const toastTimer = useRef(null);
   const mainRef = useRef(null);
   const business = businessFromSettings(catalogs?.settings);
+  const cafeEnabled = isCafeEnabled(catalogs?.settings);
+  const showCafe = !dataLoading && cafeEnabled;
+  const tabs = TABS.filter((t) => showCafe || t.path !== '/cafeteria');
+  const cafeRoute = (page) => dataLoading ? <p role="status">Cargando…</p> : cafeEnabled ? page : <Navigate to="/terapia" replace />;
+  useEffect(() => {
+    if (!cafeEnabled) { setCart([]); setLinkedBookingId(null); }
+  }, [cafeEnabled]);
 
   useJsonLd(businessJsonLd({
     settings: catalogs?.settings,
@@ -95,6 +103,7 @@ export default function UserApp() {
   // dice donde quedo y como pagar: antes solo cambiaba el numerito de la
   // bolsa y parecia que no habia pasado nada.
   const addToCart = (item, customizations = {}) => {
+    if (!cafeEnabled) return;
     setCart((prev) => [...prev, { ...item, qty: 1, customizations, cartId: uid() }]);
     showToast(`${item.name} se agregó a tu pedido.`, 'success', { to: '/carrito', label: 'Ver pedido y pagar' });
   };
@@ -108,16 +117,16 @@ export default function UserApp() {
 
       <header className="pub-header">
         <div className="pub-wrap pub-header-row">
-          <Link to="/" className="pub-brand" aria-label="Brainpsi Coffee, inicio">
+          <Link to="/" className="pub-brand" aria-label={`${business.name}, inicio`}>
             <BrandMark size={38} />
             <span>
-              <span className="pub-brand-name">Brainpsi Coffee</span>
-              <span className="pub-brand-sub">Psicología y café · Monterrey</span>
+              <span className="pub-brand-name">{business.name}</span>
+              <span className="pub-brand-sub">{showCafe ? 'Psicología y café' : 'Psicología y neuropsicología'} · {business.city}</span>
             </span>
           </Link>
 
           <nav className="pub-nav" aria-label="Principal">
-            {NAV_LINKS.map((l) => (
+            {NAV_LINKS.filter((l) => showCafe || l.path !== '/cafeteria').map((l) => (
               <NavLink key={l.path} to={l.path} className="pub-nav-link">{l.label}</NavLink>
             ))}
           </nav>
@@ -126,12 +135,12 @@ export default function UserApp() {
             <NavLink to="/mis-citas" className="pub-icon-btn" aria-label="Mis citas" title="Mis citas">
               <CalendarCheck size={21} strokeWidth={1.7} />
             </NavLink>
-            <NavLink to="/carrito" className="pub-icon-btn"
+            {showCafe && <NavLink to="/carrito" className="pub-icon-btn"
               aria-label={cart.length ? `Tu pedido, ${cart.length} ${cart.length === 1 ? 'producto' : 'productos'}` : 'Tu pedido'}
               title="Tu pedido">
               <ShoppingBag size={21} strokeWidth={1.7} />
               {cart.length > 0 && <span className="pub-badge" aria-hidden="true">{cart.length}</span>}
-            </NavLink>
+            </NavLink>}
             <button type="button" className="pub-icon-btn" onClick={toggleTheme}
               aria-label={isDark ? 'Usar tema claro' : 'Usar tema oscuro'} title={isDark ? 'Tema claro' : 'Tema oscuro'}>
               {isDark ? <Sun size={20} strokeWidth={1.7} /> : <Moon size={20} strokeWidth={1.7} />}
@@ -145,12 +154,12 @@ export default function UserApp() {
         <Routes>
           <Route index element={<UserHome {...comunes} theme={theme} />} />
           <Route path="terapia" element={<TherapyPage {...comunes} />} />
-          <Route path="cafeteria" element={<MenuPage {...comunes} addToCart={addToCart} theme={theme} />} />
+          <Route path="cafeteria" element={cafeRoute(<MenuPage {...comunes} addToCart={addToCart} theme={theme} />)} />
           <Route path="reservar" element={
             <BookingFlow {...comunes} bookings={bookings} setBookings={setBookings} addToCart={addToCart} setLinkedBookingId={registrarCita} />
           } />
           <Route path="carrito" element={
-            <CartPage {...comunes} cart={cart} setCart={setCart} orders={orders} setOrders={setOrders} linkedBookingId={linkedBookingId} setLinkedBookingId={setLinkedBookingId} bookings={bookings} />
+            cafeRoute(<CartPage {...comunes} cart={cart} setCart={setCart} orders={orders} setOrders={setOrders} linkedBookingId={linkedBookingId} setLinkedBookingId={setLinkedBookingId} bookings={bookings} />)
           } />
           <Route path="mis-citas" element={<MyBookings {...comunes} bookings={bookings} misCitas={misCitas} />} />
           <Route path="nosotros" element={<AboutPage {...comunes} />} />
@@ -168,7 +177,7 @@ export default function UserApp() {
         <div className="pub-wrap">
           <div className="pub-footer-grid">
             <div>
-              <h2>Brainpsi Coffee</h2>
+              <h2>{business.name}</h2>
               {/* Con sucursales (0040), cada una con su direccion. */}
               {(catalogs?.locations || []).filter((l) => l.active !== false).length
                 ? (catalogs.locations.filter((l) => l.active !== false).map((l) => (
@@ -184,7 +193,7 @@ export default function UserApp() {
               <h2>El sitio</h2>
               <ul>
                 <li><Link to="/terapia">Terapia y precios</Link></li>
-                <li><Link to="/cafeteria">Cafetería</Link></li>
+                {showCafe && <li><Link to="/cafeteria">Cafetería</Link></li>}
                 <li><Link to="/reservar">Solicitar cita</Link></li>
                 <li><Link to="/mis-citas">Mis citas</Link></li>
                 <li><Link to="/privacidad">Aviso de privacidad</Link></li>
@@ -194,7 +203,7 @@ export default function UserApp() {
             <div>
               <h2>Escríbenos</h2>
               <ul>
-                {hayWhatsapp(business) && <li><a href={whatsappUrl('Hola, quiero información de Brainpsi Coffee.', business)} target="_blank" rel="noreferrer">WhatsApp</a></li>}
+                {hayWhatsapp(business) && <li><a href={whatsappUrl(`Hola, quiero información de ${business.name}.`, business)} target="_blank" rel="noreferrer">WhatsApp</a></li>}
                 {tieneDato(business.email) && <li><a href={`mailto:${business.email}`}>{business.email}</a></li>}
                 <li><Link to="/contacto">Cómo llegar</Link></li>
               </ul>
@@ -210,8 +219,8 @@ export default function UserApp() {
       </footer>
 
       <nav className="pub-tabbar" aria-label="Secciones">
-        <ul>
-          {TABS.map((t) => (
+        <ul style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+          {tabs.map((t) => (
             <li key={t.path}>
               <NavLink to={t.path} end={t.end} className="pub-tab">
                 <t.icon size={21} strokeWidth={1.7} aria-hidden="true" />

@@ -11,6 +11,7 @@ export const BUSINESS_PLACEHOLDERS = {
 // Respaldo si el panel no tiene datos. Direccion, mapa y horario ya son
 // los reales (perfil de Google del negocio, oct 2026).
 export const BUSINESS = {
+  cafeEnabled: true,
   name: 'Brainpsi Coffee',
   city: 'Monterrey, Nuevo León',
   address: 'Av Abraham Lincoln 1600, Real Cumbres, 64346 Monterrey, N.L.',

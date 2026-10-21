@@ -26,13 +26,13 @@ const catalogs = {
   settings: null,
 };
 
-const montar = ({ ruta = `/reservar?servicio=sv&fecha=${FECHA}&hora=10:00`, setBookings, busy = [] } = {}) => {
+const montar = ({ ruta = `/reservar?servicio=sv&fecha=${FECHA}&hora=10:00`, setBookings, busy = [], settings = null } = {}) => {
   const props = {
     setPage: vi.fn(),
     bookings: [],
     setBookings: setBookings || vi.fn(async (lista) => ({ ok: true, value: lista })),
     setLinkedBookingId: vi.fn(),
-    catalogs: { ...catalogs, busy },
+    catalogs: { ...catalogs, busy, settings },
     dataLoading: false,
   };
   render(<MemoryRouter initialEntries={[ruta]}><BookingFlow {...props} /></MemoryRouter>);
@@ -51,6 +51,17 @@ const llenarDatos = async (user, { menor = false } = {}) => {
 };
 
 describe('BookingFlow', () => {
+  it('keeps clinic booking available without offering coffee when the module is disabled', async () => {
+    const user = userEvent.setup();
+    const props = montar({ settings: { cafeEnabled: false } });
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(screen.queryByRole('checkbox', { name: /café/i })).toBeNull();
+    await llenarDatos(user);
+    await user.click(screen.getByRole('button', { name: 'Revisar mi solicitud' }));
+    await user.click(screen.getByRole('button', { name: 'Enviar solicitud' }));
+    expect(props.setBookings).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ wantsCoffee: false })]));
+    expect(screen.queryByRole('link', { name: 'Pedir mi café' })).toBeNull();
+  });
   it('el atajo de la portada llega con dia y hora puestos y deja continuar', async () => {
     const user = userEvent.setup();
     montar();

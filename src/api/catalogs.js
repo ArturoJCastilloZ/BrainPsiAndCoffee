@@ -1,5 +1,6 @@
 // Catalogos: servicios, especialistas, menu, ofertas, ajustes y horarios.
 import { conCliente } from './supabaseClient';
+import { isCafeEnabled } from '../modules.mjs';
 import { haySesion, restMaybeSingle, restRpc, restSelect } from './rest';
 import { menuVacio } from '../menuCategorias.mjs';
 import { todayISO } from '../localDay.mjs';
@@ -12,23 +13,25 @@ export const loadCatalogs = async () => {
   // debe obligar a descargar la libreria (M1). Con sesion viaja el token
   // del usuario y RLS filtra igual que antes.
   const conSesion = await haySesion();
+  const settingsResult = await restMaybeSingle('business_settings');
+  throwIfError(settingsResult);
+  const settings = mapSettingsFromDb(settingsResult.data);
+  const cafeEnabled = isCafeEnabled(settings);
+  const empty = () => Promise.resolve({ data: [], error: null });
 
   // El publico anonimo lee la vista therapists_public, que no expone email,
   // cedula profesional ni user_id. El personal autenticado si lee la tabla,
   // y RLS decide que filas le corresponden.
   const therapistsSource = conSesion ? 'therapists' : 'therapists_public';
 
-  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, optionsResult, offersResult, settingsResult, schedulesResult, busyResult, locationsResult] = await Promise.all([
+  const [servicesResult, therapistsResult, specialtiesResult, linksResult, productsResult, optionsResult, offersResult, schedulesResult, busyResult, locationsResult] = await Promise.all([
     restSelect('therapy_services', { order: ['created_at'] }),
     restSelect(therapistsSource, { order: ['created_at'] }),
     restSelect('specialties', { order: ['created_at'] }),
     restSelect('therapist_services'),
-    restSelect('products', { order: ['category', 'sort_order', 'created_at'] }),
-    restSelect('product_options', { order: ['kind', 'sort_order', 'created_at'] }),
-    restSelect('offers', { order: ['created_at'] }),
-    // Ya no es el singleton 'main': hay una fila por clinica y RLS
-    // devuelve solo la del tenant activo.
-    restMaybeSingle('business_settings'),
+    cafeEnabled ? restSelect('products', { order: ['category', 'sort_order', 'created_at'] }) : empty(),
+    cafeEnabled ? restSelect('product_options', { order: ['kind', 'sort_order', 'created_at'] }) : empty(),
+    cafeEnabled ? restSelect('offers', { order: ['created_at'] }) : empty(),
     // Los horarios de atencion los lee TAMBIEN el visitante (policy de
     // 0029). Antes, sin sesion se devolvia vacio: la reserva publica no
     // tenia un solo horario que ofrecer, aunque la base ya lo permitia.
@@ -88,7 +91,7 @@ export const loadCatalogs = async () => {
     productOptions: (optionsResult.error ? [] : (optionsResult.data || [])).map(mapProductOptionFromDb),
     menu,
     offers: (offersResult.data || []).map(mapOfferFromDb),
-    settings: mapSettingsFromDb(settingsResult.data),
+    settings,
     // Si busy_slots aun no existe (0038 sin aplicar) o falla, la reserva
     // sigue: el choque lo detecta la base al enviar, como antes. No se
     // tumba el catalogo entero por un atajo.
