@@ -21,10 +21,23 @@ docker run -d --name "$CONTAINER" \
   -e POSTGRES_PASSWORD=test -e POSTGRES_DB=bpc \
   -p "$PORT:5432" postgres:16-alpine >/dev/null
 
+ready=false
 for _ in $(seq 1 40); do
-  docker exec "$CONTAINER" pg_isready -U postgres -d bpc >/dev/null 2>&1 && break
+  # The image first starts a temporary Unix-socket server before creating
+  # POSTGRES_DB. pg_isready can succeed even when that database is missing.
+  # A real query over TCP waits for the final server and the requested DB.
+  if docker exec -e PGPASSWORD=test "$CONTAINER" \
+    psql -h 127.0.0.1 -U postgres -d bpc -qtAX -c 'select 1' >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
   sleep 1
 done
+if [[ "$ready" != true ]]; then
+  echo "Disposable PostgreSQL database did not become ready." >&2
+  docker logs --tail 20 "$CONTAINER" >&2
+  exit 1
+fi
 
 # La MARCA del banco desechable. Todos los .sql de esta carpeta abortan si
 # no la encuentran, asi que esto es lo unico que los habilita — y solo se
