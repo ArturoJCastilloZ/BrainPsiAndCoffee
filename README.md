@@ -53,6 +53,24 @@ VITE_ANALYTICS_ENDPOINT=
 
 ## Scripts
 
+### Actualización de reservas (0042–0043)
+
+Aplicar las migraciones con `./scripts/migrate.sh up` **antes** de publicar
+el frontend que usa `create_public_booking`. La reserva web sin sesión
+guarda cita y consentimiento en una sola transacción; si falla cualquiera,
+no quedan datos parciales. No hay fallback a las dos escrituras anteriores.
+La base impone las fechas de creación y conserva el sello al editar por API.
+Los topes de solicitudes públicas se serializan por clínica.
+
+La RPC conserva RLS (`security invoker`), no devuelve datos privados y
+valida aceptación, versión y hash del aviso. Al cambiar el aviso publicado,
+crear una migración nueva que actualice su versión/hash aceptados y aplicar
+esa migración antes del nuevo frontend. El aviso actual continúa en borrador.
+
+Comprobación local segura: `./tests/tenancy/run.sh` utiliza exclusivamente
+PostgreSQL desechable e incluye rollback de consentimiento y dos conexiones
+simultáneas. No ejecutar los archivos SQL de pruebas en Supabase real.
+
 ```bash
 npm run dev
 ```

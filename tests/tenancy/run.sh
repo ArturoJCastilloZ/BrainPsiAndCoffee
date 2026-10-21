@@ -60,4 +60,6 @@ for t in "$ROOT"/tests/tenancy/[0-9]*.sql; do
   run_file "$t"
 done
 
+bash "$ROOT/tests/tenancy/booking-concurrency.sh" "$CONTAINER"
+
 echo "TODAS LAS PRUEBAS PASARON"

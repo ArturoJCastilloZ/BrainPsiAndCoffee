@@ -1,7 +1,7 @@
 // Cumplimiento (0039): el aviso de privacidad es evidencia, y los plazos
 // ARCO se cuentan igual en la pantalla que en la base.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { AVISO_PRIVACIDAD, PRIVACY_NOTICE_VERSION, completar, hashAviso } from '../../src/legal/avisoPrivacidad.mjs';
 import { diasHabilesRestantes, sumarDiasHabiles, TIPOS_ARCO } from '../../src/arcoPlazos.mjs';
 
@@ -29,7 +29,14 @@ assert.equal(hash, HASHES[AVISO_PRIVACIDAD.version],
 {
   const citas = readFileSync(new URL('../../src/api/appointments.js', import.meta.url), 'utf8');
   assert.ok(!/PRIVACY_NOTICE_VERSION\s*=\s*'/.test(citas), 'la version del aviso volvio a escribirse a mano en appointments.js');
-  assert.match(citas, /document_hash:\s*documentHash/);
+  assert.match(citas, /p_document_hash:\s*documentHash/);
+  const migrationsDir = new URL('../../migrations/', import.meta.url);
+  const migration = readdirSync(migrationsDir).filter((name) => /^\d.*\.sql$/.test(name)).sort().reverse()
+    .map((name) => readFileSync(new URL(name, migrationsDir), 'utf8'))
+    .find((source) => /create\s+(?:or\s+replace\s+)?function\s+public\.create_public_booking\s*\(/i.test(source));
+  assert.ok(migration, 'Falta la migracion del alta atomica de reservas.');
+  assert.ok(migration.includes(PRIVACY_NOTICE_VERSION) && migration.includes(hash),
+    'El aviso publicado no coincide con la version/hash que acepta el servidor: hace falta una nueva migracion.');
   assert.equal(PRIVACY_NOTICE_VERSION, AVISO_PRIVACIDAD.version);
 }
 

@@ -62,35 +62,19 @@ export const saveAppointments = async (items, previousItems = []) => {
   }
   const newItems = publicos.nuevos;
   if (newItems.length) {
-    // SIN .select(): un visitante no puede LEER citas (con razon), y
-    // .select() pide la fila de vuelta (INSERT ... RETURNING), que exige
-    // leerla. Con el, TODA reserva publica fallaba con 42501 aunque la
-    // policy de alta la aceptara. tests/tenancy/0027 lo cubre.
-    throwIfError(await supabase.from('appointments').insert(newItems.map(mapAppointmentToDb)));
-    await recordPrivacyConsents(newItems);
-    return items;
+    if (newItems.some((item) => item.privacyAccepted !== true)) {
+      throw new Error('Acepta el aviso de privacidad antes de enviar tu solicitud.');
+    }
+    // Una sola transaccion: si falla el consentimiento, tampoco queda la
+    // cita ni el paciente. Sin fallback a inserts separados (0043).
+    const documentHash = await hashAviso();
+    throwIfError(await supabase.rpc('create_public_booking', {
+      p_appointments: newItems.map(mapAppointmentToDb),
+      p_privacy_accepted: true,
+      p_document_version: PRIVACY_NOTICE_VERSION,
+      p_document_hash: documentHash,
+      p_user_agent: typeof navigator === 'undefined' ? null : navigator.userAgent.slice(0, 400),
+    }));
   }
   return items;
-};
-
-// Deja constancia de que la persona acepto el aviso de privacidad, ligada a
-// la cita y con la version del aviso vigente. Un checkbox que no se guarda
-// no es evidencia de nada.
-const recordPrivacyConsents = async (appointments) => {
-  const supabase = await conCliente();
-  // El hash del texto aceptado: con la version, prueba QUE leyo la persona.
-  const documentHash = await hashAviso();
-  const rows = appointments
-    .filter((item) => item.privacyAccepted && item.email)
-    .map((item) => ({
-      appointment_id: item.id,
-      subject_email: item.email,
-      consent_type: 'privacy_notice',
-      document_version: PRIVACY_NOTICE_VERSION,
-      document_hash: documentHash,
-      user_agent: typeof navigator === 'undefined' ? null : navigator.userAgent.slice(0, 400),
-      evidence: { source: 'booking_flow', accepted_at_client: new Date().toISOString() },
-    }));
-  if (!rows.length) return;
-  throwIfError(await supabase.from('consents').insert(rows));
 };
