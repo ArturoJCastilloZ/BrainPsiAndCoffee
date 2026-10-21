@@ -12,7 +12,7 @@ import {
 
 const SIN_CONTABILIDAD = { datos: { payments: [], expenses: [] } };
 
-export default function AdminDashboard({ bookings, orders, setPage, catalogs, role, contabilidad = SIN_CONTABILIDAD }) {
+export default function AdminDashboard({ bookings, orders, setPage, catalogs, contabilidad = SIN_CONTABILIDAD }) {
   const services = catalogs?.services || [];
   const therapists = catalogs?.therapists || [];
   const today = todayISO();
@@ -47,7 +47,6 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, ro
   const cafeteria = cobradoDe(CAFETERIA);
   const cafeEnabled = isCafeEnabled(catalogs?.settings);
   const onboarding = pasosDeAlta(catalogs);
-  const mostrarAlta = role === 'owner' || role === 'admin';
 
   // `cambio` solo lleva texto cuando ese texto es CIERTO. Antes decia '+12%'
   // y '+5', dos literales escritos a mano: los unicos numeros inventados que
@@ -69,7 +68,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, ro
         <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginTop: 4 }}>Vista general de hoy · {fullDayLabel(new Date())}</p>
       </div>
 
-      {mostrarAlta && <section className="admin-card" aria-labelledby="alta-clinica" style={{ borderRadius: 16, padding: 20, marginBottom: 28 }}>
+      <section className="admin-card" aria-labelledby="alta-clinica" style={{ borderRadius: 16, padding: 20, marginBottom: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'start', marginBottom: 12 }}>
           <div>
             <h2 id="alta-clinica" style={{ fontSize: 16, color: 'var(--admin-text)', margin: 0 }}>Pon tu consultorio en marcha</h2>
@@ -93,7 +92,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, ro
             </li>
           ))}
         </ol>
-      </section>}
+      </section>
 
       {/* Stats */}
       <div className="rejilla-tarjetas" style={{ '--rejilla-min': '180px', gap: 12, marginBottom: 28 }}>

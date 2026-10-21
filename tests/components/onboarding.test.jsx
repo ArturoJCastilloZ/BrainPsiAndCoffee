@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { pasosDeAlta } from '../../src/admin/AdminDashboard';
+import { render, screen } from '@testing-library/react';
+import AdminDashboard, { pasosDeAlta } from '../../src/admin/AdminDashboard';
 
 it('requires only real clinic setup data before marking onboarding complete', () => {
   const initial = pasosDeAlta({ settings: { name: 'Consultorio Aurora', legalName: 'Aurora Legal' }, services: [], therapists: [], locations: [], schedules: [] });
@@ -27,4 +28,9 @@ it('does not count inactive or disconnected data as a ready clinic', () => {
   expect(result.pasos.find((paso) => paso.id === 'locations').completo).toBe(false);
   expect(result.pasos.find((paso) => paso.id === 'therapists').completo).toBe(false);
   expect(result.pasos.find((paso) => paso.id === 'schedules').completo).toBe(false);
+});
+
+it('shows the guided setup to every account that reaches the dashboard', () => {
+  render(<AdminDashboard bookings={[]} orders={[]} setPage={() => {}} catalogs={{ settings: {}, services: [], therapists: [], locations: [], schedules: [] }} />);
+  expect(screen.getByRole('heading', { name: 'Pon tu consultorio en marcha' })).toBeTruthy();
 });
