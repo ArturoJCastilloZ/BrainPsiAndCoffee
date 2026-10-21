@@ -583,6 +583,8 @@ function BusinessSettings({ settings, setSettings, reload }) {
       name: draft.name || '',
       legalName: draft.legalName || '',
       city: draft.city || '',
+      publicTitle: draft.publicTitle || '',
+      publicDescription: draft.publicDescription || '',
       address: draft.address || '',
       phone: draft.phone || '',
       whatsapp: draft.whatsapp || '',
@@ -625,6 +627,21 @@ function BusinessSettings({ settings, setSettings, reload }) {
           placeholder='Google → "Pedir reseñas"' aviso={avisoUrl(draft.reviewUrl)} />
       </FormGrid>
       </FormularioCtx.Provider>
+      <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>TÍTULO DE PORTADA</span>
+          <input aria-label="TÍTULO DE PORTADA" className="admin-input" value={draft.publicTitle || ''} onChange={event => update('publicTitle', event.target.value)}
+            placeholder={isCafeEnabled(draft) ? 'Un cafecito y lo hablamos.' : 'Un espacio para tu bienestar.'}
+            style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit' }} />
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>TEXTO DE PORTADA</span>
+          <textarea aria-label="TEXTO DE PORTADA" value={draft.publicDescription || ''} onChange={event => update('publicDescription', event.target.value)} rows={3} className="admin-input"
+            placeholder="Describe brevemente la atención y el valor que ofrece tu consultorio."
+            style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', resize: 'vertical' }} />
+          <span style={campoAyuda}>Si los dejas vacíos, se usa el texto predeterminado de la plataforma.</span>
+        </label>
+      </div>
       <label style={{ display: 'grid', gap: 6, marginTop: 10 }}>
         <span style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>HORARIOS, UNO POR LINEA</span>
         <textarea value={draft.hoursText || ''} onChange={event => update('hoursText', event.target.value)} rows={4} className="admin-input" style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit', resize: 'vertical' }} />

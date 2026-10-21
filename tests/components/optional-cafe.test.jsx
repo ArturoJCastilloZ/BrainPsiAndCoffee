@@ -58,6 +58,18 @@ it('owner can disable the module without dropping other settings and reloads cat
   expect(reload).toHaveBeenCalledOnce();
   expect(await screen.findByText('Guardado')).toBeTruthy();
 });
+it('owner can save public homepage text without dropping unrelated settings', async () => {
+  const user = userEvent.setup();
+  const setSettings = vi.fn(async () => ({ ok: true }));
+  const data = catalogs(false); data.settings.extraSetting = 'preserved';
+  render(<AdminCatalog catalogs={data} catalogActions={{ setSettings, reload: vi.fn() }} session={{ user: { role: 'owner' } }} initialTab="business" lockedTab />);
+  await user.type(screen.getByLabelText('TÍTULO DE PORTADA'), 'Tu bienestar, a tu ritmo');
+  await user.type(screen.getByLabelText('TEXTO DE PORTADA'), 'Un mensaje propio de la clínica.');
+  await user.click(screen.getByRole('button', { name: 'Guardar negocio' }));
+  await waitFor(() => expect(setSettings).toHaveBeenCalledWith(expect.objectContaining({
+    publicTitle: 'Tu bienestar, a tu ritmo', publicDescription: 'Un mensaje propio de la clínica.', extraSetting: 'preserved', cafeEnabled: false,
+  })));
+});
 it('failed settings save does not claim success or reload catalogs', async () => {
   const user = userEvent.setup();
   const reload = vi.fn();

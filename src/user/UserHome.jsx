@@ -17,6 +17,9 @@ export default function UserHome({ catalogs, dataLoading }) {
   const business = businessFromSettings(catalogs?.settings);
   const ciudad = String(business.city || '').trim() || 'tu ciudad';
   const cafeEnabled = !dataLoading && isCafeEnabled(catalogs?.settings);
+  const tituloPortada = String(business.publicTitle || '').trim()
+    || (cafeEnabled ? 'Un cafecito y lo hablamos.' : 'Un espacio para tu bienestar.');
+  const descripcionPortada = String(business.publicDescription || '').trim();
   const combo = activeOffers(catalogs?.offers || []).find((o) => o.kind === 'combo');
   const menu = catalogs?.menu || {};
   const bebidas = [...(menu.hot?.items || []), ...(menu.cold?.items || [])]
@@ -38,10 +41,12 @@ export default function UserHome({ catalogs, dataLoading }) {
       <section className="pub-hero">
         <div className="pub-wrap pub-hero-grid">
           <div>
-            <h1 className="pub-hero-title">{cafeEnabled ? 'Un cafecito y lo hablamos.' : 'Un espacio para tu bienestar.'}</h1>
+            <h1 className="pub-hero-title">{tituloPortada}</h1>
             <p className="pub-hero-lead">
-              Psicología y neuropsicología infantil en {ciudad}. <strong>Precio a la vista</strong>,
-              {' '}{cafeEnabled ? 'solicitud en línea y un café para quien acompaña mientras su hijo o hija está en sesión.' : 'solicitud en línea y atención en un consultorio privado.'}
+              {descripcionPortada || <>
+                Psicología y neuropsicología infantil en {ciudad}. <strong>Precio a la vista</strong>,
+                {' '}{cafeEnabled ? 'solicitud en línea y un café para quien acompaña mientras su hijo o hija está en sesión.' : 'solicitud en línea y atención en un consultorio privado.'}
+              </>}
             </p>
             <div className="pub-actions">
               <Link to="/reservar" className="pub-btn pub-btn-primary">Ver horarios disponibles</Link>

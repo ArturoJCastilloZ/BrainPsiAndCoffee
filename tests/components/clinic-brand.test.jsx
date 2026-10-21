@@ -30,6 +30,14 @@ it('retains stored and legal names, custom brands and the enabled display form',
   expect(routeMeta('/', settings).title).not.toContain('Coffee');
   expect(routeMeta('/', settings).description).not.toMatch(/cafetería|café/i);
 });
+it('uses the clinic-configured public messages on the homepage', () => {
+  render(<MemoryRouter><AppProviders data={{
+    catalogs: { settings: { name: 'Consultorio Aurora', legalName: 'Aurora Legal', cafeEnabled: false, publicTitle: 'Acompañamiento que sí cabe en tu vida', publicDescription: 'Atención psicológica para tu familia, con horarios claros.' }, services: [], therapists: [], schedules: [], locations: [], offers: [], menu: {}, busy: [] },
+    bookings: [], orders: [], dataLoading: false,
+  }} theme={{ theme: 'light' }}><UserApp /></AppProviders></MemoryRouter>);
+  expect(screen.getByRole('heading', { name: 'Acompañamiento que sí cabe en tu vida' })).toBeTruthy();
+  expect(screen.getByText('Atención psicológica para tu familia, con horarios claros.')).toBeTruthy();
+});
 function Head({ settings }) { useRouteHead({ settings }); return null; }
 it('updates browser and Open Graph titles when the cafe is toggled', async () => {
   const og = document.createElement('meta'); og.setAttribute('property', 'og:title'); document.head.appendChild(og);
