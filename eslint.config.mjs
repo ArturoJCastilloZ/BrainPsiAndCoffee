@@ -12,7 +12,7 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
-  { ignores: ['dist', 'node_modules', 'scripts/legacy', 'supabase/functions', 'coverage'] },
+  { ignores: ['dist', 'node_modules', '.claude/**', 'docs/reviews/**/evidence/**', 'scripts/legacy', 'supabase/functions', 'coverage'] },
   js.configs.recommended,
   {
     files: ['src/**/*.{js,jsx,mjs}'],
