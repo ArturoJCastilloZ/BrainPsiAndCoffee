@@ -137,7 +137,9 @@ declare
     'set_clinical_mfa',
     'clinical_mfa_required',
     -- 0046: dueño NOLOGIN/NOBYPASSRLS; conserva RLS y solo expone alta atómica.
-    'create_public_booking'
+    'create_public_booking',
+    -- 0047: trigger-only module check; reads settings only for NEW.tenant_id.
+    'enforce_cafe_module'
   ];
   v_reales text[];
   v_nuevas text[];
