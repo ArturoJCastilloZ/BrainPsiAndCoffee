@@ -43,7 +43,7 @@ function AppWorkspace({ session }) {
   const location = useLocation();
   // Titulo, descripcion y robots de CADA ruta, publica o no: entrar a
   // /login navegando dejaba el titulo y el 'index' de la portada.
-  useRouteHead();
+  useRouteHead({ settings: crud.catalogs.settings });
 
   const isDark = theme === 'dark';
   // El fondo de <html> (lo que se ve al estirar la pagina en el telefono)

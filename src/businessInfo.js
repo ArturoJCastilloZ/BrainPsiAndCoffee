@@ -1,3 +1,5 @@
+import { businessDisplayName } from './businessBrand.mjs';
+
 // Datos de RELLENO: todavia no son los del negocio. El schema (jsonLd.mjs)
 // los descarta aunque el panel los guarde tal cual.
 export const BUSINESS_PLACEHOLDERS = {
@@ -30,6 +32,7 @@ export const BUSINESS = {
 export const businessFromSettings = (settings) => ({
   ...BUSINESS,
   ...(settings || {}),
+  name: businessDisplayName(settings),
   hours: Array.isArray(settings?.hours) && settings.hours.length ? settings.hours : BUSINESS.hours,
 });
 

@@ -6,7 +6,9 @@
 // entra solo si el consultorio lo capturo (no es el valor de relleno de
 // businessInfo.js).
 //
-// Sin imports: lo usan el build y la app.
+// Shared by the build and app; imports must remain browser-independent.
+
+import { businessDisplayName } from '../businessBrand.mjs';
 
 const LOCALIDAD = { addressLocality: 'Monterrey', addressRegion: 'Nuevo León', addressCountry: 'MX' };
 
@@ -21,7 +23,7 @@ export function businessJsonLd({ settings = null, defaults = {}, siteUrl = '', s
     // Reflect the active modules without advertising a disabled cafe.
     '@type': settings?.cafeEnabled === false ? ['MedicalClinic'] : ['MedicalClinic', 'CafeOrCoffeeShop'],
     '@id': siteUrl ? `${siteUrl}/#negocio` : '#negocio',
-    name: real('name') || 'Brainpsi Coffee',
+    name: businessDisplayName(settings),
     areaServed: { '@type': 'City', name: 'Monterrey' },
     // isAcceptingNewPatients: la reserva publica esta abierta.
     isAcceptingNewPatients: true,

@@ -12,6 +12,8 @@
 //
 // Sin JSX ni imports del navegador: Node lo importa en el build.
 
+import { businessDisplayName } from '../businessBrand.mjs';
+
 export const SITE_NAME = 'Brainpsi Coffee';
 
 // Lo que el buscador ve sin JavaScript: un parrafo de verdad por pagina y
@@ -117,13 +119,22 @@ export const NAV_LINKS = [
   { path: '/contacto', label: 'Contacto' },
 ];
 
-export function routeMeta(pathname) {
+export function routeMeta(pathname, settings) {
   const limpio = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   const publica = PUBLIC_ROUTES.find((r) => r.path === limpio);
-  if (publica) return { ...publica, indexable: true };
   const privada = PRIVATE_ROUTES.find((r) => r.path === limpio);
-  if (privada) return { ...privada, description: PUBLIC_ROUTES[0].description, indexable: false };
-  return { ...NOT_FOUND, indexable: false };
+  const meta = publica ? { ...publica, indexable: true }
+    : privada ? { ...privada, description: PUBLIC_ROUTES[0].description, indexable: false }
+      : { ...NOT_FOUND, indexable: false };
+  if (!settings) return meta;
+  const name = businessDisplayName(settings);
+  return {
+    ...meta,
+    title: meta.title.replaceAll(SITE_NAME, name),
+    description: settings.cafeEnabled === false && /cafetería|café/i.test(meta.description)
+      ? `Atención psicológica y neuropsicológica en ${name}. Consulta servicios, horarios y solicita tu cita en línea.`
+      : meta.description.replaceAll(SITE_NAME, name),
+  };
 }
 
 // "" si no hay dominio configurado: entonces NO se emite canonical. Un

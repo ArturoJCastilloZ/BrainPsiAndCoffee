@@ -15,8 +15,10 @@ const setMeta = (selector, attr, value) => {
 export function useRouteHead(override) {
   const { pathname } = useLocation();
   const titulo = override?.title;
+  const name = override?.settings?.name;
+  const cafeEnabled = override?.settings?.cafeEnabled;
   useEffect(() => {
-    const meta = routeMeta(pathname);
+    const meta = routeMeta(pathname, { name, cafeEnabled });
     document.title = titulo || meta.title;
     setMeta('meta[name="description"]', 'content', meta.description);
     setMeta('meta[name="robots"]', 'content', meta.indexable ? 'index, follow' : 'noindex, follow');
@@ -28,9 +30,9 @@ export function useRouteHead(override) {
       canonical.href = `${origen}${meta.path}`;
       setMeta('meta[property="og:url"]', 'content', canonical.href);
     }
-    setMeta('meta[property="og:title"]', 'content', meta.title);
+    setMeta('meta[property="og:title"]', 'content', titulo || meta.title);
     setMeta('meta[property="og:description"]', 'content', meta.description);
-  }, [pathname, titulo]);
+  }, [pathname, titulo, name, cafeEnabled]);
 }
 
 // El JSON-LD del build no conoce el catalogo ni los datos del negocio;

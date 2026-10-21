@@ -188,6 +188,9 @@ pedidos nuevos y cambios/borrados de sus productos incluso desde clientes
 antiguos. No se eliminan pedidos, productos ni cobros: la contabilidad histórica
 sigue disponible para los roles autorizados. Reactivarla recupera los catálogos.
 Los datos de marca y nombre legal se conservan; el dueño puede editarlos aparte.
+Con la cafetería desactivada, la marca predeterminada “Brainpsi Coffee” se
+muestra como “Brainpsi”; al reactivarla recupera su presentación original.
+Los nombres personalizados y el nombre legal guardado no se reescriben.
 
 Aplicar 0047 antes de habilitar este control en el frontend. Instalar la
 migración no desactiva por sí sola ninguna cafetería.

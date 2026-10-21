@@ -101,7 +101,7 @@ const SITIO = 'https://ejemplo.mx';
   const tags = headTags(meta, SITIO);
   assert.ok(tags.includes(meta.title) && tags.includes(meta.description));
   const head = readFileSync(new URL('../../src/seo/useRouteHead.js', import.meta.url), 'utf8');
-  assert.match(head, /routeMeta\(pathname\)/);
+  assert.match(head, /routeMeta\(pathname(?:,|\))/);
 }
 
 // 7 · nginx: lo que no existe es 404 de verdad, no la portada con 200.
@@ -119,7 +119,8 @@ console.log('seo: ok');
 // al schema; el telefono de ejemplo sigue fuera.
 {
   const { BUSINESS, BUSINESS_PLACEHOLDERS } = await import(`data:text/javascript,${encodeURIComponent(
-    readFileSync(new URL('../../src/businessInfo.js', import.meta.url), 'utf8'))}`);
+    readFileSync(new URL('../../src/businessInfo.js', import.meta.url), 'utf8')
+      .replace("'./businessBrand.mjs'", JSON.stringify(new URL('../../src/businessBrand.mjs', import.meta.url).href)))}`);
   const ld = businessJsonLd({ settings: { ...BUSINESS }, defaults: BUSINESS_PLACEHOLDERS });
   assert.equal(ld.address.streetAddress, BUSINESS.address);
   assert.equal(ld.telephone, undefined, 'el telefono de relleno entro al schema');
