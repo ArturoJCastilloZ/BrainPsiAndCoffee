@@ -19,6 +19,10 @@ begin
 end
 $guard$;
 
+-- Los INSERT de bajo nivel prueban el rol interno de la RPC (0046).
+-- El acceso directo de anon se rechaza y se verifica en 0033.
+
+
 -- El dinero lo fija el servidor.
 --
 -- Dos huecos de 0027: el precio de la cita lo podia escribir quien
@@ -52,7 +56,7 @@ insert into public.therapists (tenant_id,id,name,active) values ('t_din','th-din
 -- El visitante ESCRIBE como anon; la comprobacion se hace despues con el
 -- rol del dueño de la base. Leer la fila como anon devolvia NULL —RLS no
 -- le deja ver appointments— y eso se confundia con "el precio quedo null".
-set role anon;
+set role bpc_booking_writer;
 do $$
 begin
   perform set_config('request.jwt.claims', null, true);

@@ -275,7 +275,7 @@ do $$
 declare v_n integer;
 begin
   perform pg_temp.sesion(null);
-  set local role anon;
+  set local role bpc_booking_writer;
   insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,appointment_time,
     customer_name,customer_email,customer_phone,duration_minutes,status)
   values ('t_cmp','pub-cmp','sv-cmp','th-cmp', current_date + 30,'11:00','Visitante Nuevo','nuevo.cmp@ex.mx','8133333333',50,'requested');

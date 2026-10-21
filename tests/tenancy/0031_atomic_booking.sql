@@ -35,14 +35,14 @@ begin
   reset role;
 end $$;
 
--- El API directo tampoco puede retrofechar ni posfechar para evadir topes.
+-- Los triggers internos tampoco permiten fechas manipuladas para evadir topes.
 do $$
 declare i integer; v_created timestamptz;
 begin
   for i in 1..2 loop
     perform set_config('request.jwt.claims','',true);
     perform set_config('request.tenant','t_atomic',true);
-    set local role anon;
+    set local role bpc_booking_writer;
     insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
       appointment_time,customer_name,customer_email,customer_phone,duration_minutes,status,created_at)
     values ('t_atomic','stamp-'||i,'sv','tt',current_date+5+i,'11:00','Prueba Sello',
@@ -51,7 +51,7 @@ begin
     select created_at into v_created from public.appointments where tenant_id='t_atomic' and id='stamp-'||i;
     if v_created is distinct from now() then raise exception 'FUGA: fecha de creacion manipulable'; end if;
   end loop;
-  set local role anon;
+  set local role bpc_booking_writer;
   begin
     insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
       appointment_time,customer_name,customer_email,customer_phone,duration_minutes,status,created_at)

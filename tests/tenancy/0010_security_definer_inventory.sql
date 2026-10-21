@@ -135,7 +135,9 @@ declare
     'consent_server_stamps',
     'clinical_mfa_ok',
     'set_clinical_mfa',
-    'clinical_mfa_required'
+    'clinical_mfa_required',
+    -- 0046: dueño NOLOGIN/NOBYPASSRLS; conserva RLS y solo expone alta atómica.
+    'create_public_booking'
   ];
   v_reales text[];
   v_nuevas text[];

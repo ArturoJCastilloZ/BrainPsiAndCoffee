@@ -53,16 +53,25 @@ VITE_ANALYTICS_ENDPOINT=
 
 ## Scripts
 
-### Actualización de reservas (0042–0043)
+### Actualización de reservas (0042–0046)
 
-Aplicar las migraciones con `./scripts/migrate.sh up` **antes** de publicar
-el frontend que usa `create_public_booking`. La reserva web sin sesión
+Orden de despliegue: aplicar 0042–0043, publicar y comprobar el frontend
+que reserva mediante `create_public_booking`, y después aplicar 0046.
+0046 retira los INSERT públicos directos de citas y consentimientos:
+los clientes antiguos deben recargar o actualizar su integración a la RPC.
+No aplicar 0046 antes del frontend que usa la RPC.
+
+0042 y 0043 deben estar aplicadas **antes** de publicar
+el frontend que usa `create_public_booking`. El runner `./scripts/migrate.sh up`
+aplica todas las pendientes: si incluye 0046, comprobar primero que el frontend
+con RPC ya esté publicado. La reserva web sin sesión
 guarda cita y consentimiento en una sola transacción; si falla cualquiera,
 no quedan datos parciales. No hay fallback a las dos escrituras anteriores.
 La base impone las fechas de creación y conserva el sello al editar por API.
 Los topes de solicitudes públicas se serializan por clínica.
 
-La RPC conserva RLS (`security invoker`), no devuelve datos privados y
+Con 0046, la RPC conserva RLS mediante un dueño dedicado sin BYPASSRLS
+ni propiedad de tablas (`security definer`), no devuelve datos privados y
 valida aceptación, versión y hash del aviso. Al cambiar el aviso publicado,
 crear una migración nueva que actualice su versión/hash aceptados y aplicar
 esa migración antes del nuevo frontend. El aviso actual continúa en borrador.

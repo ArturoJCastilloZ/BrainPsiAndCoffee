@@ -12,6 +12,10 @@ begin
 end
 $guard$;
 
+-- Los INSERT de bajo nivel prueban el rol interno de la RPC (0046).
+-- El acceso directo de anon se rechaza y se verifica en 0033.
+
+
 -- 0036 · La reserva publica es una solicitud que la clinica confirma.
 --
 -- Usa la clinica t_a de 0004 (servicio 'sv', terapeuta 'tt', horario por
@@ -28,7 +32,7 @@ end $$;
 create or replace function pg_temp.reserva_publica(p_id text, p_hora text, p_estado text) returns void
 language plpgsql as $$
 begin
-  set local role anon;
+  set local role bpc_booking_writer;
   perform set_config('request.jwt.claims','', true);
   perform set_config('request.tenant','t_a', true);
   insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
@@ -131,7 +135,7 @@ end $$;
 
 do $$
 begin
-  set local role anon;
+  set local role bpc_booking_writer;
   perform set_config('request.jwt.claims','', true);
   perform set_config('request.tenant','t_a', true);
   begin
@@ -153,7 +157,7 @@ end $$;
 do $$
 declare v_dummy text;
 begin
-  set local role anon;
+  set local role bpc_booking_writer;
   perform set_config('request.jwt.claims','', true);
   perform set_config('request.tenant','t_a', true);
   begin

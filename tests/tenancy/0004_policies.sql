@@ -45,7 +45,8 @@ insert into public.clinical_notes (tenant_id, encounter_id, patient_id, author_i
   from public.encounters e where e.appointment_id = 'apx';
 
 grant usage on schema public to authenticated, anon;
-grant select, insert on all tables in schema public to authenticated, anon;
+grant select, insert on all tables in schema public to authenticated;
+grant select on all tables in schema public to anon;
 
 -- CRITERIO DE ACEPTACION: cero filas en los tres casos.
 do $$
@@ -97,7 +98,9 @@ begin
     v_fecha := v_fecha + 1;
   end loop;
 
-  set local role anon;
+  -- Bajo nivel: mismo rol interno de la RPC, conserva las policies públicas.
+  -- El INSERT directo de anon se verifica como prohibido en 0033.
+  set local role bpc_booking_writer;
   perform set_config('request.jwt.claims','', true);
 
   perform set_config('request.tenant','t_a', true);

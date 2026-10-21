@@ -12,6 +12,10 @@ begin
 end
 $guard$;
 
+-- Los INSERT de bajo nivel prueban el rol interno de la RPC (0046).
+-- El acceso directo de anon se rechaza y se verifica en 0033.
+
+
 -- 0040 · Sucursales.
 --
 -- Clinica propia (t_loc) para no chocar con los topes de la reserva
@@ -58,7 +62,7 @@ values
 create or replace function pg_temp.reserva_suc(p_id text, p_hora text, p_sucursal text, p_correo text) returns void
 language plpgsql as $$
 begin
-  set local role anon;
+  set local role bpc_booking_writer;
   perform set_config('request.jwt.claims','', true);
   perform set_config('request.tenant','t_loc', true);
   insert into public.appointments (tenant_id,id,service_id,therapist_id,appointment_date,
@@ -72,7 +76,7 @@ end $$;
 do $$
 declare v_n integer; v_inactiva integer; v_ajena integer;
 begin
-  set local role anon;
+  set local role bpc_booking_writer;
   perform set_config('request.jwt.claims','', true);
   perform set_config('request.tenant','t_loc', true);
   select count(*) into v_n from public.locations;
@@ -88,7 +92,7 @@ end $$;
 -- 2 · El visitante no da de alta sucursales.
 do $$
 begin
-  set local role anon;
+  set local role bpc_booking_writer;
   perform set_config('request.jwt.claims','', true);
   perform set_config('request.tenant','t_loc', true);
   begin
@@ -135,7 +139,7 @@ end $$;
 --      arriba mando ''. Con NULL explicito tambien se rechaza.
 do $$
 begin
-  set local role anon;
+  set local role bpc_booking_writer;
   perform set_config('request.jwt.claims','', true);
   perform set_config('request.tenant','t_loc', true);
   begin
