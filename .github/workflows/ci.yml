@@ -50,7 +50,22 @@ jobs:
       # citas, pacientes y notas de otra y recibe cero filas en los tres
       # casos. El plan pide que esta prueba se quede en CI para siempre.
       - name: Aislamiento entre clinicas
-        run: ./tests/tenancy/run.sh
+        shell: bash
+        run: |
+          # Solo contiene fixtures del PostgreSQL desechable. Expone el final
+          # como anotaciones para poder diagnosticar fallos sin descargar logs.
+          set +e
+          ./tests/tenancy/run.sh 2>&1 | tee "$RUNNER_TEMP/tenancy.log"
+          result=${PIPESTATUS[0]}
+          set -e
+          if (( result != 0 )); then
+            while IFS= read -r line; do
+              line="${line//'%'/'%25'}"
+              line="${line//$'\r'/'%0D'}"
+              echo "::error title=Suite SQL desechable::$line"
+            done < <(tail -n 8 "$RUNNER_TEMP/tenancy.log")
+          fi
+          exit "$result"
 
       # Construye la imagen de produccion sin publicarla: si el Dockerfile
       # se rompe, se entera el PR y no el dia del despliegue.
