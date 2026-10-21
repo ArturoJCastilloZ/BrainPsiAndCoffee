@@ -119,7 +119,13 @@ class AuthService {
     }
 
     const session = this.setSession(data.session);
-    if (!canAccessAdmin(session?.user.role) && !canAccessDoctor(session?.user.role)) {
+    // Sin clínica elegida solo se permite llegar al selector si alguna
+    // membresía firmada permite entrar. No se hereda su rol: hasta elegir,
+    // la sesión conserva 'user' y las rutas del panel siguen protegidas.
+    const roles = session?.user.tenantId
+      ? [session.user.role]
+      : Object.values(session?.user.memberships || {});
+    if (!roles.some((role) => canAccessAdmin(role) || canAccessDoctor(role))) {
       await this.logout('not-admin');
       throw new Error('Tu usuario no tiene permisos para acceder al panel.');
     }
