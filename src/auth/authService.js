@@ -3,7 +3,7 @@ import { ValueSubject } from '../lib/valueSubject.mjs';
 import { conCliente, getSupabase, hasSupabaseConfig, necesitaClienteAlArrancar, peekSupabase } from '../api/supabaseClient';
 import { getSelectedTenant, resolveInitialTenant, setActiveTenant } from '../api/tenant';
 import { resetRequests } from '../api/requestActivity';
-import { canAccessAdmin, canAccessDoctor, normalizeRole } from './permissions';
+import { canAccessAdmin, canAccessDoctor } from './permissions';
 
 const warningMs = env.authWarningSeconds * 1000;
 const inactivityMs = env.authInactivityMinutes * 60 * 1000;
@@ -31,7 +31,11 @@ const toAppSession = (session) => {
   // activa. Sin clinica elegida no hay rol, y la UI no debe dar acceso.
   const tenantId = getSelectedTenant();
   const memberships = session.user.app_metadata?.memberships || {};
-  const role = normalizeRole(memberships[tenantId] || 'user');
+  // Conservamos el rol real del tenant en la sesión. `owner` no es un
+  // alias visual de super_admin: es el rol que la base y el JWT emiten.
+  // La compatibilidad con permisos antiguos vive en permissions.js, al
+  // decidir acceso, sin reescribir la identidad de la membresía.
+  const role = memberships[tenantId] || 'user';
 
   return {
     user: {

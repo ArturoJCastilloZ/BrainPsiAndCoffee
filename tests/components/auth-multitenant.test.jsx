@@ -42,7 +42,7 @@ it('permite elegir clínica sin asignar un rol y lo deriva al seleccionar', asyn
   setActiveTenant('clinic_b');
   expect((await authService.reloadSession()).user).toMatchObject({ role: 'doctor', tenantId: 'clinic_b' });
   setActiveTenant('clinic_a');
-  expect((await authService.reloadSession()).user).toMatchObject({ role: 'super_admin', tenantId: 'clinic_a' });
+  expect((await authService.reloadSession()).user).toMatchObject({ role: 'owner', tenantId: 'clinic_a' });
 });
 
 it('entra directamente con una sola clínica', async () => {
