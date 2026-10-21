@@ -150,7 +150,10 @@ export default function SecurityPanel({ session, puedeExigir = false, modo = 'aj
               : 'Cuando la actives, quien entre solo con contraseña no podrá ver pacientes ni notas hasta verificarse. Avisa antes a tu equipo.'}
           </p>
           {exigida ? (
-            <button type="button" style={botonSecundario} disabled={ocupado} onClick={() => cambiarExigencia(false)}>Dejar de exigirla</button>
+            <>
+              <button type="button" style={botonSecundario} disabled={ocupado || !verificada} onClick={() => cambiarExigencia(false)}>Dejar de exigirla</button>
+              {!verificada && <p style={{ ...texto, fontSize: 14, marginTop: 8 }}>Verifica esta sesión con tu código para dejar de exigirla a la clínica.</p>}
+            </>
           ) : (
             <>
               <button type="button" style={boton} disabled={ocupado || !verificada} onClick={() => cambiarExigencia(true)}>Exigirla a la clínica</button>

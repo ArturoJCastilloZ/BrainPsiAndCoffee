@@ -62,4 +62,29 @@ describe('Seguridad', () => {
     expect(screen.queryByRole('button', { name: 'Desactivar' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeTruthy();
   });
+
+  it('no permite retirar la protección clínica sin segundo factor y explica cómo continuar', async () => {
+    const user = userEvent.setup();
+    auth.factoresVerificados.mockResolvedValue([{ id: 'f1' }]);
+    api.clinicalMfaRequired.mockResolvedValue(true);
+    api.setClinicalMfa.mockClear();
+    render(<SecurityPanel session={{ aal: 'aal1' }} puedeExigir />);
+    const boton = await screen.findByRole('button', { name: 'Dejar de exigirla' });
+    expect(boton.disabled).toBe(true);
+    expect(screen.getByText(/Verifica esta sesión con tu código para dejar/)).toBeTruthy();
+    await user.click(boton);
+    expect(api.setClinicalMfa).not.toHaveBeenCalled();
+  });
+
+  it('el dueño verificado puede retirar la exigencia clínica', async () => {
+    const user = userEvent.setup();
+    auth.factoresVerificados.mockResolvedValue([{ id: 'f1' }]);
+    api.clinicalMfaRequired.mockResolvedValue(true);
+    api.setClinicalMfa.mockClear();
+    api.setClinicalMfa.mockResolvedValue(undefined);
+    render(<SecurityPanel session={{ aal: 'aal2' }} puedeExigir />);
+    await user.click(await screen.findByRole('button', { name: 'Dejar de exigirla' }));
+    expect(api.setClinicalMfa).toHaveBeenCalledExactlyOnceWith(false);
+    expect(await screen.findByRole('button', { name: 'Exigirla a la clínica' })).toBeTruthy();
+  });
 });
