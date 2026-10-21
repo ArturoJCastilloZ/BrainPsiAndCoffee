@@ -14,6 +14,11 @@ $guard$;
 
 -- Regresión S02: ni siquiera el dueño puede retirar MFA con solo contraseña.
 begin;
+do $$ begin
+  if has_function_privilege('anon','public.set_clinical_mfa(boolean)','EXECUTE') then
+    raise exception 'FUGA: anon conserva ejecución de set_clinical_mfa';
+  end if;
+end $$;
 insert into public.tenants(id,name) values ('t_mfa_change','MFA change test');
 insert into auth.users(id,email) values
   ('44000000-0000-0000-0000-000000000001','mfa-change@example.invalid'),

@@ -16,6 +16,10 @@ La prueba SQL `0032_clinical_mfa_changes.sql` ejecuta las llamadas como `authent
 
 Esta corrección cubre el cambio de la exigencia clínica. El reinicio administrativo de factores del personal mediante Edge Function, señalado por separado en la auditoría, sigue pendiente de revisión y corrección.
 
-La migración 0044 está pendiente de aplicar en Supabase. El frontend también está pendiente de publicación. Las migraciones 0042 y 0043 ya aplicadas permanecen intactas.
+Las migraciones 0044 y 0045 fueron aplicadas en BrainPsiSaaS por la API de gestión de Supabase. Se verificaron las huellas de las 43 migraciones previas antes de 0044 y se registraron las nuevas en transacciones con bloqueo. La comprobación independiente confirmó que la función exige aal2 para todos los cambios y que authenticated conserva ejecución.
+
+La comprobación remota de 0044 detectó además un grant heredado de ejecución para anon. La migración adicional 0045 lo retira explícitamente; la comprobación posterior confirmó `anon_can_execute: false`. Se agregó una aserción SQL de regresión de este permiso. No se crearon pacientes ni usuarios de prueba en la base remota ni se cambió la configuración MFA de ninguna clínica.
+
+El frontend sigue pendiente de publicación. Las migraciones 0042, 0043 y 0044 ya aplicadas permanecen intactas.
 
 El dueño debe verificar su sesión para retirar la exigencia. Si perdió su factor, este control requiere una recuperación de cuenta independiente; no se añade una excepción basada únicamente en contraseña.
