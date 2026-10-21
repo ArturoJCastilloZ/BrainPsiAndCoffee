@@ -1,5 +1,5 @@
 import React from 'react';
-import { Coffee, Calendar as CalendarIcon, Users, Bell, ArrowRight, DollarSign } from 'lucide-react';
+import { Coffee, Calendar as CalendarIcon, Users, Bell, ArrowRight, CheckCircle2, Circle, DollarSign } from 'lucide-react';
 import { C } from '../theme';
 import StatusBadge from './OrderStatusBadge';
 import { isCafeEnabled } from '../modules.mjs';
@@ -12,7 +12,7 @@ import {
 
 const SIN_CONTABILIDAD = { datos: { payments: [], expenses: [] } };
 
-export default function AdminDashboard({ bookings, orders, setPage, catalogs, contabilidad = SIN_CONTABILIDAD }) {
+export default function AdminDashboard({ bookings, orders, setPage, catalogs, role, contabilidad = SIN_CONTABILIDAD }) {
   const services = catalogs?.services || [];
   const therapists = catalogs?.therapists || [];
   const today = todayISO();
@@ -46,6 +46,8 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
   const consultorio = cobradoDe(CONSULTORIO);
   const cafeteria = cobradoDe(CAFETERIA);
   const cafeEnabled = isCafeEnabled(catalogs?.settings);
+  const onboarding = pasosDeAlta(catalogs);
+  const mostrarAlta = role === 'owner' || role === 'admin';
 
   // `cambio` solo lleva texto cuando ese texto es CIERTO. Antes decia '+12%'
   // y '+5', dos literales escritos a mano: los unicos numeros inventados que
@@ -66,6 +68,32 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
         <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: 0, letterSpacing: '-0.02em' }}>Resumen</h1>
         <p style={{ fontSize: 13, color: 'var(--admin-muted)', marginTop: 4 }}>Vista general de hoy · {fullDayLabel(new Date())}</p>
       </div>
+
+      {mostrarAlta && <section className="admin-card" aria-labelledby="alta-clinica" style={{ borderRadius: 16, padding: 20, marginBottom: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'start', marginBottom: 12 }}>
+          <div>
+            <h2 id="alta-clinica" style={{ fontSize: 16, color: 'var(--admin-text)', margin: 0 }}>Pon tu consultorio en marcha</h2>
+            <p style={{ fontSize: 13, color: 'var(--admin-muted)', margin: '4px 0 0' }}>
+              {onboarding.completos === onboarding.pasos.length
+                ? 'La configuración esencial está lista para recibir solicitudes.'
+                : `${onboarding.completos} de ${onboarding.pasos.length} pasos esenciales completados.`}
+            </p>
+          </div>
+          <span style={{ color: 'var(--admin-accent-text)', fontSize: 12, fontWeight: 800 }}>{onboarding.completos}/{onboarding.pasos.length}</span>
+        </div>
+        <ol style={{ display: 'grid', gap: 8, listStyle: 'none', margin: 0, padding: 0 }}>
+          {onboarding.pasos.map((paso) => (
+            <li key={paso.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '9px 10px', borderRadius: 10, background: 'var(--admin-surface-soft)' }}>
+              {paso.completo ? <CheckCircle2 size={18} color="var(--admin-accent-text)" aria-hidden="true" /> : <Circle size={18} color="var(--admin-subtle)" aria-hidden="true" />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong style={{ fontSize: 13, color: 'var(--admin-text)' }}>{paso.titulo}</strong>
+                <span style={{ display: 'block', fontSize: 12, color: 'var(--admin-muted)', marginTop: 1 }}>{paso.ayuda}</span>
+              </div>
+              {!paso.completo && <button type="button" onClick={() => setPage(paso.page)} style={linkButton}>Configurar <ArrowRight size={14} /></button>}
+            </li>
+          ))}
+        </ol>
+      </section>}
 
       {/* Stats */}
       <div className="rejilla-tarjetas" style={{ '--rejilla-min': '180px', gap: 12, marginBottom: 28 }}>
@@ -155,6 +183,30 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
 
     </div>
   );
+}
+
+const linkButton = {
+  display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+  background: 'none', border: 'none', color: 'var(--admin-accent-text)', cursor: 'pointer',
+  fontFamily: 'inherit', fontSize: 12, fontWeight: 800,
+};
+
+export function pasosDeAlta(catalogs = {}) {
+  const settings = catalogs.settings || {};
+  const services = (catalogs.services || []).filter((item) => item.active !== false);
+  const therapists = (catalogs.therapists || []).filter((item) => item.active !== false);
+  const locations = (catalogs.locations || []).filter((item) => item.active !== false);
+  const therapistIds = new Set(therapists.map((item) => item.id));
+  const withService = therapists.some((item) => (item.services || []).some((id) => services.some((service) => service.id === id)));
+  const withSchedule = (catalogs.schedules || []).some((item) => item.active !== false && therapistIds.has(item.therapistId));
+  const pasos = [
+    { id: 'business', titulo: 'Presenta tu consultorio', ayuda: 'Nombre comercial y razón legal para tu sitio y aviso de privacidad.', page: 'general-business', completo: Boolean(String(settings.name || '').trim() && String(settings.legalName || '').trim()) },
+    { id: 'locations', titulo: 'Agrega una sucursal', ayuda: 'Define dónde se atienden las citas.', page: 'clinic-locations', completo: locations.length > 0 },
+    { id: 'services', titulo: 'Publica tus servicios', ayuda: 'Incluye duración, precio y público objetivo.', page: 'clinic-services', completo: services.length > 0 },
+    { id: 'therapists', titulo: 'Asigna especialistas', ayuda: 'Cada especialista debe atender al menos un servicio publicado.', page: 'clinic-therapists', completo: withService },
+    { id: 'schedules', titulo: 'Abre horarios', ayuda: 'Define los bloques disponibles para que se puedan solicitar citas.', page: 'clinic-schedules', completo: withSchedule },
+  ];
+  return { pasos, completos: pasos.filter((paso) => paso.completo).length };
 }
 
 // El chip de la esquina de cada tarjeta. Tres estados, y ninguno inventa:

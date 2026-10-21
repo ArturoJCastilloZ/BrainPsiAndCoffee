@@ -301,7 +301,7 @@ export default function AdminApp({ switchToUser, logout }) {
                         escritas para ser fluidas y no servian de nada. */}
                     <div>
                         {mfaPendiente && page !== 'cuenta-seguridad' && <MfaAviso onActivar={() => setPage('cuenta-seguridad')} />}
-                        {page === 'general-dashboard' && canViewDashboard(role) && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} contabilidad={contabilidad} />}
+                        {page === 'general-dashboard' && canViewDashboard(role) && <AdminDashboard bookings={bookings} orders={orders} setPage={setPage} catalogs={catalogs} role={role} contabilidad={contabilidad} />}
                         {page === 'general-accounting' && canViewAccounting(role) && <AdminAccounting bookings={bookings} orders={orders} catalogs={catalogs} session={session} contabilidad={contabilidad} />}
                         {page === 'general-access' && canManageAccess(role) && <AdminAccess />}
                         {page === 'general-arco' && canManageArco(role) && <AdminArco />}
