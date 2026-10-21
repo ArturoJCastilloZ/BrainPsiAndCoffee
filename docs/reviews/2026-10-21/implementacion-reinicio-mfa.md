@@ -16,4 +16,8 @@ La elección de `getClaims` sigue la [documentación oficial de Supabase](https:
 
 ## Entrega
 
-Cambio local de Edge Function y frontend: pendiente de despliegue. No requiere otra migración de base de datos. No se reiniciaron factores de cuentas reales. La recuperación del propio dueño continúa fuera de este flujo y no se incorpora una excepción basada solo en contraseña.
+`invite-staff` fue desplegada en BrainPsiSaaS por solicitud del usuario mediante el CLI de Supabase, incluyendo `index.ts`, `password.mjs` y `mfa-assurance.mjs`. La consulta posterior confirmó estado ACTIVE, versión 10 y `verify_jwt: true`. No se desactivó JWT ni se modificaron los secretos de la función. No requiere otra migración de base de datos.
+
+Una llamada vacía sin autenticación al endpoint desplegado fue rechazada con HTTP 401. No se ejecutó un reinicio MFA sobre usuarios reales; los casos aal1/aal2 y los destinatarios restringidos se verificaron en las pruebas del handler de esta entrega.
+
+El frontend de esta entrega sigue pendiente de publicación. El control servidor del segundo factor ya se aplica, aunque el cliente antiguo no muestre la nueva ayuda. No se reiniciaron factores de cuentas reales. La recuperación del propio dueño continúa fuera de este flujo y no se incorpora una excepción basada solo en contraseña.

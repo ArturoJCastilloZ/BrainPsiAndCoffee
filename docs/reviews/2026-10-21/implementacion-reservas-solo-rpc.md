@@ -22,6 +22,12 @@ Validación: `npm run verify` pasó lint, QA, 63 pruebas reportadas por Node, 78
 
 ## Orden de despliegue
 
-0046 está pendiente de aplicar en Supabase. Las migraciones anteriores aplicadas no se modifican. Primero se debe publicar y comprobar el frontend que usa `create_public_booking`; después aplicar 0046. El frontend actual del repositorio ya usa la RPC, pero aún está pendiente de publicación. Aplicar primero la restricción rompería las reservas de clientes antiguos con inserts separados. Las pestañas que conserven una versión antigua deberán recargar.
+0046 fue aplicada en BrainPsiSaaS por solicitud explícita del usuario, después de avisar que el frontend publicado todavía no contenía `create_public_booking`. Se verificaron las huellas de las 45 migraciones anteriores y la nueva se aplicó en una transacción con bloqueo y registro de checksum. Las migraciones anteriores aplicadas no se modificaron.
 
-No se modificaron datos remotos ni se desplegó frontend en esta entrega. La aceptación registrada es evidencia de lo enviado, no una verificación independiente de identidad del solicitante.
+La comprobación remota confirmó: anon sin INSERT de tabla ni columnas en citas y consentimientos; RPC ejecutable por anon, no authenticated; propietario `bpc_booking_writer`; rol sin login ni privilegios administrativos/BYPASSRLS ni CREATE del esquema; anon, authenticated y authenticator sin membresía hacia ese rol. La RPC publicada rechazó una solicitud sin consentimiento con 23514, sin crear citas.
+
+La comprobación de Data API con objetos vacíos rechazó ambos INSERT directos con 42501 (permisos), sin crear datos.
+
+Queda pendiente publicar el frontend con RPC en https://brainpsi.vercel.app/. La versión antigua no puede reservar mediante sus inserts separados desde que se aplicó 0046. El código de frontend compatible está publicado en la rama `bug/saas-review-fixes`, con CI exitoso, pendiente de integrar/publicar en producción. Las pestañas con la versión anterior deberán recargar después de esa publicación.
+
+No se crearon registros clínicos de prueba ni se desplegó frontend al aplicar esta migración. La aceptación registrada es evidencia de lo enviado, no una verificación independiente de identidad del solicitante.
