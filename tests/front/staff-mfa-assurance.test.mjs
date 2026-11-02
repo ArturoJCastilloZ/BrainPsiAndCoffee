@@ -10,7 +10,7 @@ import { puedeAdministrarMfa } from '../../supabase/functions/invite-staff/mfa-a
 // de Supabase; no se replica el orden de sus controles en la prueba.
 const source = stripTypeScriptTypes(readFileSync('supabase/functions/invite-staff/index.ts', 'utf8'))
   .replace(/^import[\s\S]*?from\s+['"][^'"]+['"];\s*/gm, '');
-const request = async ({ aal = 'aal2', claimsError = null, claimsSub = 'owner', owner = true, targetRole = 'doctor', otherClinics = [], self = false, failClaims = false } = {}) => {
+const request = async ({ aal = 'aal2', claimsError = null, claimsSub = 'owner', owner = true, targetRole = 'doctor', otherClinics = [], self = false, failClaims = false, tenantStatus = 'active' } = {}) => {
   const calls = { claims: [], searches: 0, lists: 0, deletes: [] };
   const caller = { auth: {
     getUser: async () => ({ data: { user: { id: 'owner' } } }),
@@ -22,7 +22,12 @@ const request = async ({ aal = 'aal2', claimsError = null, claimsSub = 'owner', 
   } };
   let queries = 0;
   const admin = {
-    from: () => {
+    from: (table) => {
+      if (table === 'tenants') {
+        const tenantChain = { select: () => tenantChain, eq: () => tenantChain,
+          maybeSingle: async () => ({ data: { status: tenantStatus } }) };
+        return tenantChain;
+      }
       queries += 1;
       const queryNumber = queries;
       const chain = { select: () => chain, eq: () => chain,
@@ -76,6 +81,13 @@ for (const options of [{ owner: false }, { targetRole: 'owner' }, { otherClinics
     assert.equal(calls.deletes.length, 0);
   });
 }
+test('dueño aal2 de una clinica suspendida no busca ni borra factores', async () => {
+  const { response, calls } = await request({ tenantStatus: 'suspended' });
+  assert.equal(response.status, 403);
+  assert.equal(calls.searches, 0);
+  assert.equal(calls.lists, 0);
+  assert.equal(calls.deletes.length, 0);
+});
 test('sin bearer no se intentan verificar claims ni se acepta la operación', async () => {
   assert.equal(await puedeAdministrarMfa({}, '', 'owner'), false);
 });
