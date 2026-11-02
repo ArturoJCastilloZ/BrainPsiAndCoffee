@@ -22,8 +22,10 @@ const ROLE_LABELS = {
 // base solo la acepta si esta entre las membresias del JWT. Esto existe
 // para que el usuario sepa —y decida— en cual esta trabajando, porque el
 // mismo psiquiatra puede tener permisos distintos en cada una.
+//
+// Colores: solo tokens C.*, sin ramificar por tema; themeVars ya los
+// invierte (ver src/theme.js). `theme` se conserva para BrandMark.
 export default function TenantPicker({ memberships, onSelected, theme }) {
-  const isDark = theme === 'dark';
   const entries = Object.entries(memberships || {});
 
   const choose = (tenantId) => {
@@ -42,14 +44,14 @@ export default function TenantPicker({ memberships, onSelected, theme }) {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        background: isDark ? C.brown : C.cream,
+        background: C.ivory,
       }}
     >
       <div
         style={{
           width: '100%',
           maxWidth: 460,
-          background: isDark ? C.brownMid : C.ivory,
+          background: C.surface,
           borderRadius: 20,
           padding: 32,
           border: `1px solid ${C.brownAlpha30}`,
@@ -59,10 +61,10 @@ export default function TenantPicker({ memberships, onSelected, theme }) {
           <BrandMark theme={theme} />
         </div>
 
-        <h1 style={{ fontSize: 20, margin: '0 0 6px', color: isDark ? C.cream : C.brown, textAlign: 'center' }}>
+        <h1 style={{ fontSize: 20, margin: '0 0 6px', color: C.brown, textAlign: 'center' }}>
           ¿En que consultorio vas a trabajar?
         </h1>
-        <p style={{ fontSize: 14, margin: '0 0 24px', color: C.brownLight, textAlign: 'center' }}>
+        <p style={{ fontSize: 14, margin: '0 0 24px', color: C.brownMid, textAlign: 'center' }}>
           Tienes acceso a mas de uno. Puedes cambiarlo despues.
         </p>
 
@@ -72,6 +74,7 @@ export default function TenantPicker({ memberships, onSelected, theme }) {
               key={tenantId}
               type="button"
               onClick={() => choose(tenantId)}
+              aria-label={`Entrar a ${tenantId} como ${ROLE_LABELS[role] || role}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -80,17 +83,17 @@ export default function TenantPicker({ memberships, onSelected, theme }) {
                 padding: '14px 16px',
                 borderRadius: 12,
                 border: `1px solid ${C.brownAlpha30}`,
-                background: isDark ? C.brown : C.creamLight,
-                color: isDark ? C.cream : C.brown,
+                background: C.surface2,
+                color: C.brown,
                 cursor: 'pointer',
                 textAlign: 'left',
                 font: 'inherit',
               }}
             >
-              <Building2 size={20} color={C.sageDeep} />
+              <Building2 size={20} color={C.sageText} aria-hidden="true" />
               <span style={{ display: 'flex', flexDirection: 'column' }}>
-                <strong style={{ fontSize: 15 }}>{tenantId}</strong>
-                <span style={{ fontSize: 13, color: C.brownLight }}>
+                <strong style={{ fontSize: 15, color: C.brown }}>{tenantId}</strong>
+                <span style={{ fontSize: 13, color: C.brownMid }}>
                   {ROLE_LABELS[role] || role}
                 </span>
               </span>
