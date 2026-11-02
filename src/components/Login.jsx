@@ -17,7 +17,10 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
   useEffect(() => { authService.precargar(); }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  // El aviso de un intento anterior (p. ej. "sin permisos") sobrevive al
+  // remontaje que provoca SessionScope. Se lee sin consumirlo: StrictMode
+  // ejecuta el inicializador dos veces y la segunda lo veria vacio.
+  const [error, setError] = useState(() => authService.avisoLogin$.value);
   const [emailTouched, setEmailTouched] = useState(false);
   // El aviso de "Campo requerido" no puede depender solo de que el campo
   // este vacio: al montar lo estan los dos, y la pantalla abria con ambos
@@ -27,7 +30,9 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState('login');
+  // Entrar con contraseña remonta Login (cambia la clave de SessionScope):
+  // el paso del codigo se lee de authService, que si sobrevive.
+  const [mode, setMode] = useState(() => (authService.segundoFactorPendiente$.value ? 'mfa' : 'login'));
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
   // Segundo paso (0039): quien activo la verificacion en dos pasos escribe
@@ -46,6 +51,7 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
 
   const submit = async (event) => {
     event.preventDefault();
+    authService.limpiarAvisoLogin();
     setSubmitted(true);
     setEmailTouched(true);
     setPasswordTouched(true);
@@ -203,7 +209,7 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 14 }}>
           {mode === 'login' ? (
-            <button type="button" onClick={onCancel} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, minHeight: 44, padding: '0 8px' }}>Volver a la app</button>
+            <button type="button" onClick={() => { authService.limpiarAvisoLogin(); onCancel?.(); }} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, minHeight: 44, padding: '0 8px' }}>Volver a la app</button>
           ) : mode === 'mfa' ? (
             // Volver cierra la sesion a medias (solo contraseña).
             <button type="button" onClick={async () => { await authService.logout('mfa-cancelado'); setMode('login'); setCodigo(''); setError(''); }} style={{ background: 'transparent', border: 'none', color: isDark ? C.sageLight : C.brownMid, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, minHeight: 44, padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={13} /> Usar otra cuenta</button>

@@ -68,6 +68,12 @@ class AuthService {
   // recargar /admin mandaba al login a alguien con sesion valida.
   ready$ = new ValueSubject(false);
   expiryWarning$ = new ValueSubject(false);
+  // El paso del login vive aqui y no en el estado de Login: entrar cambia
+  // la clave de SessionScope y React remonta Login, que perdia el paso del
+  // codigo y el aviso de "sin permisos". La memoria del modulo sobrevive al
+  // remontaje; a proposito NO se guarda en storage: sin sesion no hay paso.
+  segundoFactorPendiente$ = new ValueSubject(false);
+  avisoLogin$ = new ValueSubject('');
   warningTimer = null;
   logoutTimer = null;
   escuchando = false;
@@ -114,6 +120,7 @@ class AuthService {
   }
 
   async login({ username, password }) {
+    this.avisoLogin$.next('');
     const supabase = await this.cliente();
     const email = await this.resolveLoginEmail(username.trim());
 
@@ -121,6 +128,15 @@ class AuthService {
     if (error) {
       throw new Error('Correo o contraseña incorrectos.');
     }
+
+    // Quien activo la verificacion en dos pasos la usa SIEMPRE al entrar:
+    // la contraseña sola deja la sesion en aal1 y el expediente, si la
+    // clinica lo exige, no se abre. Login pide el codigo y llama a
+    // verificarSegundoFactor(). Se pregunta ANTES de setSession: la sesion
+    // nueva remonta Login, y el Login nuevo tiene que leer ya el paso.
+    const { data: nivel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const requiereSegundoFactor = nivel?.nextLevel === 'aal2' && nivel?.currentLevel !== 'aal2';
+    this.segundoFactorPendiente$.next(requiereSegundoFactor);
 
     const session = this.setSession(data.session);
     // Sin clínica elegida solo se permite llegar al selector si alguna
@@ -130,16 +146,15 @@ class AuthService {
       ? [session.user.role]
       : Object.values(session?.user.memberships || {});
     if (!roles.some((role) => canAccessAdmin(role) || canAccessDoctor(role))) {
+      // El aviso va antes de cerrar: logout vuelve a remontar Login, y el
+      // Login nuevo lo lee al montar en vez de abrir el formulario mudo.
+      this.segundoFactorPendiente$.next(false);
+      this.avisoLogin$.next('Tu usuario no tiene permisos para acceder al panel.');
       await this.logout('not-admin');
       throw new Error('Tu usuario no tiene permisos para acceder al panel.');
     }
 
-    // Quien activo la verificacion en dos pasos la usa SIEMPRE al entrar:
-    // la contraseña sola deja la sesion en aal1 y el expediente, si la
-    // clinica lo exige, no se abre. Login pide el codigo y llama a
-    // verificarSegundoFactor().
-    const { data: nivel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (nivel?.nextLevel === 'aal2' && nivel?.currentLevel !== 'aal2') {
+    if (requiereSegundoFactor) {
       return { ...session, requiereSegundoFactor: true };
     }
     return session;
@@ -181,7 +196,17 @@ class AuthService {
     const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: id, code: String(codigo).replace(/\s/g, '') });
     if (error) throw new Error('El código no es válido o ya expiró. Usa el que muestra tu app ahora.');
     const { data } = await supabase.auth.getSession();
-    return this.setSession(data.session);
+    // El paso se apaga DESPUES de la sesion aal2: al reves, el Login
+    // remontado alcanzaria a pintar el formulario de contraseña.
+    const session = this.setSession(data.session);
+    this.segundoFactorPendiente$.next(false);
+    return session;
+  }
+
+  // Login lo llama al enviar o salir: el aviso ya se mostro y no debe
+  // reaparecer en el siguiente montaje.
+  limpiarAvisoLogin() {
+    this.avisoLogin$.next('');
   }
 
   // Con la verificacion en dos pasos activa, Supabase no deja cambiar la
@@ -301,6 +326,10 @@ class AuthService {
     resetRequests();
     this.clearTimers();
     this.expiryWarning$.next(false);
+    // Sin sesion no hay codigo que pedir: un paso viejo mostraria "Codigo"
+    // a quien no ha escrito su contraseña. El aviso se queda: es lo que
+    // explica por que se cerro la sesion.
+    this.segundoFactorPendiente$.next(false);
     this.session$.next(null);
     return reason;
   }
