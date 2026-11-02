@@ -80,6 +80,35 @@ Comprobación local segura: `./tests/tenancy/run.sh` utiliza exclusivamente
 PostgreSQL desechable e incluye rollback de consentimiento y dos conexiones
 simultáneas. No ejecutar los archivos SQL de pruebas en Supabase real.
 
+### Aislamiento 0048–0050
+
+- 0048: las altas públicas (cita, consentimiento, pedido y su línea) son
+  solo del visitante sin sesión; ARCO sigue abierto con sesión, con topes
+  para quien no es miembro de la clínica destino.
+- 0049: las funciones que reciben la clínica como argumento solo responden
+  por la clínica de la petición.
+- 0050: una clínica `suspended` o `cancelled` no opera para su personal.
+
+Orden de despliegue: **0048 → 0049 → 0050**, con `./scripts/migrate.sh up`
+(cada una en su propia transacción). 0049 **requiere** 0048: sin ella, los
+INSERT del personal fallan con 42501. No hace falta publicar un frontend
+nuevo antes ni después.
+
+Antes de aplicar, en solo lectura:
+
+1. El frontend publicado reserva con `create_public_booking`.
+2. `select id, status from public.tenants;`: toda clínica que opera debe
+   estar `active`. 0050 deja sin acceso al personal de las que no lo estén.
+3. `./scripts/migrate.sh status` lista como pendientes solo 0048, 0049 y 0050.
+
+Las Edge Functions `invite-staff` y `sync-doctor-access` se despliegan
+**aparte** (`supabase functions deploy <nombre>`): las migraciones no las
+actualizan. Desplegarlas justo después de 0050, para que una clínica
+suspendida tampoco dé de alta personal ni conceda accesos.
+
+Para probar la reserva pública, el personal debe **cerrar sesión** o usar
+una ventana privada: con sesión, la reserva y el pedido público se rechazan.
+
 ```bash
 npm run dev
 ```
