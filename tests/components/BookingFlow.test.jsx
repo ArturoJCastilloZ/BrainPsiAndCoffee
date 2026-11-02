@@ -2,12 +2,20 @@
 // leyendo lo que la pantalla anuncia. Sin red: setBookings es un doble que
 // responde como la base.
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import BookingFlow from '../../src/user/BookingFlow';
 import { localISO } from '../../src/localDay.mjs';
+
+// Reloj fijo: un lunes a las 9 de la mañana, hora local de quien corra la
+// prueba. Con el reloj real, desde las 16:00 ya no queda el horario de las 16
+// de hoy y la prueba de sucursales falla según la hora. Solo se finge Date: los
+// temporizadores de userEvent siguen siendo los reales.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 10, 2, 9, 0));
+afterAll(() => vi.useRealTimers());
 
 const manana = new Date();
 manana.setDate(manana.getDate() + 1);
