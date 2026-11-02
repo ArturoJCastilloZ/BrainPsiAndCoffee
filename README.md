@@ -94,6 +94,11 @@ Orden de despliegue: **0048 → 0049 → 0050**, con `./scripts/migrate.sh up`
 INSERT del personal fallan con 42501. No hace falta publicar un frontend
 nuevo antes ni después.
 
+Reversión: en orden inverso, **0050 → 0049 → 0048**, cada una como
+migración nueva (nunca editando las aplicadas). No revertir 0048 mientras
+0049 siga activa: 0049 sin 0048 hace fallar con 42501 los INSERT del
+personal.
+
 Antes de aplicar, en solo lectura:
 
 1. El frontend publicado reserva con `create_public_booking`.
