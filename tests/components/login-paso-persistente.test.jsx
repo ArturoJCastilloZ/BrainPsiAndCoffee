@@ -11,8 +11,12 @@ import userEvent from '@testing-library/user-event';
 
 const mocks = vi.hoisted(() => ({
   signInWithPassword: vi.fn(), signOut: vi.fn(), getSession: vi.fn(),
-  getAuthenticatorAssuranceLevel: vi.fn(), onAuthStateChange: vi.fn(),
+  getAuthenticatorAssuranceLevel: vi.fn(),
+  // Guarda el listener de cliente(): las pruebas de abajo lo disparan como
+  // lo hace supabase-js (SIGNED_IN antes de que signInWithPassword vuelva).
+  onAuthStateChange: vi.fn((cb) => { mocks.emitir = cb; return { data: { subscription: { unsubscribe() {} } } }; }),
   listFactors: vi.fn(), challengeAndVerify: vi.fn(),
+  emitir: null,
 }));
 vi.mock('../../src/api/supabaseClient', () => {
   const client = { auth: { ...mocks, mfa: mocks } };
@@ -164,4 +168,53 @@ it('con contraseña temporal y código pendiente no pierde el paso del código',
   expect(await screen.findByLabelText('Código')).toBeTruthy();
   expect(authService.session$.value.user.mustChangePassword).toBe(true);
   expect(mocks.signInWithPassword).toHaveBeenCalledOnce();
+});
+
+// supabase-js (GoTrueClient.signInWithPassword) guarda la sesion y avisa
+// SIGNED_IN a los suscriptores ANTES de regresar: SessionScope remonta Login
+// antes de que login() pregunte el nivel. El AAL tarda un macrotask para que
+// React alcance a pintar ese remontaje en medio.
+const loginRealista = (session) => {
+  mocks.signInWithPassword.mockImplementation(async () => {
+    await mocks.emitir('SIGNED_IN', session);
+    return { data: { session } };
+  });
+  mocks.getSession.mockResolvedValue({ data: { session } });
+  mocks.getAuthenticatorAssuranceLevel.mockImplementation(async () => {
+    await new Promise((r) => setTimeout(r, 20));
+    return { data: { currentLevel: 'aal1', nextLevel: 'aal2' } };
+  });
+};
+
+it('con el aviso SIGNED_IN antes de saber el nivel, el primer intento pide el código', async () => {
+  const user = userEvent.setup();
+  loginRealista(fixture({ clinic_a: 'owner' }));
+  render(<Harness onLogin={vi.fn()} />);
+  await entrar(user);
+  expect(await screen.findByLabelText('Código')).toBeTruthy();
+  expect(mocks.signInWithPassword).toHaveBeenCalledOnce();
+});
+
+it('un SIGNED_OUT del listener con el código pendiente vuelve al formulario', async () => {
+  const user = userEvent.setup();
+  useSession(fixture({ clinic_a: 'owner' }));
+  conSegundoFactor();
+  render(<Harness onLogin={vi.fn()} />);
+  await entrar(user);
+  await screen.findByLabelText('Código');
+
+  await act(async () => { await mocks.emitir('SIGNED_OUT', null); });
+
+  expect(await screen.findByLabelText('Correo o nombre')).toBeTruthy();
+  expect(screen.queryByLabelText('Código')).toBeNull();
+  expect(authService.segundoFactorPendiente$.value).toBe(false);
+});
+
+it('tras el primer intento el campo Código tiene el foco', async () => {
+  const user = userEvent.setup();
+  loginRealista(fixture({ clinic_a: 'owner' }));
+  render(<Harness onLogin={vi.fn()} />);
+  await entrar(user);
+  const campo = await screen.findByLabelText('Código');
+  await waitFor(() => expect(document.activeElement).toBe(campo));
 });

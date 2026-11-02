@@ -274,6 +274,10 @@ class AuthService {
     // escoja antes de mostrarle datos.
     setActiveTenant(resolveInitialTenant(supabaseSession));
     const session = toAppSession(supabaseSession);
+    // Un SIGNED_OUT o una expiracion que llega por onAuthStateChange no pasa
+    // por logout(): sin sesion no hay codigo que pedir. Va antes de publicar
+    // la sesion para que el Login remontado ya lo lea apagado.
+    if (!session) this.segundoFactorPendiente$.next(false);
     this.expiryWarning$.next(false);
     this.session$.next(session);
     this.scheduleTimers(session);

@@ -33,6 +33,20 @@ export default function Login({ onLogin, onCancel, theme, toggleTheme }) {
   // Entrar con contraseña remonta Login (cambia la clave de SessionScope):
   // el paso del codigo se lee de authService, que si sobrevive.
   const [mode, setMode] = useState(() => (authService.segundoFactorPendiente$.value ? 'mfa' : 'login'));
+  // El inicializador no basta: supabase-js avisa SIGNED_IN (y el listener
+  // de authService publica la sesion) ANTES de que login() sepa el nivel,
+  // asi que React puede remontar Login antes de que el paso se encienda.
+  // Escuchar cubre ese hueco. Solo se enciende: apagarlo lo deciden el
+  // remontaje (logout, sesion nula) o la navegacion tras onLogin.
+  useEffect(() => {
+    const paso = authService.segundoFactorPendiente$.subscribe((pendiente) => {
+      if (pendiente) setMode('mfa');
+    });
+    const aviso = authService.avisoLogin$.subscribe((texto) => {
+      if (texto) setError(texto);
+    });
+    return () => { paso.unsubscribe(); aviso.unsubscribe(); };
+  }, []);
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
   // Segundo paso (0039): quien activo la verificacion en dos pasos escribe
