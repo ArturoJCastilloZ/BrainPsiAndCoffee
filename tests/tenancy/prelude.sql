@@ -70,3 +70,13 @@ do $$ begin
 
 grant usage on schema auth to anon, authenticated;
 grant execute on all functions in schema auth to anon, authenticated;
+
+-- Replica de los default privileges de Supabase (rol postgres, esquema
+-- public). Va al final del stub y ANTES del esquema (run.sh carga el
+-- prelude primero), para que los revoke de las migraciones surtan el mismo
+-- efecto que en produccion: alli cada tabla y funcion nueva nace con grant
+-- a anon, authenticated y service_role. Un grant posterior falsearia 0046.
+grant usage on schema public to anon, authenticated, service_role;
+alter default privileges for role postgres in schema public grant all on tables    to anon, authenticated, service_role;
+alter default privileges for role postgres in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges for role postgres in schema public grant all on functions to anon, authenticated, service_role;
