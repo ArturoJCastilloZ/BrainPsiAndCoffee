@@ -80,6 +80,15 @@ Deno.serve(async (req) => {
     return json({ error: 'No tienes permisos de administracion en esa clinica.' }, 403);
   }
 
+  // service_role se salta RLS: la migracion 0050 (una clinica suspendida
+  // no opera) no cubre esta funcion. Se comprueba aqui, antes de escribir.
+  const { data: clinica, error: clinicaError } = await adminClient
+    .from('tenants').select('status').eq('id', tenantId).maybeSingle();
+  if (clinicaError) throw clinicaError;
+  if (clinica?.status !== 'active') {
+    return json({ error: 'La clinica no esta activa.' }, 403);
+  }
+
   // El payload llega de un cliente y termina escrito en app_metadata de
   // usuarios reales: se valida forma y contenido antes de tocar nada.
   let body: unknown;

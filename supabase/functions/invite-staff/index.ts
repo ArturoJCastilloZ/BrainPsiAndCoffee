@@ -150,6 +150,15 @@ const manejar = async (req: Request): Promise<Response> => {
     return json({ error: 'Solo el dueño de la clinica puede dar de alta personal.' }, 403);
   }
 
+  // service_role se salta RLS: la migracion 0050 (una clinica suspendida
+  // no opera) no cubre esta funcion. Se comprueba aqui, antes de escribir.
+  const { data: clinica, error: clinicaError } = await adminClient
+    .from('tenants').select('status').eq('id', tenantId).maybeSingle();
+  if (clinicaError) throw clinicaError;
+  if (clinica?.status !== 'active') {
+    return json({ error: 'La clinica no esta activa.' }, 403);
+  }
+
   let body: { email?: string; role?: string; therapistId?: string; accion?: string; metodo?: string; redirectTo?: unknown };
   try {
     body = await req.json();
