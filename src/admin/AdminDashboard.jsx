@@ -4,7 +4,7 @@ import { C } from '../theme';
 import StatusBadge from './OrderStatusBadge';
 import { isCafeEnabled } from '../modules.mjs';
 import { fullDayLabel, todayISO } from '../utils.jsx';
-import { solicitudVencida, etiquetaPaciente } from '../appointmentStatus.mjs';
+import { solicitudVencida, citaActiva, etiquetaPaciente } from '../appointmentStatus.mjs';
 import {
   CAFETERIA, CONSULTORIO, collected, formatMoney,
   periodRange, previousRange, variation,
@@ -55,7 +55,7 @@ export default function AdminDashboard({ bookings, orders, setPage, catalogs, co
   const stats = [
     { label: 'Citas hoy', value: todayBookings.length, icon: CalendarIcon, color: C.sage, page: 'clinic-appointments' },
     { label: 'Solicitudes por confirmar', value: porConfirmar.length, icon: Bell, color: C.sage, cambio: porConfirmar.length > 0 ? 'Revisar' : 'Al día', page: 'clinic-appointments' },
-    { label: 'Total citas activas', value: bookings.filter(b => b.status === 'confirmed').length, icon: Users, color: C.sage, page: 'clinic-appointments' },
+    { label: 'Total citas activas', value: bookings.filter((b) => citaActiva(b)).length, icon: Users, color: C.sage, page: 'clinic-appointments' },
     cafeEnabled && { label: 'Pedidos pendientes', value: pendingOrders.length, icon: Coffee, color: C.caramel, cambio: pendingOrders.length > 0 ? 'Atender' : 'Al día', page: 'cafe-orders' },
     { label: 'Cobrado · consultorio', value: formatMoney(consultorio.valor), icon: DollarSign, color: C.sageLight, variacion: consultorio.variacion, ayuda: rangoMes.label, page: 'general-accounting' },
     cafeEnabled && { label: 'Cobrado · cafetería', value: formatMoney(cafeteria.valor), icon: Coffee, color: C.caramel, variacion: cafeteria.variacion, ayuda: rangoMes.label, page: 'general-accounting' },

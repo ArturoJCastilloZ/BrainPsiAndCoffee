@@ -28,6 +28,11 @@ export const solicitudVencida = (cita, ahora = new Date()) => {
 export const ocupaHorario = (cita, ahora = new Date()) =>
   cita?.status !== 'cancelled' && !solicitudVencida(cita, ahora);
 
+// Activa: confirmada, o solicitud que todavia aparta su horario.
+// Una solicitud vencida ya no cuenta (misma regla que 0036/0049).
+export const citaActiva = (cita, ahora = new Date()) =>
+  cita?.status === 'confirmed' || (cita?.status === 'requested' && !solicitudVencida(cita, ahora));
+
 // Si cuenta como servicio facturado. Una solicitud todavia no es un
 // compromiso: contarla inflaria lo facturado con citas que quiza no pasen.
 export const cuentaComoFacturada = (cita) =>
