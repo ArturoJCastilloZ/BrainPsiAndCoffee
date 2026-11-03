@@ -14,10 +14,15 @@ import { etiquetaPaciente, nombrePaciente, solicitudVencida } from '../appointme
 // (cancelable), y eso permite no perder cambios sin guardar:
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog
 // El retorno de foco lo decide AdminAppointments (la fila puede ya no existir).
+export const HORARIO_OCUPADO = 'Ese horario ya no está disponible. Selecciona otro horario.';
+
 export default function CitaPanel({
   booking, bookings, therapists, services,
   schedules, // ya filtrados a la sucursal de la cita
   nombreSucursal, validarHorario, onGuardar, onCerrar,
+  // Error con el que abre el panel (Confirmar de la fila de una vencida con
+  // el horario ocupado): va al aviso, que recibe el foco.
+  errorInicial = '',
 }) {
   const ref = useRef(null);
   const tituloRef = useRef(null);
@@ -30,7 +35,7 @@ export default function CitaPanel({
   const alertaRef = useRef(null);
   // A donde va el foco tras un error ('horario' | 'alerta'); el contador
   // vuelve a disparar el efecto aunque el texto del error se repita.
-  const focoError = useRef(null);
+  const focoError = useRef(errorInicial ? 'alerta' : null);
   const [errores, setErrores] = useState(0);
   const idTitulo = useId();
   const idErrorHorario = useId();
@@ -40,7 +45,7 @@ export default function CitaPanel({
   const [confirmando, setConfirmando] = useState(null);
   const [guardando, setGuardando] = useState(null);
   const [aviso, setAviso] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(errorInicial);
   const [errorHorario, setErrorHorario] = useState('');
 
   const vencida = solicitudVencida(booking);
@@ -157,7 +162,7 @@ export default function CitaPanel({
       return false;
     }
     if (!validarHorario(draft.date, draft.time)) {
-      fallaHorario('Ese horario ya no está disponible. Selecciona otro horario.');
+      fallaHorario(HORARIO_OCUPADO);
       return false;
     }
     return true;

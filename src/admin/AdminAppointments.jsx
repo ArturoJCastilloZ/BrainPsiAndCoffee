@@ -11,7 +11,7 @@ import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
 import { formatMoney } from '../accounting.mjs';
 import { cuentaComoFacturada, solicitudVencida, etiquetaPaciente, nombrePaciente } from '../appointmentStatus.mjs';
-import CitaPanel, { EstadoCita, ESTILOS_CITAS } from './CitaPanel';
+import CitaPanel, { EstadoCita, ESTILOS_CITAS, HORARIO_OCUPADO } from './CitaPanel';
 
 export default function AdminAppointments({
   bookings, setBookings, catalogs, lockedTherapistId = null,
@@ -240,6 +240,16 @@ export default function AdminAppointments({
     const ok = r?.ok !== false;
     if (ok) setAnuncio(anuncioDeCambio(booking, patch));
     return { ok };
+  };
+  // Una vencida ya no aparta su horario: antes de confirmarla se revisa que
+  // siga libre. Si no, no se confirma y se abre su panel con el error.
+  const confirmarDesdeFila = (b) => {
+    if (solicitudVencida(b) && !horarioLibre(b, b.date, b.time)) {
+      setAnuncio('');
+      setAbierta({ id: b.id, date: b.date, error: HORARIO_OCUPADO });
+      return;
+    }
+    updateStatus(b.id, 'confirmed');
   };
   const citaAbierta = abierta ? bookings.find(b => b.id === abierta.id) : null;
   // Si la cita abierta desaparece (recarga, otra sesion la borro), el panel
@@ -556,7 +566,7 @@ export default function AdminAppointments({
                         {b.status === 'requested' && (
                           <button type="button" className="cita-boton cita-boton--principal"
                             aria-label={`Confirmar la solicitud de ${nombrePaciente(b)}`}
-                            onClick={() => updateStatus(b.id, 'confirmed')}>
+                            onClick={() => confirmarDesdeFila(b)}>
                             <Check size={13} aria-hidden="true" /> Confirmar
                           </button>
                         )}
@@ -593,6 +603,7 @@ export default function AdminAppointments({
           services={services}
           schedules={bloquesDeSucursal(todosLosHorarios, citaAbierta.locationId)}
           nombreSucursal={nombreSucursal(citaAbierta.locationId)}
+          errorInicial={abierta.error}
           validarHorario={(date, time) => horarioLibre(citaAbierta, date, time)}
           onGuardar={(patch) => aplicarCambio(citaAbierta, patch)}
           onCerrar={() => { focoTras.current = { id: citaAbierta.id, date: citaAbierta.date }; setAbierta(null); }}

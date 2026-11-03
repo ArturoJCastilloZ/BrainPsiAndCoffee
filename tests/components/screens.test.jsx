@@ -536,6 +536,20 @@ describe('Agenda: panel de la cita, errores y cierre', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(onGuardar.mock.calls.at(-1)[0][0]).toMatchObject({ id: 'c1', status: 'confirmed' });
   });
+
+  it('confirmar desde la fila una solicitud vencida con el horario ocupado no confirma y abre el panel con el error', async () => {
+    const user = userEvent.setup();
+    const hace25h = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+    const onGuardar = vi.fn();
+    render(<AgendaUnaSucursal inicial={[cita({ createdAt: hace25h }), otra]} onGuardar={onGuardar} />);
+    await user.click(screen.getByRole('button', { name: 'Confirmar la solicitud de Marta Pérez' }));
+
+    expect(onGuardar).not.toHaveBeenCalled();
+    const dialogo = screen.getByRole('dialog', { name: 'Cita de Marta Pérez' });
+    const alerta = within(dialogo).getByRole('alert');
+    expect(alerta.textContent).toBe(OCUPADO);
+    expect(document.activeElement).toBe(alerta);
+  });
 });
 
 describe('Agenda: panel de la cita, Esc nunca descarta un borrador', () => {
