@@ -29,8 +29,8 @@ export default function AdminAppointments({
   const services = catalogs?.services || VACIO;
   const therapists = catalogs?.therapists || VACIO;
   const todosLosHorarios = catalogs?.schedules || VACIO;
-  // Sucursales (0040): con varias, la cita nueva dice donde y la lista
-  // muestra y filtra por sucursal.
+  // Sucursales (0040): con varias, la cita nueva elige donde y la lista
+  // filtra por sucursal. Cada cita nombra su sucursal siempre que la tenga.
   const todasLasSucursales = catalogs?.locations || VACIO;
   const sucursales = useMemo(() => todasLasSucursales.filter((l) => l.active !== false), [todasLasSucursales]);
   const variasSucursales = sucursales.length > 1;
@@ -505,7 +505,7 @@ export default function AdminAppointments({
                           fontSize: 12, color: 'var(--admin-muted)', marginTop: 2,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>
-                          {[s?.name, t?.name || 'Sin asignar', variasSucursales ? nombreSucursal(b.locationId) : '', b.phone].filter(Boolean).join(' · ')}
+                          {[s?.name, t?.name || 'Sin asignar', nombreSucursal(b.locationId), b.phone].filter(Boolean).join(' · ')}
                         </div>
                       </div>
 
@@ -527,6 +527,11 @@ export default function AdminAppointments({
                             <button onClick={() => updateStatus(b.id, 'cancelled')} aria-label={`Rechazar la solicitud de ${nombrePaciente(b)}`} style={decisionStyle(false)}>
                               Rechazar
                             </button>
+                            {!solicitudVencida(b) && (
+                              <button onClick={() => startReschedule(b)} title="Reagendar" aria-label={`Reagendar la cita de ${nombrePaciente(b)}`} style={accionStyle}>
+                                <RefreshCw size={14} aria-hidden="true" />
+                              </button>
+                            )}
                           </div>
                         )}
                         {b.status === 'confirmed' && (

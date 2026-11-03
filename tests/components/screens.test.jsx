@@ -96,6 +96,82 @@ describe('Agenda del admin: solicitudes', () => {
   });
 });
 
+// Fixture de las agendas de sucursal y reagendado: 60 min sin buffers
+// da los horarios 09:00, 10:00, 11:00 y 12:00 (agenda.mjs).
+const mananaCitas = new Date();
+mananaCitas.setDate(mananaCitas.getDate() + 1);
+const HORARIO = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ therapistId: 'tt', weekday, startTime: '09:00', endTime: '13:00', active: true }));
+const catalogsUnaSucursal = {
+  services: [{ id: 'sv', name: 'Psicología infantil', duration: 60, price: 550 }],
+  therapists: [{ id: 'tt', name: 'Ana López', services: ['sv'] }],
+  schedules: HORARIO,
+  locations: [{ id: 'principal', name: 'Sucursal principal', active: true }],
+};
+const creadaAhora = new Date().toISOString();
+const cita = (over) => ({
+  id: 'c1', serviceId: 'sv', therapistId: 'tt', date: localISO(mananaCitas), time: '10:00',
+  name: 'Marta Pérez', email: 'm@x.mx', phone: '8112345678', locationId: 'principal',
+  status: 'requested', createdAt: creadaAhora, durationMinutes: 60, ...over,
+});
+
+// Doble controlado propio: no comparte catalogs con 'solicitudes'.
+function AgendaUnaSucursal({ inicial, onGuardar = () => {}, ...props }) {
+  const [bookings, setBookings] = useState(inicial);
+  return (
+    <AdminAppointments bookings={bookings} catalogs={catalogsUnaSucursal} {...props}
+      setBookings={(lista) => { onGuardar(lista); setBookings(lista); return Promise.resolve({ ok: true }); }} />
+  );
+}
+
+describe('Agenda: sucursal en cada cita', () => {
+  it('con una sola sucursal, la fila nombra la sucursal de la cita', () => {
+    render(<AgendaUnaSucursal inicial={[cita({ status: 'confirmed' })]} />);
+    expect(screen.getByText(/Sucursal principal/)).toBeTruthy();
+  });
+
+  it('una cita sin sucursal no deja separador vacio y con una sola sucursal no hay filtro', () => {
+    render(<AgendaUnaSucursal inicial={[cita({ status: 'confirmed', locationId: '' })]} />);
+    expect(screen.getByText('Psicología infantil · Ana López · 8112345678')).toBeTruthy();
+    expect(screen.queryByRole('combobox', { name: 'Filtrar por sucursal' })).toBeNull();
+  });
+});
+
+describe('Agenda: reagendar una solicitud', () => {
+  it('una cita confirmada sigue ofreciendo Reagendar', () => {
+    render(<AgendaUnaSucursal inicial={[cita({ status: 'confirmed' })]} />);
+    expect(screen.getByRole('button', { name: 'Reagendar la cita de Marta Pérez' })).toBeTruthy();
+  });
+
+  it('una solicitud vencida no ofrece Reagendar', () => {
+    const hace25h = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+    render(<AgendaUnaSucursal inicial={[cita({ createdAt: hace25h })]} />);
+    // La cita sale en Proximas (futura, no cancelada): la ausencia del boton no es por filtro.
+    expect(screen.getByText('Marta Pérez')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Reagendar/ })).toBeNull();
+  });
+
+  it('reagendar una solicitud guarda la nueva hora y la deja por confirmar', async () => {
+    const user = userEvent.setup();
+    const onGuardar = vi.fn();
+    render(<AgendaUnaSucursal inicial={[cita()]} onGuardar={onGuardar} />);
+
+    await user.click(screen.getByRole('button', { name: 'Reagendar la cita de Marta Pérez' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'HORARIO' }), '11:00');
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    expect(onGuardar.mock.calls.at(-1)[0][0]).toMatchObject({
+      id: 'c1', status: 'requested', date: localISO(mananaCitas), time: '11:00', createdAt: creadaAhora,
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('el especialista tambien puede reagendar su solicitud', () => {
+    render(<AgendaUnaSucursal inicial={[cita()]} lockedTherapistId="tt" embedded />);
+    expect(screen.getByRole('button', { name: 'Reagendar la cita de Marta Pérez' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Confirmar la solicitud de Marta Pérez' })).toBeTruthy();
+  });
+});
+
 describe('ErrorBoundary', () => {
   function Rompe({ rompe }) {
     if (rompe) throw new Error('fallo de render');
