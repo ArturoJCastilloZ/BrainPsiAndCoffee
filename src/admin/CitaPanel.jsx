@@ -27,6 +27,11 @@ export default function CitaPanel({
   const rechazarRef = useRef(null);
   const cancelarRef = useRef(null);
   const volverA = useRef(null);
+  const alertaRef = useRef(null);
+  // A donde va el foco tras un error ('horario' | 'alerta'); el contador
+  // vuelve a disparar el efecto aunque el texto del error se repita.
+  const focoError = useRef(null);
+  const [errores, setErrores] = useState(0);
   const idTitulo = useId();
   const idErrorHorario = useId();
   const idConfirmacion = useId();
@@ -76,6 +81,37 @@ export default function CitaPanel({
     }
   }, [confirmando]);
 
+  // Tras un error el foco nunca se queda en un boton (pudo estar
+  // deshabilitado mientras guardaba): va al campo o al aviso, y el mensaje
+  // se desplaza a la vista (con zoom quedaba fuera).
+  useEffect(() => {
+    if (focoError.current === 'horario') {
+      horarioRef.current?.focus();
+      document.getElementById(idErrorHorario)?.scrollIntoView?.({ block: 'nearest' });
+    } else if (focoError.current === 'alerta') {
+      alertaRef.current?.focus();
+    }
+    focoError.current = null;
+  }, [errores, idErrorHorario]);
+  const avisarError = (destino) => {
+    focoError.current = destino;
+    setErrores((n) => n + 1);
+  };
+  // Un error de horario va ligado al select; sin select (vencida), al aviso.
+  const fallaHorario = (texto) => {
+    if (editable) {
+      setErrorHorario(texto);
+      avisarError('horario');
+    } else {
+      setError(texto);
+      avisarError('alerta');
+    }
+  };
+  const fallaGuardado = () => {
+    setError('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.');
+    avisarError('alerta');
+  };
+
   const cerrarConfirmacion = () => {
     volverA.current = confirmando;
     setConfirmando(null);
@@ -93,12 +129,11 @@ export default function CitaPanel({
   // Valida el borrador antes de escribirlo. Devuelve false si hay error.
   const horarioValido = () => {
     if (!draft.time) {
-      setErrorHorario(slots.length ? 'Elige un horario.' : 'Ese día no tiene horarios libres: elige otra fecha.');
-      horarioRef.current?.focus();
+      fallaHorario(slots.length ? 'Elige un horario.' : 'Ese día no tiene horarios libres: elige otra fecha.');
       return false;
     }
     if (!validarHorario(draft.date, draft.time)) {
-      setError('Ese horario ya no está disponible. Selecciona otro horario.');
+      fallaHorario('Ese horario ya no está disponible. Selecciona otro horario.');
       return false;
     }
     return true;
@@ -110,10 +145,14 @@ export default function CitaPanel({
     try {
       const r = await onGuardar(patch);
       if (r?.ok === false) {
-        setError('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.');
+        fallaGuardado();
         return;
       }
       cerrar();
+    } catch {
+      // Un guardado que lanza se trata igual que uno que falla: nunca una
+      // promesa rechazada sin manejar.
+      fallaGuardado();
     } finally {
       setGuardando(null);
     }
@@ -125,8 +164,9 @@ export default function CitaPanel({
     if (!horarioValido()) return;
     ejecutar('guardar', { date: draft.date, time: draft.time });
   };
+  // Una vencida ya no aparta su horario: se revalida aunque no cambie.
   const confirmar = () => {
-    if (dirty && !horarioValido()) return;
+    if ((dirty || vencida) && !horarioValido()) return;
     ejecutar('confirmar', { status: 'confirmed', ...(dirty && { date: draft.date, time: draft.time }) });
   };
 
@@ -276,7 +316,7 @@ export default function CitaPanel({
 
           {/* Montadas siempre: el lector anuncia el cambio de texto. */}
           <p role="status" className="solo-lector">{aviso}</p>
-          <div role="alert" className="cita-panel__error">{error}</div>
+          <div role="alert" ref={alertaRef} tabIndex={-1} className="cita-panel__error">{error}</div>
         </div>
 
         {(botones || conf) && (

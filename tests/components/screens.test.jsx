@@ -124,6 +124,16 @@ function AgendaUnaSucursal({ inicial, onGuardar = () => {}, guardar = () => Prom
   );
 }
 
+// Igual, pero deja cambiar las citas desde fuera (otra sesion, recarga).
+function AgendaExterna({ inicial, onGuardar = () => {}, exponer }) {
+  const [bookings, setBookings] = useState(inicial);
+  exponer(setBookings);
+  return (
+    <AdminAppointments bookings={bookings} catalogs={catalogsUnaSucursal}
+      setBookings={(lista) => { onGuardar(lista); setBookings(lista); return Promise.resolve({ ok: true }); }} />
+  );
+}
+
 const ABRIR_MARTA = 'Abrir cita de Marta Pérez, 10:00';
 // Abre el panel de la cita desde su fila y lo devuelve.
 async function abrirPanel(user, nombre = ABRIR_MARTA) {
@@ -363,6 +373,8 @@ describe('Agenda: panel de la cita', () => {
     await waitFor(() => expect(alerta.textContent).toBe('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'));
     expect(screen.getByRole('dialog', { name: 'Cita de Marta Pérez' })).toBe(dialogo);
     expect(within(dialogo).getByRole('combobox', { name: 'Horario' }).value).toBe('11:00');
+    // El foco no se queda en un boton que estuvo deshabilitado: va al aviso.
+    expect(document.activeElement).toBe(alerta);
   });
 
   it('mientras guarda los botones se deshabilitan y dicen Guardando', async () => {
@@ -446,6 +458,83 @@ describe('Agenda: panel de la cita', () => {
     const dialogo = await abrirPanel(user);
     fireEvent.mouseDown(dialogo);
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('Agenda: panel de la cita, errores y cierre', () => {
+  const pasadoManana = new Date();
+  pasadoManana.setDate(pasadoManana.getDate() + 2);
+  const OCUPADO = 'Ese horario ya no está disponible. Selecciona otro horario.';
+  // Otra cita confirmada del mismo especialista a las 10:00: ocupa el horario.
+  const otra = cita({ id: 'c2', name: 'Luis Treviño', email: 'l@x.mx', status: 'confirmed' });
+
+  it('si guardar lanza un error el panel lo muestra y no deja la promesa sin manejar', async () => {
+    const user = userEvent.setup();
+    render(<AgendaUnaSucursal inicial={[cita()]} guardar={() => Promise.reject(new Error('sin red'))} />);
+    const dialogo = await abrirPanel(user);
+    await user.selectOptions(within(dialogo).getByRole('combobox', { name: 'Horario' }), '11:00');
+    await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
+
+    const alerta = within(dialogo).getByRole('alert');
+    await waitFor(() => expect(alerta.textContent).toBe('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'));
+    expect(screen.getByRole('dialog', { name: 'Cita de Marta Pérez' })).toBe(dialogo);
+    expect(document.activeElement).toBe(alerta);
+  });
+
+  it('un horario ocupado se liga al select de Horario, recibe el foco y se limpia al cambiar Fecha u Horario', async () => {
+    const scroll = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scroll;
+    try {
+      for (const cambio of ['Horario', 'Fecha']) {
+        const user = userEvent.setup();
+        const onGuardar = vi.fn();
+        let setLista;
+        const { unmount } = render(<AgendaExterna inicial={[cita()]} onGuardar={onGuardar} exponer={(f) => { setLista = f; }} />);
+        const dialogo = await abrirPanel(user);
+        await user.selectOptions(within(dialogo).getByRole('combobox', { name: 'Horario' }), '11:00');
+        // Mientras tanto, otra cita toma las 11:00.
+        act(() => setLista([cita(), cita({ id: 'c2', name: 'Luis Treviño', time: '11:00', status: 'confirmed' })]));
+        await user.click(within(dialogo).getByRole('button', { name: 'Confirmar' }));
+
+        const horario = within(dialogo).getByRole('combobox', { name: 'Horario', description: OCUPADO });
+        expect(horario.getAttribute('aria-invalid')).toBe('true');
+        expect(document.activeElement).toBe(horario);
+        expect(scroll).toHaveBeenCalled();
+        expect(scroll.mock.contexts.at(-1).textContent).toBe(OCUPADO);
+        expect(within(dialogo).getByRole('alert').textContent).toBe('');
+        expect(onGuardar).not.toHaveBeenCalled();
+
+        if (cambio === 'Horario') await user.selectOptions(horario, '12:00');
+        else await user.selectOptions(within(dialogo).getByRole('combobox', { name: 'Fecha' }), localISO(pasadoManana));
+        expect(horario.hasAttribute('aria-invalid')).toBe(false);
+        expect(within(dialogo).queryByText(OCUPADO)).toBeNull();
+        unmount();
+      }
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it('confirmar una solicitud vencida valida que el horario siga libre', async () => {
+    const user = userEvent.setup();
+    const hace25h = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+    const onGuardar = vi.fn();
+    const { unmount } = render(<AgendaUnaSucursal inicial={[cita({ createdAt: hace25h }), otra]} onGuardar={onGuardar} />);
+    let dialogo = await abrirPanel(user);
+    await user.click(within(dialogo).getByRole('button', { name: 'Confirmar' }));
+    const alerta = within(dialogo).getByRole('alert');
+    expect(alerta.textContent).toBe(OCUPADO);
+    expect(document.activeElement).toBe(alerta);
+    expect(onGuardar).not.toHaveBeenCalled();
+    unmount();
+
+    // Con el horario libre, confirmar la vencida funciona como hoy.
+    render(<AgendaUnaSucursal inicial={[cita({ createdAt: hace25h })]} onGuardar={onGuardar} />);
+    dialogo = await abrirPanel(user);
+    await user.click(within(dialogo).getByRole('button', { name: 'Confirmar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(onGuardar.mock.calls.at(-1)[0][0]).toMatchObject({ id: 'c1', status: 'confirmed' });
   });
 });
 
