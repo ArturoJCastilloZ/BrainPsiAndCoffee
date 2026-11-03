@@ -552,6 +552,44 @@ describe('Agenda: panel de la cita, errores y cierre', () => {
   });
 });
 
+describe('Agenda: confirmar una vencida solo revisa choques con otras citas', () => {
+  // Aviso minimo de 3 dias: la cita de mañana ya no seria agendable, pero
+  // confirmar una solicitud existente no es agendar.
+  const conAviso = { ...catalogsUnaSucursal, therapists: [{ id: 'tt', name: 'Ana López', services: ['sv'], minimumNotice: 3 * 24 * 60 }] };
+  const hace25h = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+
+  it('desde la fila, una vencida dentro del aviso minimo se confirma', async () => {
+    const user = userEvent.setup();
+    const onGuardar = vi.fn();
+    render(<AgendaUnaSucursal inicial={[cita({ createdAt: hace25h })]} catalogs={conAviso} onGuardar={onGuardar} />);
+    await user.click(screen.getByRole('button', { name: 'Confirmar la solicitud de Marta Pérez' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onGuardar.mock.calls.at(-1)[0][0]).toMatchObject({ id: 'c1', status: 'confirmed' });
+  });
+
+  it('desde el panel, una vencida dentro del aviso minimo se confirma', async () => {
+    const user = userEvent.setup();
+    const onGuardar = vi.fn();
+    render(<AgendaUnaSucursal inicial={[cita({ createdAt: hace25h })]} catalogs={conAviso} onGuardar={onGuardar} />);
+    const dialogo = await abrirPanel(user);
+    await user.click(within(dialogo).getByRole('button', { name: 'Confirmar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(onGuardar.mock.calls.at(-1)[0][0]).toMatchObject({ id: 'c1', status: 'confirmed' });
+  });
+
+  it('una vencida que se encima con otra cita activa no se confirma, aunque no empiecen a la misma hora', async () => {
+    const user = userEvent.setup();
+    const onGuardar = vi.fn();
+    // 10:30-11:30 se encima con 10:00-11:00.
+    const encimada = cita({ id: 'c2', name: 'Luis Treviño', time: '10:30', status: 'confirmed' });
+    render(<AgendaUnaSucursal inicial={[cita({ createdAt: hace25h }), encimada]} catalogs={conAviso} onGuardar={onGuardar} />);
+    await user.click(screen.getByRole('button', { name: 'Confirmar la solicitud de Marta Pérez' }));
+    expect(onGuardar).not.toHaveBeenCalled();
+    const dialogo = screen.getByRole('dialog', { name: 'Cita de Marta Pérez' });
+    expect(within(dialogo).getByRole('alert').textContent).toBe('Ese horario ya no está disponible. Selecciona otro horario.');
+  });
+});
+
 describe('Agenda: panel de la cita, Esc nunca descarta un borrador', () => {
   it('el panel intercepta Esc y ninguna secuencia de Esc cierra con cambios sin guardar', async () => {
     const user = userEvent.setup();

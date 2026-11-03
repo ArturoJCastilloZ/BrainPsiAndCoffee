@@ -19,7 +19,10 @@ export const HORARIO_OCUPADO = 'Ese horario ya no está disponible. Selecciona o
 export default function CitaPanel({
   booking, bookings, therapists, services,
   schedules, // ya filtrados a la sucursal de la cita
-  nombreSucursal, validarHorario, onGuardar, onCerrar,
+  nombreSucursal,
+  validarHorario, // (date, time) => boolean: reagendar, con todas las reglas de la agenda
+  chocaAlConfirmar, // () => boolean: confirmar sin mover, solo choques con otras citas
+  onGuardar, onCerrar,
   // Error con el que abre el panel (Confirmar de la fila de una vencida con
   // el horario ocupado): va al aviso, que recibe el foco.
   errorInicial = '',
@@ -193,9 +196,15 @@ export default function CitaPanel({
     if (!horarioValido()) return;
     ejecutar('guardar', { date: draft.date, time: draft.time });
   };
-  // Una vencida ya no aparta su horario: se revalida aunque no cambie.
+  // Con cambios se valida como reagendar; una vencida sin cambios ya no
+  // aparta su horario, asi que solo se revisa que nadie lo haya tomado.
   const confirmar = () => {
-    if ((dirty || vencida) && !horarioValido()) return;
+    if (dirty) {
+      if (!horarioValido()) return;
+    } else if (vencida && chocaAlConfirmar()) {
+      fallaHorario(HORARIO_OCUPADO);
+      return;
+    }
     ejecutar('confirmar', { status: 'confirmed', ...(dirty && { date: draft.date, time: draft.time }) });
   };
 

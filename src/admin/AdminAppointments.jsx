@@ -5,12 +5,12 @@ import { addDays, todayISO, uid, weekdayLabelsFrom, localDate } from '../utils.j
 import { localISO } from '../localDay.mjs';
 // timeSlotStates faltaba: agendar con "cualquier especialista" tronaba con
 // un ReferenceError al guardar (lo encontro el linter, 2026-10-09).
-import { atiendeEnSucursal, bloquesDeSucursal, isWorkingDay, poolAvailableSlots, poolSlotStates, timeSlotStates } from '../agenda.mjs';
+import { atiendeEnSucursal, bloquesDeSucursal, isWorkingDay, occupiedRange, poolAvailableSlots, poolSlotStates, timeSlotStates, toMinutes } from '../agenda.mjs';
 import { validateAppointment } from '../validation';
 import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
 import { formatMoney } from '../accounting.mjs';
-import { cuentaComoFacturada, solicitudVencida, etiquetaPaciente, nombrePaciente } from '../appointmentStatus.mjs';
+import { cuentaComoFacturada, ocupaHorario, solicitudVencida, etiquetaPaciente, nombrePaciente } from '../appointmentStatus.mjs';
 import CitaPanel, { EstadoCita, ESTILOS_CITAS, HORARIO_OCUPADO } from './CitaPanel';
 
 export default function AdminAppointments({
@@ -241,10 +241,29 @@ export default function AdminAppointments({
     if (ok) setAnuncio(anuncioDeCambio(booking, patch));
     return { ok };
   };
+  // Confirmar una vencida SIN moverla: solo importa que otra cita activa del
+  // mismo especialista no se encime (mismos rangos y buffers que la agenda,
+  // agenda.mjs timeSlotStates). No aplica hora pasada, aviso minimo ni que
+  // la hora sea candidata de la agenda actual: confirmar no es agendar.
+  const chocaConOtraCita = (booking) => {
+    const terapeuta = therapists.find(t => t.id === booking.therapistId);
+    const rangoDe = (b) => occupiedRange(
+      toMinutes(b.time),
+      Number(b.durationMinutes || services.find(sv => sv.id === b.serviceId)?.duration || terapeuta?.sessionDuration || 50),
+      { bufferBefore: b.bufferBefore ?? terapeuta?.bufferBefore, bufferAfter: b.bufferAfter ?? terapeuta?.bufferAfter },
+    );
+    const propio = rangoDe(booking);
+    const ahora = new Date();
+    return bookings.some((otra) => {
+      if (otra.id === booking.id || otra.date !== booking.date || otra.therapistId !== booking.therapistId || !ocupaHorario(otra, ahora)) return false;
+      const rango = rangoDe(otra);
+      return propio.from < rango.to && propio.to > rango.from;
+    });
+  };
   // Una vencida ya no aparta su horario: antes de confirmarla se revisa que
-  // siga libre. Si no, no se confirma y se abre su panel con el error.
+  // nadie lo haya tomado. Si si, no se confirma y se abre su panel con el error.
   const confirmarDesdeFila = (b) => {
-    if (solicitudVencida(b) && !horarioLibre(b, b.date, b.time)) {
+    if (solicitudVencida(b) && chocaConOtraCita(b)) {
       setAnuncio('');
       setAbierta({ id: b.id, date: b.date, error: HORARIO_OCUPADO });
       return;
@@ -605,6 +624,7 @@ export default function AdminAppointments({
           nombreSucursal={nombreSucursal(citaAbierta.locationId)}
           errorInicial={abierta.error}
           validarHorario={(date, time) => horarioLibre(citaAbierta, date, time)}
+          chocaAlConfirmar={() => chocaConOtraCita(citaAbierta)}
           onGuardar={(patch) => aplicarCambio(citaAbierta, patch)}
           onCerrar={() => { focoTras.current = { id: citaAbierta.id, date: citaAbierta.date }; setAbierta(null); }}
         />
