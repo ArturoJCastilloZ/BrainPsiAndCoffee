@@ -11,7 +11,7 @@ import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
 import { formatMoney } from '../accounting.mjs';
 import { cuentaComoFacturada, solicitudVencida, etiquetaPaciente, nombrePaciente } from '../appointmentStatus.mjs';
-import CitaPanel, { EstadoCita } from './CitaPanel';
+import CitaPanel, { EstadoCita, ESTILOS_CITAS } from './CitaPanel';
 
 export default function AdminAppointments({
   bookings, setBookings, catalogs, lockedTherapistId = null,
@@ -317,6 +317,7 @@ export default function AdminAppointments({
 
   return (
     <div>
+      <style>{ESTILOS_CITAS}</style>
       <p role="status" className="solo-lector">{anuncio}</p>
       {!embedded && (
         <>
