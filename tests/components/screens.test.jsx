@@ -129,6 +129,13 @@ describe('Agenda: sucursal en cada cita', () => {
     expect(screen.getByText(/Sucursal principal/)).toBeTruthy();
   });
 
+  it('la linea de detalle lleva title con el texto completo por si se corta', () => {
+    render(<AgendaUnaSucursal inicial={[cita({ status: 'confirmed' })]} />);
+    const detalle = screen.getByText(/Sucursal principal/);
+    expect(detalle.getAttribute('title')).toBe('Psicología infantil · Ana López · Sucursal principal · 8112345678');
+    expect(detalle.classList.contains('cita-detalle')).toBe(true);
+  });
+
   it('una cita sin sucursal no deja separador vacio y con una sola sucursal no hay filtro', () => {
     render(<AgendaUnaSucursal inicial={[cita({ status: 'confirmed', locationId: '' })]} />);
     expect(screen.getByText('Psicología infantil · Ana López · 8112345678')).toBeTruthy();

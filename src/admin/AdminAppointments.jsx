@@ -475,6 +475,7 @@ export default function AdminAppointments({
               {citas.map(b => {
                 const s = services.find(sv => sv.id === b.serviceId);
                 const t = therapists.find(th => th.id === b.therapistId);
+                const detalle = [s?.name, t?.name || 'Sin asignar', nombreSucursal(b.locationId), b.phone].filter(Boolean).join(' · ');
                 return (
                   <div key={b.id} style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
                     <div className="cita-fila" style={{
@@ -501,11 +502,10 @@ export default function AdminAppointments({
                           fontSize: 14, color: 'var(--admin-text)', fontWeight: 600,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>{etiquetaPaciente(b)}</div>
-                        <div style={{
-                          fontSize: 12, color: 'var(--admin-muted)', marginTop: 2,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {[s?.name, t?.name || 'Sin asignar', nombreSucursal(b.locationId), b.phone].filter(Boolean).join(' · ')}
+                        {/* En celular envuelve a dos renglones (.cita-detalle);
+                            si aun asi no cabe, title da el valor completo. */}
+                        <div className="cita-detalle" title={detalle} style={{ fontSize: 12, color: 'var(--admin-muted)', marginTop: 2 }}>
+                          {detalle}
                         </div>
                       </div>
 

@@ -245,6 +245,15 @@ export default function GlobalStyle() {
           flex-wrap: wrap;
           justify-content: flex-end;
         }
+        /* Servicio · especialista · sucursal · telefono. En escritorio un
+           renglon con ellipsis; debajo de 520 envuelve a dos renglones para
+           que la sucursal y el telefono se lean, y solo un texto mas largo
+           se corta (el div lleva title con el valor completo). */
+        .cita-detalle {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
         @media (max-width: 519px) {
           .cita-fila {
             grid-template-columns: 76px minmax(0, 1fr);
@@ -254,6 +263,13 @@ export default function GlobalStyle() {
           .cita-hora     { grid-area: hora; }
           .cita-datos    { grid-area: datos; }
           .cita-acciones { grid-area: acciones; justify-content: flex-start; }
+          .cita-detalle {
+            white-space: normal;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+          }
         }
 
         /* ==================================================================
