@@ -46,6 +46,9 @@ export default function AdminAppointments({
   // A donde vuelve el foco al cerrar el panel: la fila puede ya no estar.
   const focoTras = useRef(null);
   const listaRef = useRef(null);
+  // Resultado de la ultima accion del panel, para el lector de pantalla.
+  // Vive fuera del panel: el panel se cierra al guardar.
+  const [anuncio, setAnuncio] = useState('');
   const [formError, setFormError] = useState('');
   // Los "Campo requerido" salen despues de intentar guardar: el
   // formulario no abre en rojo, y el boton nunca se apaga sin razon.
@@ -234,7 +237,9 @@ export default function AdminAppointments({
   // createdAt: reagendar una solicitud la deja por confirmar.
   const aplicarCambio = async (booking, patch) => {
     const r = await setBookings(bookings.map(i => i.id === booking.id ? { ...i, ...patch } : i));
-    return { ok: r?.ok !== false };
+    const ok = r?.ok !== false;
+    if (ok) setAnuncio(anuncioDeCambio(booking, patch));
+    return { ok };
   };
   const citaAbierta = abierta ? bookings.find(b => b.id === abierta.id) : null;
   // Si la cita abierta desaparece (recarga, otra sesion la borro), el panel
@@ -312,6 +317,7 @@ export default function AdminAppointments({
 
   return (
     <div>
+      <p role="status" className="solo-lector">{anuncio}</p>
       {!embedded && (
         <>
           <h1 className="font-display" style={{ fontSize: 32, fontWeight: 500, color: 'var(--admin-text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Citas</h1>
@@ -526,7 +532,7 @@ export default function AdminAppointments({
                           aria-haspopup="dialog"
                           aria-label={`Abrir cita de ${nombrePaciente(b)}, ${b.time}`}
                           aria-describedby={`cita-estado-${b.id}`}
-                          onClick={() => setAbierta({ id: b.id, date: b.date })}>
+                          onClick={() => { setAnuncio(''); setAbierta({ id: b.id, date: b.date }); }}>
                           <span title={etiquetaPaciente(b)} className="cita-nombre">{etiquetaPaciente(b)}</span>
                         </button>
                         {/* En celular envuelve a dos renglones (.cita-detalle);
@@ -605,6 +611,14 @@ export default function AdminAppointments({
       )}
     </div>
   );
+}
+
+// Lo que se anuncia tras guardar desde el panel de la cita.
+function anuncioDeCambio(booking, patch) {
+  if (patch.status === 'confirmed') return 'Cita confirmada.';
+  if (patch.status === 'cancelled') return booking.status === 'requested' ? 'Solicitud rechazada.' : 'Cita cancelada.';
+  if (patch.status === 'completed') return 'Cita marcada como completada.';
+  return 'Cambios guardados.';
 }
 
 // Agrupa por fecha conservando el orden que trae la lista filtrada.

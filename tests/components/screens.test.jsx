@@ -599,6 +599,39 @@ describe('Agenda: la cita abierta desaparece', () => {
   });
 });
 
+describe('Agenda: el resultado de cada accion del panel se anuncia', () => {
+  const pulsar = (nombre) => async (user, dialogo) => user.click(within(dialogo).getByRole('button', { name: nombre }));
+  const casos = [
+    { titulo: 'Confirmar', inicial: cita(), pasos: [pulsar('Confirmar')], texto: 'Cita confirmada.' },
+    { titulo: 'Rechazar', inicial: cita(), pasos: [pulsar('Rechazar'), pulsar('Sí, rechazar')], texto: 'Solicitud rechazada.' },
+    { titulo: 'Cancelar cita', inicial: cita({ status: 'confirmed' }), pasos: [pulsar('Cancelar cita'), pulsar('Sí, cancelar cita')], texto: 'Cita cancelada.' },
+    { titulo: 'Marcar completada', inicial: cita({ status: 'confirmed' }), pasos: [pulsar('Marcar completada')], texto: 'Cita marcada como completada.' },
+    {
+      titulo: 'Guardar cambios', inicial: cita(), texto: 'Cambios guardados.',
+      pasos: [
+        async (user, dialogo) => user.selectOptions(within(dialogo).getByRole('combobox', { name: 'Horario' }), '11:00'),
+        pulsar('Guardar cambios'),
+      ],
+    },
+  ];
+
+  for (const { titulo, inicial, pasos, texto } of casos) {
+    it(`${titulo} anuncia "${texto}" en una region fuera del panel`, async () => {
+      const user = userEvent.setup();
+      render(<AgendaUnaSucursal inicial={[inicial]} />);
+      // Montada vacia antes de abrir el panel, y fuera de el.
+      const anuncio = screen.getByRole('status');
+      expect(anuncio.textContent).toBe('');
+      const dialogo = await abrirPanel(user);
+      expect(dialogo.contains(anuncio)).toBe(false);
+      for (const paso of pasos) await paso(user, dialogo);
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(anuncio.textContent).toBe(texto);
+    });
+  }
+});
+
 describe('ErrorBoundary', () => {
   function Rompe({ rompe }) {
     if (rompe) throw new Error('fallo de render');
