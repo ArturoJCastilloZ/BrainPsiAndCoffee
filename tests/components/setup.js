@@ -12,9 +12,15 @@ if (typeof HTMLDialogElement !== 'undefined') {
       this.setAttribute('open', '');
       this.dataset.modal = 'true';
       // Como el navegador: el foco entra al dialogo (primer control) y
-      // Escape, que llega por ahi, lo cierra.
+      // Escape, que llega por ahi, dispara 'cancel' (cancelable) y solo
+      // cierra si nadie lo previno.
       this.querySelector('button, input, select, textarea, [tabindex]')?.focus();
-      this.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.close(); });
+      this.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const ev = new Event('cancel', { cancelable: true });
+        this.dispatchEvent(ev);
+        if (!ev.defaultPrevented) this.close();
+      });
     };
     proto.close = function close() {
       if (!this.hasAttribute('open')) return;
