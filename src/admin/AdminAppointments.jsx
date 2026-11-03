@@ -40,7 +40,8 @@ export default function AdminAppointments({
   const [filter, setFilter] = useState('upcoming');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
-  // La cita abierta en el panel lateral (por id: el objeto cambia al guardar).
+  // La cita abierta en el panel lateral: { id, date } (por id: el objeto
+  // cambia al guardar; date: a donde volver si la cita desaparece).
   const [abierta, setAbierta] = useState(null);
   // A donde vuelve el foco al cerrar el panel: la fila puede ya no estar.
   const focoTras = useRef(null);
@@ -235,7 +236,16 @@ export default function AdminAppointments({
     const r = await setBookings(bookings.map(i => i.id === booking.id ? { ...i, ...patch } : i));
     return { ok: r?.ok !== false };
   };
-  const citaAbierta = abierta ? bookings.find(b => b.id === abierta) : null;
+  const citaAbierta = abierta ? bookings.find(b => b.id === abierta.id) : null;
+  // Si la cita abierta desaparece (recarga, otra sesion la borro), el panel
+  // ya no se pinta: se cierra de verdad para que no se reabra solo si la
+  // cita vuelve, y el foco cae en su dia o en la lista.
+  useEffect(() => {
+    if (abierta && !citaAbierta) {
+      focoTras.current = abierta;
+      setAbierta(null);
+    }
+  }, [abierta, citaAbierta]);
   // Al cerrar el panel, el foco vuelve a la fila de la cita; si ya no
   // esta (cambio de filtro), al encabezado de su dia; si no, a la lista.
   useEffect(() => {
@@ -516,7 +526,7 @@ export default function AdminAppointments({
                           aria-haspopup="dialog"
                           aria-label={`Abrir cita de ${nombrePaciente(b)}, ${b.time}`}
                           aria-describedby={`cita-estado-${b.id}`}
-                          onClick={() => setAbierta(b.id)}>
+                          onClick={() => setAbierta({ id: b.id, date: b.date })}>
                           <span title={etiquetaPaciente(b)} className="cita-nombre">{etiquetaPaciente(b)}</span>
                         </button>
                         {/* En celular envuelve a dos renglones (.cita-detalle);

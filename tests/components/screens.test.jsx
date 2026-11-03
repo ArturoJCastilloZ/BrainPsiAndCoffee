@@ -571,6 +571,34 @@ describe('Agenda: panel de la cita, Esc nunca descarta un borrador', () => {
   });
 });
 
+describe('Agenda: la cita abierta desaparece', () => {
+  it('el panel se cierra, el foco cae en el encabezado del dia y no se reabre solo', async () => {
+    const user = userEvent.setup();
+    let setLista;
+    const luis = cita({ id: 'c2', name: 'Luis Treviño', time: '11:00', status: 'confirmed' });
+    render(<AgendaExterna inicial={[cita(), luis]} exponer={(f) => { setLista = f; }} />);
+    await abrirPanel(user);
+
+    act(() => setLista([luis]));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: /^Mañana · / }));
+
+    act(() => setLista([cita(), luis]));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('si la lista queda vacia el foco cae en la lista', async () => {
+    const user = userEvent.setup();
+    let setLista;
+    render(<AgendaExterna inicial={[cita()]} exponer={(f) => { setLista = f; }} />);
+    await abrirPanel(user);
+
+    act(() => setLista([]));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Lista de citas' }));
+  });
+});
+
 describe('ErrorBoundary', () => {
   function Rompe({ rompe }) {
     if (rompe) throw new Error('fallo de render');
