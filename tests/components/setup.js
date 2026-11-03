@@ -8,30 +8,39 @@ afterEach(() => cleanup());
 if (typeof HTMLDialogElement !== 'undefined') {
   const proto = HTMLDialogElement.prototype;
   if (!proto.showModal || !String(proto.showModal).includes('[native code]')) {
+    // Pila de dialogos modales abiertos, como la top layer del navegador:
+    // Escape solo afecta al de arriba. Un dialogo cerrado sale de la pila y
+    // uno desmontado (cleanup de RTL) se descarta al no estar conectado.
+    const abiertos = [];
+    const vigentes = () => {
+      for (let i = abiertos.length - 1; i >= 0; i -= 1) {
+        if (!abiertos[i].isConnected || !abiertos[i].hasAttribute('open')) abiertos.splice(i, 1);
+      }
+      return abiertos;
+    };
+    // Escape es la accion por defecto del keydown: corre despues de que el
+    // evento recorre la pagina (por eso un solo listener en document), no
+    // corre si alguien previno el keydown, dispara 'cancel' (cancelable) en
+    // el dialogo de arriba y solo lo cierra si nadie lo previno.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const arriba = vigentes().at(-1);
+      if (!arriba) return;
+      const ev = new Event('cancel', { cancelable: true });
+      arriba.dispatchEvent(ev);
+      if (!ev.defaultPrevented) arriba.close();
+    });
     proto.showModal = function showModal() {
       this.setAttribute('open', '');
       this.dataset.modal = 'true';
-      // Como el navegador: el foco entra al dialogo (primer control) y
-      // Escape es la accion por defecto del keydown: corre despues de que
-      // el evento recorre la pagina (por eso escucha en document), no corre
-      // si alguien previno el keydown, dispara 'cancel' (cancelable) y solo
-      // cierra si nadie lo previno.
+      if (!vigentes().includes(this)) abiertos.push(this);
+      // Como el navegador: el foco entra al dialogo (primer control).
       this.querySelector('button, input, select, textarea, [tabindex]')?.focus();
-      if (!this.alEscape) {
-        this.alEscape = (e) => {
-          if (e.key !== 'Escape' || e.defaultPrevented || !this.hasAttribute('open')) return;
-          const ev = new Event('cancel', { cancelable: true });
-          this.dispatchEvent(ev);
-          if (!ev.defaultPrevented) this.close();
-        };
-        this.ownerDocument.addEventListener('keydown', this.alEscape);
-      }
     };
     proto.close = function close() {
       if (!this.hasAttribute('open')) return;
-      this.ownerDocument.removeEventListener('keydown', this.alEscape);
-      this.alEscape = null;
       this.removeAttribute('open');
+      vigentes();
       this.dispatchEvent(new Event('close'));
     };
   }
