@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar as CalendarIcon, Plus, Check, X, DollarSign, RefreshCw } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Calendar as CalendarIcon, Plus, Check, X, DollarSign, ChevronRight } from 'lucide-react';
 import { C } from '../theme';
 import { addDays, todayISO, uid, weekdayLabelsFrom, localDate } from '../utils.jsx';
 import { localISO } from '../localDay.mjs';
@@ -11,6 +11,7 @@ import PaymentDialog from '../components/PaymentDialog';
 import { paymentStatus, STATUS_LABEL } from '../payments.mjs';
 import { formatMoney } from '../accounting.mjs';
 import { cuentaComoFacturada, solicitudVencida, etiquetaPaciente, nombrePaciente } from '../appointmentStatus.mjs';
+import CitaPanel, { EstadoCita } from './CitaPanel';
 
 export default function AdminAppointments({
   bookings, setBookings, catalogs, lockedTherapistId = null,
@@ -39,8 +40,11 @@ export default function AdminAppointments({
   const [filter, setFilter] = useState('upcoming');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
-  const [reschedulingId, setReschedulingId] = useState(null);
-  const [rescheduleDraft, setRescheduleDraft] = useState({ date: '', time: '' });
+  // La cita abierta en el panel lateral (por id: el objeto cambia al guardar).
+  const [abierta, setAbierta] = useState(null);
+  // A donde vuelve el foco al cerrar el panel: la fila puede ya no estar.
+  const focoTras = useRef(null);
+  const listaRef = useRef(null);
   const [formError, setFormError] = useState('');
   // Los "Campo requerido" salen despues de intentar guardar: el
   // formulario no abre en rojo, y el boton nunca se apaga sin razon.
@@ -210,34 +214,39 @@ export default function AdminAppointments({
     return list.sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
   }, [bookings, filter, lockedTherapistId, search, filtroSucursal]);
 
-  const updateStatus = (id, status) => {
-    setBookings(bookings.map(b => b.id === id ? { ...b, status } : b));
-  };
-  const startReschedule = (booking) => {
-    setReschedulingId(booking.id);
-    setRescheduleDraft({ date: booking.date, time: booking.time });
-    setFormError('');
-  };
-  const saveExistingReschedule = (booking) => {
+  const updateStatus = (id, status) => setBookings(bookings.map(b => b.id === id ? { ...b, status } : b));
+  // Se reagenda en la MISMA sucursal y con el mismo especialista.
+  const horarioLibre = (booking, date, time) => {
     const serviceTherapists = therapists.filter(therapist => therapist.id === booking.therapistId && therapist.services?.includes(booking.serviceId));
     // schedules va SIEMPRE. Sin el, blocksForDate no encuentra bloques,
     // no hay candidatos, y este find devuelve undefined: reagendar
     // rechazaba TODOS los horarios que la propia pantalla acababa de
     // ofrecer.
     const slot = poolSlotStates({
-      date: rescheduleDraft.date, therapistId: booking.therapistId, serviceId: booking.serviceId,
+      date, therapistId: booking.therapistId, serviceId: booking.serviceId,
       bookings: bookings.filter(item => item.id !== booking.id),
-      // Se reagenda en la MISMA sucursal: con sus bloques.
       eligibleTherapists: serviceTherapists, services, schedules: bloquesDeSucursal(todosLosHorarios, booking.locationId),
-    }).find(item => item.time === rescheduleDraft.time);
-    if (!slot?.available) {
-      setFormError('Ese horario ya no está disponible. Selecciona otro horario.');
-      return;
-    }
-    setBookings(bookings.map(item => item.id === booking.id ? { ...item, date: rescheduleDraft.date, time: rescheduleDraft.time } : item));
-    setReschedulingId(null);
-    setFormError('');
+    }).find(item => item.time === time);
+    return Boolean(slot?.available);
   };
+  // Una sola escritura por accion del panel. El spread conserva status y
+  // createdAt: reagendar una solicitud la deja por confirmar.
+  const aplicarCambio = async (booking, patch) => {
+    const r = await setBookings(bookings.map(i => i.id === booking.id ? { ...i, ...patch } : i));
+    return { ok: r?.ok !== false };
+  };
+  const citaAbierta = abierta ? bookings.find(b => b.id === abierta) : null;
+  // Al cerrar el panel, el foco vuelve a la fila de la cita; si ya no
+  // esta (cambio de filtro), al encabezado de su dia; si no, a la lista.
+  useEffect(() => {
+    const destino = focoTras.current;
+    const lista = listaRef.current;
+    if (abierta || !destino || !lista) return;
+    focoTras.current = null;
+    const fila = [...lista.querySelectorAll('[data-cita-abrir]')].find(el => el.dataset.citaAbrir === String(destino.id));
+    const dia = [...lista.querySelectorAll('h2[data-dia]')].find(el => el.dataset.dia === destino.date);
+    (fila || dia || lista).focus();
+  }, [abierta]);
 
   const createBooking = () => {
     setIntento(true);
@@ -421,6 +430,8 @@ export default function AdminAppointments({
         width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16, fontFamily: 'inherit', boxSizing: 'border-box'
       }} />
 
+      {/* tabIndex -1: destino del foco si la cita del panel sale de la lista. */}
+      <div ref={listaRef} tabIndex={-1} role="region" aria-label="Lista de citas">
       {filtered.length === 0 ? (
         /* El vacio dice que hacer, y distingue "no hay nada" de "tu
            filtro no encontro nada": son dos situaciones distintas y la
@@ -462,7 +473,7 @@ export default function AdminAppointments({
                 gap: 12, padding: '0 2px 8px',
                 borderBottom: '1px solid var(--admin-border-soft)', marginBottom: 2,
               }}>
-                <h2 style={{
+                <h2 data-dia={dia} tabIndex={-1} style={{
                   margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--admin-text)',
                 }}>
                   {etiquetaDia(dia)}
@@ -495,13 +506,19 @@ export default function AdminAppointments({
                       </div>
 
                       <div className="cita-datos" style={{ minWidth: 0 }}>
-                        {/* El nombre del paciente no se trunca sin mas: en
-                            contexto clinico una identificacion a medias es
-                            un riesgo, asi que lleva title. */}
-                        <div title={etiquetaPaciente(b)} style={{
-                          fontSize: 14, color: 'var(--admin-text)', fontWeight: 600,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>{etiquetaPaciente(b)}</div>
+                        {/* La fila abre la cita. El boton es el unico control
+                            de apertura; su ::after cubre toda la fila para el
+                            raton (.cita-abrir en GlobalStyle). El nombre no se
+                            trunca sin mas: en contexto clinico una
+                            identificacion a medias es un riesgo, asi que
+                            lleva title. */}
+                        <button type="button" className="cita-abrir" data-cita-abrir={b.id}
+                          aria-haspopup="dialog"
+                          aria-label={`Abrir cita de ${nombrePaciente(b)}, ${b.time}`}
+                          aria-describedby={`cita-estado-${b.id}`}
+                          onClick={() => setAbierta(b.id)}>
+                          <span title={etiquetaPaciente(b)} className="cita-nombre">{etiquetaPaciente(b)}</span>
+                        </button>
                         {/* En celular envuelve a dos renglones (.cita-detalle);
                             si aun asi no cabe, title da el valor completo. */}
                         <div className="cita-detalle" title={detalle} style={{ fontSize: 12, color: 'var(--admin-muted)', marginTop: 2 }}>
@@ -510,44 +527,24 @@ export default function AdminAppointments({
                       </div>
 
                       <div className="cita-acciones">
-                        <EstadoCita status={b.status} vencida={solicitudVencida(b)} />
+                        <EstadoCita id={`cita-estado-${b.id}`} status={b.status} vencida={solicitudVencida(b)} />
                         {/* Una solicitud por confirmar todavia no se cobra:
                             no es un servicio acordado. */}
                         {canRecordPayments && cuentaComoFacturada(b) && (
                           <CobroChip booking={b} payments={payments} onCobrar={() => setCobrando(b)} />
                         )}
-                        {/* Decision sobre una solicitud de la web. Con texto y
-                            no solo icono: confirmar le promete al paciente
-                            una cita, y no debe confundirse con otra accion. */}
+                        {/* La decision pendiente se queda en la fila, con
+                            texto: confirmar le promete al paciente una cita.
+                            Rechazar, reagendar y lo demas viven en el panel. */}
                         {b.status === 'requested' && (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button onClick={() => updateStatus(b.id, 'confirmed')} aria-label={`Confirmar la solicitud de ${nombrePaciente(b)}`} style={decisionStyle(true)}>
-                              <Check size={13} aria-hidden="true" /> Confirmar
-                            </button>
-                            <button onClick={() => updateStatus(b.id, 'cancelled')} aria-label={`Rechazar la solicitud de ${nombrePaciente(b)}`} style={decisionStyle(false)}>
-                              Rechazar
-                            </button>
-                            {!solicitudVencida(b) && (
-                              <button onClick={() => startReschedule(b)} title="Reagendar" aria-label={`Reagendar la cita de ${nombrePaciente(b)}`} style={accionStyle}>
-                                <RefreshCw size={14} aria-hidden="true" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        {b.status === 'confirmed' && (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button onClick={() => startReschedule(b)} title="Reagendar" aria-label={`Reagendar la cita de ${nombrePaciente(b)}`} style={accionStyle}>
-                              <RefreshCw size={14} aria-hidden="true" />
-                            </button>
-                            <button onClick={() => updateStatus(b.id, 'completed')} title="Marcar completada" aria-label={`Marcar como completada la cita de ${nombrePaciente(b)}`} style={accionStyle}>
-                              <Check size={14} aria-hidden="true" />
-                            </button>
-                            <button onClick={() => updateStatus(b.id, 'cancelled')} title="Cancelar" aria-label={`Cancelar la cita de ${nombrePaciente(b)}`} style={accionStyle}>
-                              <X size={14} aria-hidden="true" />
-                            </button>
-                          </div>
+                          <button type="button" className="cita-boton cita-boton--principal"
+                            aria-label={`Confirmar la solicitud de ${nombrePaciente(b)}`}
+                            onClick={() => updateStatus(b.id, 'confirmed')}>
+                            <Check size={13} aria-hidden="true" /> Confirmar
+                          </button>
                         )}
                       </div>
+                      <span className="cita-chevron" aria-hidden="true"><ChevronRight size={16} /></span>
                     </div>
 
                     {b.notes && (
@@ -561,26 +558,28 @@ export default function AdminAppointments({
                       </div>
                     )}
 
-                    {reschedulingId === b.id && (
-                      <div style={{ marginBottom: 12 }}>
-                        <AdminReschedulePanel
-                          booking={b}
-                          draft={rescheduleDraft}
-                          setDraft={setRescheduleDraft}
-                          bookings={bookings}
-                          therapists={therapists}
-                          services={services} schedules={bloquesDeSucursal(todosLosHorarios, b.locationId)}
-                          onSave={() => saveExistingReschedule(b)}
-                          onClose={() => setReschedulingId(null)}
-                        />
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </section>
           ))}
         </div>
+      )}
+      </div>
+
+      {citaAbierta && (
+        <CitaPanel
+          key={citaAbierta.id}
+          booking={citaAbierta}
+          bookings={bookings}
+          therapists={therapists}
+          services={services}
+          schedules={bloquesDeSucursal(todosLosHorarios, citaAbierta.locationId)}
+          nombreSucursal={nombreSucursal(citaAbierta.locationId)}
+          validarHorario={(date, time) => horarioLibre(citaAbierta, date, time)}
+          onGuardar={(patch) => aplicarCambio(citaAbierta, patch)}
+          onCerrar={() => { focoTras.current = { id: citaAbierta.id, date: citaAbierta.date }; setAbierta(null); }}
+        />
       )}
 
       {cobrando && (
@@ -627,60 +626,7 @@ function etiquetaDia(iso) {
   return fecha;
 }
 
-// El estado normal NO lleva color.
-//
-// En software clinico el presupuesto de color es de seguridad, no de
-// estetica: cuando todo grita, nada se lee. "Cancelada" es un hecho
-// administrativo corriente y antes se pintaba en rojo, el mismo rojo que
-// deberia quedar para un fallo real al guardar una nota.
-//
-// Ademas del color va la PALABRA, para quien no distingue los tonos.
-const ESTADO_CITA = {
-  // La unica que pide una decision: lleva el acento.
-  requested: { texto: 'Por confirmar', acento: true },
-  confirmed: { texto: 'Confirmada', acento: false },
-  completed: { texto: 'Completada', acento: false },
-  cancelled: { texto: 'Cancelada', acento: false },
-};
-
-function EstadoCita({ status, vencida = false }) {
-  // Una solicitud que nadie confirmo en 24 h ya no aparta el horario
-  // (0036): dejarla como "Por confirmar" invitaria a confirmarla sobre un
-  // horario que quiza ya tomo otra persona.
-  const e = vencida
-    ? { texto: 'Vencida', acento: false }
-    : (ESTADO_CITA[status] || { texto: status, acento: false });
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      height: 22, padding: '0 9px', borderRadius: 6,
-      fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
-      background: e.acento ? C.sageDarkAlpha50 : 'var(--admin-surface-soft)',
-      border: `1px solid ${e.acento ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
-      color: e.acento ? 'var(--admin-text)' : 'var(--admin-muted)',
-    }}>
-      {e.texto}
-    </span>
-  );
-}
-
 const VACIO = [];
-
-const decisionStyle = (principal) => ({
-  display: 'inline-flex', alignItems: 'center', gap: 4,
-  height: 30, padding: '0 10px', borderRadius: 8, cursor: 'pointer',
-  fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-  background: principal ? 'var(--admin-accent)' : 'transparent',
-  color: principal ? 'var(--admin-on-accent)' : 'var(--admin-muted)',
-  border: `1px solid ${principal ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
-});
-
-const accionStyle = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  width: 30, height: 30,
-  background: 'transparent', border: '1px solid var(--admin-border)',
-  color: 'var(--admin-muted)', borderRadius: 8, cursor: 'pointer',
-};
 
 // El estado de cobro de la cita, y el boton que la cobra.
 //
@@ -715,59 +661,6 @@ function CobroChip({ booking, payments, onCobrar }) {
       <DollarSign size={11} aria-hidden="true" />
       {pagado ? 'COBRADA' : sinImporte ? 'SIN IMPORTE' : `COBRAR ${formatMoney(e.saldo)}`}
     </button>
-  );
-}
-
-function AdminReschedulePanel({ booking, draft, setDraft, bookings, therapists, services, schedules, onSave, onClose }) {
-  const therapistPool = therapists.filter(therapist => therapist.id === booking.therapistId && therapist.services?.includes(booking.serviceId));
-  // Los dias los da el horario del terapeuta de esta cita, no una semana
-  // fija: reprogramar tiene que ofrecer lo mismo que agendar.
-  const days = Array.from({ length: 28 }, (_, index) => addDays(new Date(), index))
-    .map(localISO)
-    .filter((iso) => isWorkingDay(schedules, booking.therapistId, iso));
-  const slots = poolSlotStates({
-    date: draft.date, therapistId: booking.therapistId, serviceId: booking.serviceId,
-    bookings: bookings.filter(item => item.id !== booking.id),
-    eligibleTherapists: therapistPool, services, schedules,
-  }).filter(slot => slot.available);
-  const [falta, setFalta] = useState('');
-  // La fecha original puede no estar en la lista (ya paso o ese dia ya no
-  // atiende): se muestra igual. Si no, el select ensenaba otro dia y los
-  // horarios eran del dia escondido.
-  const opcionesDia = days.includes(draft.date) || !draft.date ? days : [draft.date, ...days];
-  const guardar = () => {
-    if (!draft.time) {
-      setFalta(slots.length ? 'Elige un horario.' : 'Ese día no tiene horarios libres: elige otra fecha.');
-      return;
-    }
-    setFalta('');
-    onSave();
-  };
-
-  return (
-    <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid var(--admin-border)', background: 'var(--admin-surface-soft)' }}>
-      <div style={{ color: 'var(--admin-row-text)', fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>REAGENDAR CITA</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 10, alignItems: 'start' }}>
-        <label style={fieldWrap}>
-          <span style={fieldLabel}>FECHA</span>
-          <select value={draft.date} onChange={event => { setFalta(''); setDraft({ date: event.target.value, time: '' }); }} className="admin-input" style={fieldInput}>
-            {opcionesDia.map(day => <option key={day} value={day}>{day}{days.includes(day) ? '' : ' (fecha actual)'}</option>)}
-          </select>
-        </label>
-        <label style={fieldWrap}>
-          <span style={fieldLabel}>HORARIO</span>
-          <select value={draft.time} onChange={event => { setFalta(''); setDraft({ ...draft, time: event.target.value }); }} className="admin-input" style={{ ...fieldInput, borderColor: falta ? C.rust : undefined }}>
-            <option value="">Selecciona horario</option>
-            {slots.map(slot => <option key={slot.time} value={slot.time}>{slot.time}</option>)}
-          </select>
-        </label>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
-        <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-accent-text)', borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Cerrar</button>
-        <button type="button" onClick={guardar} style={{ background: 'var(--admin-accent)', color: 'var(--admin-on-accent)', border: 'none', borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Guardar</button>
-      </div>
-      {falta && <p role="alert" style={{ ...requiredHint, margin: '8px 0 0', textAlign: 'right' }}>{falta}</p>}
-    </div>
   );
 }
 

@@ -233,18 +233,61 @@ export default function GlobalStyle() {
            ================================================================== */
         .cita-fila {
           display: grid;
-          grid-template-columns: 76px minmax(0, 1fr) auto;
+          grid-template-columns: 76px minmax(0, 1fr) auto 24px;
           align-items: center;
           gap: 14px;
           padding: 12px 2px;
+          position: relative;
+          border-radius: 10px;
         }
+        .cita-fila:hover { background: var(--admin-surface-soft); }
         .cita-acciones {
           display: flex;
           align-items: center;
           gap: 8px;
           flex-wrap: wrap;
           justify-content: flex-end;
+          position: relative;
+          z-index: 1;
         }
+        /* La fila abre la cita (panel lateral, admin/CitaPanel.jsx). El
+           boton es el unico control de apertura; su ::after se estira sobre
+           toda la fila para el raton, y las acciones quedan encima con
+           z-index. all: unset quita el anillo global de :focus-visible, por
+           eso el anillo se pinta en el ::after. */
+        .cita-abrir {
+          all: unset;
+          display: block;
+          max-width: 100%;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--admin-text);
+        }
+        .cita-abrir::after { content: ''; position: absolute; inset: 0; border-radius: 10px; }
+        .cita-abrir:focus-visible { outline: none; }
+        .cita-abrir:focus-visible::after { outline: 2px solid var(--bp-focus-ring); outline-offset: -2px; }
+        .cita-nombre { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cita-chevron { color: var(--admin-muted); display: inline-flex; justify-content: center; }
+        .cita-boton {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          min-height: 36px;
+          padding: 0 12px;
+          border-radius: 9px;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 600;
+          white-space: nowrap;
+          cursor: pointer;
+          background: transparent;
+          color: var(--admin-text);
+          border: 1px solid var(--admin-border-interactive);
+        }
+        .cita-boton--principal { background: var(--admin-accent); color: var(--admin-on-accent); border-color: var(--admin-accent); }
+        .cita-boton--peligro { border-color: transparent; color: var(--bp-rust-text); padding: 0 8px; }
+        .cita-boton:disabled { cursor: default; opacity: .6; }
         /* Servicio · especialista · sucursal · telefono. Envuelve hasta dos
            renglones a cualquier ancho para que la sucursal y el telefono se
            lean (tambien entre 520 y 700 px y con zoom); solo un texto mas
@@ -260,13 +303,15 @@ export default function GlobalStyle() {
         }
         @media (max-width: 519px) {
           .cita-fila {
-            grid-template-columns: 76px minmax(0, 1fr);
-            grid-template-areas: "hora datos" "acciones acciones";
+            grid-template-columns: 76px minmax(0, 1fr) 24px;
+            grid-template-areas: "hora datos chev" "acciones acciones acciones";
             row-gap: 10px;
           }
           .cita-hora     { grid-area: hora; }
           .cita-datos    { grid-area: datos; }
           .cita-acciones { grid-area: acciones; justify-content: flex-start; }
+          .cita-chevron  { grid-area: chev; }
+          .cita-boton { min-height: 44px; min-width: 44px; font-size: 14px; }
         }
 
         /* ==================================================================
@@ -461,6 +506,114 @@ export default function GlobalStyle() {
           box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
         }
         .admin-modal::backdrop { background: rgba(0, 0, 0, 0.55); }
+
+        /* Panel lateral de la cita (admin/CitaPanel.jsx): un <dialog> modal
+           anclado a la derecha; 100% de ancho en celular. padding 0 y la
+           caja al 100%: asi solo el fondo tiene target === dialog (clic
+           fuera cierra). Medidas de la maqueta C. */
+        .cita-panel {
+          margin: 0 0 0 auto;
+          padding: 0;
+          height: 100vh;
+          height: 100dvh;
+          max-height: 100dvh;
+          width: min(470px, 100vw);
+          max-width: 100vw;
+          box-sizing: border-box;
+          border: 0;
+          border-left: 1px solid var(--admin-border);
+          background: var(--admin-surface);
+          color: var(--admin-text);
+          box-shadow: -18px 0 50px rgba(0, 0, 0, 0.35);
+        }
+        .cita-panel::backdrop { background: rgba(0, 0, 0, 0.55); }
+        .cita-panel__caja { display: flex; flex-direction: column; height: 100%; }
+        .cita-panel__cabeza { padding: 20px 20px 14px; border-bottom: 1px solid var(--admin-border-soft); }
+        .cita-panel__titular { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .cita-panel__titulo { margin: 0; font-size: 17px; font-weight: 700; color: var(--admin-text); overflow-wrap: anywhere; }
+        .cita-panel__titulo:focus-visible { outline-offset: 4px; }
+        .cita-panel__cerrar {
+          display: inline-grid;
+          place-items: center;
+          flex: none;
+          min-width: 36px;
+          min-height: 36px;
+          border-radius: 999px;
+          border: 1px solid var(--admin-border);
+          background: transparent;
+          color: var(--admin-text);
+          cursor: pointer;
+        }
+        .cita-panel__cerrar:disabled { cursor: default; opacity: .6; }
+        .cita-panel__resumen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 0; font-size: 12.5px; color: var(--admin-muted); }
+        .cita-panel__cuerpo { flex: 1; overflow: auto; padding: 16px 20px; }
+        .cita-panel__datos { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px 12px; margin: 0 0 16px; font-size: 13.5px; }
+        .cita-panel__datos dt { color: var(--admin-muted); }
+        .cita-panel__datos dd { margin: 0; overflow-wrap: anywhere; }
+        .cita-panel__campos {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+          gap: 14px;
+          align-items: start;
+          margin: 0;
+          padding: 0;
+          border: 0;
+          min-width: 0;
+        }
+        .cita-panel__campo { display: grid; gap: 6px; min-width: 0; }
+        .cita-panel__campo > span { font-size: 12.5px; font-weight: 600; color: var(--admin-row-text); }
+        .cita-panel__campo select {
+          width: 100%;
+          min-height: 40px;
+          box-sizing: border-box;
+          padding: 10px 12px;
+          border-radius: 10px;
+          border-color: var(--admin-border-interactive);
+          font: inherit;
+          font-size: 14px;
+        }
+        .cita-panel__campo select[aria-invalid="true"] { border-color: var(--bp-rust-text); }
+        .cita-panel__error { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12.5px; font-weight: 600; color: var(--bp-rust-text); }
+        .cita-panel__error svg { flex: none; }
+        .cita-panel__notas {
+          margin: 14px 0 0;
+          padding: 8px 12px;
+          border-radius: 8px;
+          background: var(--admin-surface-soft);
+          border-left: 2px solid var(--bp-caramel);
+          font-size: 12.5px;
+          line-height: 1.5;
+          color: var(--admin-row-text);
+        }
+        .cita-panel__lectura { margin: 14px 0 0; font-size: 13px; line-height: 1.5; color: var(--admin-row-text); }
+        /* La alerta queda montada y visible aunque este vacia (un live
+           region con display:none no se anuncia); solo toma margen con texto. */
+        .cita-panel__cuerpo > [role="alert"]:not(:empty) { margin-top: 14px; }
+        .cita-panel__pie { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--admin-border-soft); }
+        /* La accion destructiva va aparte, al extremo (>= 16 px del resto). */
+        .cita-panel__pie > .cita-boton--peligro { margin-left: auto; }
+        .cita-panel__confirmacion { display: grid; gap: 10px; width: 100%; }
+        .cita-panel__confirmacion p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+        .cita-panel__botones { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .solo-lector {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip: rect(0 0 0 0);
+          white-space: nowrap;
+        }
+        @media (max-width: 519px) {
+          .cita-panel { width: 100vw; border-left: 0; }
+          /* flex-basis auto: cada boton conserva su texto y, si no caben,
+             bajan de renglon a ancho completo (maqueta C a 375 px). */
+          .cita-panel__pie .cita-boton { flex: 1 1 auto; justify-content: center; }
+          .cita-panel__cerrar { min-width: 44px; min-height: 44px; }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .cita-panel[open] { animation: cita-entra .18s ease-out; }
+        }
+        @keyframes cita-entra { from { transform: translateX(24px); opacity: 0; } }
         @media (max-width: 767px) { .admin-avisos { bottom: 96px; } }
 
         .admin-barra-inferior {
