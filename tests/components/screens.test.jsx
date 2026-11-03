@@ -632,6 +632,22 @@ describe('Agenda: el resultado de cada accion del panel se anuncia', () => {
   }
 });
 
+describe('Agenda: fila de la cita abierta', () => {
+  it('queda marcada mientras su panel esta abierto', async () => {
+    const user = userEvent.setup();
+    render(<AgendaUnaSucursal inicial={[cita(), cita({ id: 'c2', name: 'Luis Treviño', time: '11:00' })]} />);
+    const filaDe = (nombre) => screen.getByRole('button', { name: nombre }).closest('.cita-fila');
+    expect(filaDe(ABRIR_MARTA).classList.contains('cita-fila--abierta')).toBe(false);
+
+    await abrirPanel(user);
+    expect(filaDe(ABRIR_MARTA).classList.contains('cita-fila--abierta')).toBe(true);
+    expect(filaDe('Abrir cita de Luis Treviño, 11:00').classList.contains('cita-fila--abierta')).toBe(false);
+
+    await user.keyboard('{Escape}');
+    expect(filaDe(ABRIR_MARTA).classList.contains('cita-fila--abierta')).toBe(false);
+  });
+});
+
 describe('ErrorBoundary', () => {
   function Rompe({ rompe }) {
     if (rompe) throw new Error('fallo de render');

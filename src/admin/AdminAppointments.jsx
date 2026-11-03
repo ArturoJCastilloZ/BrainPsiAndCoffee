@@ -505,7 +505,7 @@ export default function AdminAppointments({
                 const detalle = [s?.name, t?.name || 'Sin asignar', nombreSucursal(b.locationId), b.phone].filter(Boolean).join(' · ');
                 return (
                   <div key={b.id} style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
-                    <div className="cita-fila" style={{
+                    <div className={abierta?.id === b.id ? 'cita-fila cita-fila--abierta' : 'cita-fila'} style={{
                       opacity: b.status === 'cancelled' ? 0.55 : 1,
                     }}>
                       {/* Columna de hora fija: es lo que hace que la lista

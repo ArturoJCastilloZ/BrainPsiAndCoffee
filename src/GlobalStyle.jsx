@@ -241,6 +241,8 @@ export default function GlobalStyle() {
           border-radius: 10px;
         }
         .cita-fila:hover { background: var(--admin-surface-soft); }
+        /* La fila cuya cita esta abierta en el panel (maqueta C). */
+        .cita-fila--abierta { background: var(--admin-surface-soft); box-shadow: inset 3px 0 0 var(--admin-accent); }
         .cita-acciones {
           display: flex;
           align-items: center;
@@ -609,6 +611,7 @@ export default function GlobalStyle() {
              bajan de renglon a ancho completo (maqueta C a 375 px). */
           .cita-panel__pie .cita-boton { flex: 1 1 auto; justify-content: center; }
           .cita-panel__cerrar { min-width: 44px; min-height: 44px; }
+          .cita-panel__campo select { min-height: 44px; }
         }
         @media (prefers-reduced-motion: no-preference) {
           .cita-panel[open] { animation: cita-entra .18s ease-out; }
