@@ -12,18 +12,25 @@ if (typeof HTMLDialogElement !== 'undefined') {
       this.setAttribute('open', '');
       this.dataset.modal = 'true';
       // Como el navegador: el foco entra al dialogo (primer control) y
-      // Escape, que llega por ahi, dispara 'cancel' (cancelable) y solo
+      // Escape es la accion por defecto del keydown: corre despues de que
+      // el evento recorre la pagina (por eso escucha en document), no corre
+      // si alguien previno el keydown, dispara 'cancel' (cancelable) y solo
       // cierra si nadie lo previno.
       this.querySelector('button, input, select, textarea, [tabindex]')?.focus();
-      this.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        const ev = new Event('cancel', { cancelable: true });
-        this.dispatchEvent(ev);
-        if (!ev.defaultPrevented) this.close();
-      });
+      if (!this.alEscape) {
+        this.alEscape = (e) => {
+          if (e.key !== 'Escape' || e.defaultPrevented || !this.hasAttribute('open')) return;
+          const ev = new Event('cancel', { cancelable: true });
+          this.dispatchEvent(ev);
+          if (!ev.defaultPrevented) this.close();
+        };
+        this.ownerDocument.addEventListener('keydown', this.alEscape);
+      }
     };
     proto.close = function close() {
       if (!this.hasAttribute('open')) return;
+      this.ownerDocument.removeEventListener('keydown', this.alEscape);
+      this.alEscape = null;
       this.removeAttribute('open');
       this.dispatchEvent(new Event('close'));
     };

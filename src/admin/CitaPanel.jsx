@@ -124,7 +124,31 @@ export default function CitaPanel({
     if (dirty) { setConfirmando('descartar'); return false; }
     return true;
   };
-  const cerrar = () => ref.current?.close();
+  // Solo estos cierres son a proposito; cualquier otro (el navegador) se
+  // revisa en alCerrar.
+  const cerradoAdrede = useRef(false);
+  const cerrar = () => {
+    cerradoAdrede.current = true;
+    ref.current?.close();
+  };
+  // Esc se corta en el keydown: Chrome ignora el preventDefault de 'cancel'
+  // cuando no hubo activacion de usuario, y un segundo Esc cerraba y
+  // descartaba el borrador. Asi Esc siempre pasa por pedirCierre.
+  const alTeclear = (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    if (pedirCierre()) cerrar();
+  };
+  // Red de seguridad: si el dialogo se cerro sin pasar por cerrar() con un
+  // borrador o un guardado en curso, se reabre y nada se pierde.
+  const alCerrar = () => {
+    if (!cerradoAdrede.current && (dirty || guardando)) {
+      ref.current?.showModal?.();
+      if (dirty && !guardando) setConfirmando('descartar');
+      return;
+    }
+    onCerrar();
+  };
 
   // Valida el borrador antes de escribirlo. Devuelve false si hay error.
   const horarioValido = () => {
@@ -246,8 +270,9 @@ export default function CitaPanel({
       className="cita-panel"
       aria-modal="true"
       aria-labelledby={idTitulo}
+      onKeyDown={alTeclear}
       onCancel={(e) => { if (!pedirCierre()) e.preventDefault(); }}
-      onClose={onCerrar}
+      onClose={alCerrar}
       // Clic en el fondo: el propio <dialog>, fuera de la caja.
       onMouseDown={(e) => { if (e.target === ref.current && pedirCierre()) cerrar(); }}
     >

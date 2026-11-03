@@ -538,6 +538,39 @@ describe('Agenda: panel de la cita, errores y cierre', () => {
   });
 });
 
+describe('Agenda: panel de la cita, Esc nunca descarta un borrador', () => {
+  it('el panel intercepta Esc y ninguna secuencia de Esc cierra con cambios sin guardar', async () => {
+    const user = userEvent.setup();
+    const onGuardar = vi.fn();
+    render(<AgendaUnaSucursal inicial={[cita()]} onGuardar={onGuardar} />);
+    const dialogo = await abrirPanel(user);
+    await user.selectOptions(within(dialogo).getByRole('combobox', { name: 'Horario' }), '11:00');
+
+    // Chrome ignora preventDefault de 'cancel' sin activacion de usuario:
+    // el panel corta Esc en el keydown, antes de que llegue al navegador.
+    expect(fireEvent.keyDown(within(dialogo).getByRole('combobox', { name: 'Fecha' }), { key: 'Escape' })).toBe(false);
+    for (let i = 0; i < 4; i += 1) {
+      await user.keyboard('{Escape}');
+      expect(screen.getByRole('dialog', { name: 'Cita de Marta Pérez' })).toBe(dialogo);
+    }
+    expect(within(dialogo).getByRole('combobox', { name: 'Horario' }).value).toBe('11:00');
+    expect(onGuardar).not.toHaveBeenCalled();
+  });
+
+  it('si el navegador cierra el panel con cambios sin guardar, lo reabre con el borrador y pregunta', async () => {
+    const user = userEvent.setup();
+    render(<AgendaUnaSucursal inicial={[cita()]} />);
+    const dialogo = await abrirPanel(user);
+    await user.selectOptions(within(dialogo).getByRole('combobox', { name: 'Horario' }), '11:00');
+
+    act(() => dialogo.close());
+    expect(screen.getByRole('dialog', { name: 'Cita de Marta Pérez' })).toBe(dialogo);
+    expect(dialogo.hasAttribute('open')).toBe(true);
+    expect(within(dialogo).getByRole('group', { name: 'Cambiaste la fecha o el horario y no lo guardaste.' })).toBeTruthy();
+    expect(within(dialogo).getByRole('combobox', { name: 'Horario' }).value).toBe('11:00');
+  });
+});
+
 describe('ErrorBoundary', () => {
   function Rompe({ rompe }) {
     if (rompe) throw new Error('fallo de render');
